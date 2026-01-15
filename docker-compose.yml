@@ -1,0 +1,47 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: allergyinsight-backend
+    ports:
+      - "9040:9040"
+    environment:
+      - PUBMED_API_KEY=${PUBMED_API_KEY:-}
+      - PUBMED_EMAIL=${PUBMED_EMAIL:-}
+      - SEMANTIC_SCHOLAR_API_KEY=${SEMANTIC_SCHOLAR_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - DOWNLOAD_DIR=/app/downloads/papers
+      - DEFAULT_MAX_RESULTS=20
+      - SEARCH_TIMEOUT=30
+    volumes:
+      - backend_downloads:/app/downloads
+    networks:
+      - allergyinsight-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9040/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: allergyinsight-frontend
+    ports:
+      - "4040:4040"
+    depends_on:
+      - backend
+    networks:
+      - allergyinsight-network
+    restart: unless-stopped
+
+networks:
+  allergyinsight-network:
+    driver: bridge
+
+volumes:
+  backend_downloads:
