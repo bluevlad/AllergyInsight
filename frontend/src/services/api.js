@@ -226,4 +226,38 @@ export const myDiagnosisApi = {
   getPatientGuide: (diagnosisId) => api.get(`/diagnosis/my/${diagnosisId}/patient-guide`),
 };
 
+/**
+ * 논문/출처 API
+ */
+export const papersApi = {
+  // 논문 목록 조회
+  list: (params = {}) => api.get('/papers', { params }),
+
+  // 논문 상세 조회
+  get: (paperId) => api.get(`/papers/${paperId}`),
+
+  // 논문 등록
+  create: (paperData) => api.post('/papers', paperData),
+
+  // 논문 수정
+  update: (paperId, paperData) => api.put(`/papers/${paperId}`, paperData),
+
+  // 논문 삭제
+  delete: (paperId) => api.delete(`/papers/${paperId}`),
+
+  // 알러젠 링크 추가
+  addLink: (paperId, linkData) => api.post(`/papers/${paperId}/links`, linkData),
+
+  // 알러젠 링크 삭제
+  removeLink: (paperId, linkId) => api.delete(`/papers/${paperId}/links/${linkId}`),
+
+  // 알러젠별 출처 조회
+  getCitationsForAllergen: (allergenCode, linkType = null) =>
+    api.get(`/papers/citations/${allergenCode}`, { params: { link_type: linkType } }),
+
+  // 링크 타입별 출처 조회
+  getCitationsByType: (linkType, allergenCode = null) =>
+    api.get(`/papers/citations/by-type/${linkType}`, { params: { allergen_code: allergenCode } }),
+};
+
 export default api;

@@ -1,10 +1,10 @@
 """Diagnosis Routes - User diagnosis history"""
-from typing import List
+from typing import List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ..database.connection import get_db
-from ..database.models import User, UserDiagnosis, DiagnosisKit
+from ..database.models import User, UserDiagnosis, DiagnosisKit, Paper, PaperAllergenLink
 from .dependencies import require_auth
 from .schemas import UserDiagnosisResponse, UserDiagnosisSummary
 from ..data.allergen_prescription_db import (
@@ -13,6 +13,93 @@ from ..data.allergen_prescription_db import (
 )
 
 router = APIRouter(prefix="/diagnosis", tags=["Diagnosis"])
+
+
+def get_citations_for_allergens(
+    db: Session,
+    allergen_codes: List[str],
+    link_types: List[str] = None,
+    limit_per_allergen: int = 3
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Get citations for multiple allergens grouped by allergen code"""
+    citations = {}
+
+    for allergen_code in allergen_codes:
+        query = db.query(Paper).join(PaperAllergenLink).filter(
+            PaperAllergenLink.allergen_code == allergen_code,
+            Paper.is_verified == True
+        )
+
+        if link_types:
+            query = query.filter(PaperAllergenLink.link_type.in_(link_types))
+
+        papers = query.order_by(
+            PaperAllergenLink.relevance_score.desc(),
+            Paper.year.desc()
+        ).limit(limit_per_allergen).all()
+
+        if papers:
+            citations[allergen_code] = [
+                {
+                    "id": p.id,
+                    "pmid": p.pmid,
+                    "doi": p.doi,
+                    "title": p.title,
+                    "title_kr": p.title_kr,
+                    "authors": p.authors,
+                    "journal": p.journal,
+                    "year": p.year,
+                    "url": p.url,
+                    "paper_type": p.paper_type,
+                }
+                for p in papers
+            ]
+
+    return citations
+
+
+def get_citations_by_link_type(
+    db: Session,
+    allergen_codes: List[str],
+    link_type: str,
+    limit: int = 5
+) -> List[Dict[str, Any]]:
+    """Get citations for a specific link type across allergens"""
+    from sqlalchemy import func, distinct
+
+    # Subquery to get distinct paper IDs with max relevance score
+    subq = db.query(
+        PaperAllergenLink.paper_id,
+        func.max(PaperAllergenLink.relevance_score).label('max_score')
+    ).filter(
+        PaperAllergenLink.allergen_code.in_(allergen_codes),
+        PaperAllergenLink.link_type == link_type
+    ).group_by(PaperAllergenLink.paper_id).subquery()
+
+    papers = db.query(Paper).join(
+        subq, Paper.id == subq.c.paper_id
+    ).filter(
+        Paper.is_verified == True
+    ).order_by(
+        subq.c.max_score.desc(),
+        Paper.year.desc()
+    ).limit(limit).all()
+
+    return [
+        {
+            "id": p.id,
+            "pmid": p.pmid,
+            "doi": p.doi,
+            "title": p.title,
+            "title_kr": p.title_kr,
+            "authors": p.authors,
+            "journal": p.journal,
+            "year": p.year,
+            "url": p.url,
+            "paper_type": p.paper_type,
+        }
+        for p in papers
+    ]
 
 
 def get_risk_levels(results: dict) -> tuple:
@@ -270,12 +357,34 @@ async def get_patient_guide(
         dict.fromkeys(dietary_management["restaurant_cautions"])
     )[:10]
 
+    # Collect positive allergen codes for citation lookup
+    positive_allergens = [code for code, grade in results.items() if grade > 0]
+
+    # Get citations grouped by category
+    citations = {
+        "symptoms": get_citations_by_link_type(db, positive_allergens, "symptom", limit=5),
+        "dietary": get_citations_by_link_type(db, positive_allergens, "dietary", limit=5),
+        "cross_reactivity": get_citations_by_link_type(db, positive_allergens, "cross_reactivity", limit=3),
+        "emergency": get_citations_by_link_type(db, positive_allergens, "emergency", limit=3),
+        "by_allergen": get_citations_for_allergens(db, positive_allergens, limit_per_allergen=2),
+    }
+
+    # Count total citations
+    total_citations = (
+        len(citations["symptoms"]) +
+        len(citations["dietary"]) +
+        len(citations["cross_reactivity"]) +
+        len(citations["emergency"])
+    )
+
     return {
         "diagnosis_id": diagnosis_id,
         "diagnosis_date": diagnosis.diagnosis_date.isoformat(),
         "symptoms_risk": symptoms_risk,
         "dietary_management": dietary_management,
         "emergency_medical": emergency_medical,
+        "citations": citations,
+        "total_citations": total_citations,
     }
 
 

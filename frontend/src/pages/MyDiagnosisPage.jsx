@@ -13,7 +13,7 @@ const MyDiagnosisPage = () => {
   const [selectedDiagnosis, setSelectedDiagnosis] = useState(null);
   const [allergenInfo, setAllergenInfo] = useState(null);
   const [patientGuide, setPatientGuide] = useState(null);
-  const [activeTab, setActiveTab] = useState('results'); // 'results', 'symptoms', 'dietary', 'emergency'
+  const [activeTab, setActiveTab] = useState('results'); // 'results', 'symptoms', 'dietary', 'emergency', 'citations'
   const [loading, setLoading] = useState(true);
   const [guideLoading, setGuideLoading] = useState(false);
   const [error, setError] = useState('');
@@ -198,6 +198,12 @@ const MyDiagnosisPage = () => {
                   onClick={() => setActiveTab('emergency')}
                 >
                   응급/의료
+                </button>
+                <button
+                  className={`tab-btn ${activeTab === 'citations' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('citations')}
+                >
+                  출처 {patientGuide?.total_citations > 0 && `(${patientGuide.total_citations})`}
                 </button>
               </div>
 
@@ -526,6 +532,168 @@ const MyDiagnosisPage = () => {
                           <li>필요시 추가 검사(피부단자검사, 유발검사)를 고려하세요.</li>
                           <li>심한 알러지는 면역치료(탈감작)를 상담해 보세요.</li>
                         </ul>
+                      </div>
+                    </>
+                  ) : (
+                    <p>데이터를 불러오지 못했습니다.</p>
+                  )}
+                </div>
+              )}
+
+              {/* Tab: Citations */}
+              {activeTab === 'citations' && (
+                <div className="patient-guide-section">
+                  {guideLoading ? (
+                    <div className="loading-small">로딩 중...</div>
+                  ) : patientGuide?.citations ? (
+                    <>
+                      <div className="guide-intro">
+                        <p>의학 정보의 근거가 되는 논문 및 가이드라인 출처입니다.</p>
+                      </div>
+
+                      {patientGuide.total_citations === 0 ? (
+                        <div className="no-citations">
+                          <p>아직 등록된 출처가 없습니다.</p>
+                          <p className="no-citations-sub">논문 정보는 점차 추가될 예정입니다.</p>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Symptoms Citations */}
+                          {patientGuide.citations.symptoms?.length > 0 && (
+                            <div className="citation-group">
+                              <h4>증상 관련 문헌</h4>
+                              <div className="citation-list">
+                                {patientGuide.citations.symptoms.map((paper, idx) => (
+                                  <div key={idx} className="citation-card">
+                                    <div className="citation-type">
+                                      <span className={`type-badge ${paper.paper_type}`}>
+                                        {paper.paper_type === 'guideline' ? '가이드라인' :
+                                         paper.paper_type === 'review' ? '리뷰' :
+                                         paper.paper_type === 'meta_analysis' ? '메타분석' : '연구'}
+                                      </span>
+                                    </div>
+                                    <div className="citation-title">
+                                      {paper.title_kr || paper.title}
+                                    </div>
+                                    <div className="citation-meta">
+                                      {paper.authors && <span>{paper.authors}</span>}
+                                      {paper.journal && <span>{paper.journal}</span>}
+                                      {paper.year && <span>{paper.year}</span>}
+                                    </div>
+                                    {paper.url && (
+                                      <a href={paper.url} target="_blank" rel="noopener noreferrer" className="citation-link">
+                                        원문 보기 →
+                                      </a>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Dietary Citations */}
+                          {patientGuide.citations.dietary?.length > 0 && (
+                            <div className="citation-group">
+                              <h4>식이 관리 관련 문헌</h4>
+                              <div className="citation-list">
+                                {patientGuide.citations.dietary.map((paper, idx) => (
+                                  <div key={idx} className="citation-card">
+                                    <div className="citation-type">
+                                      <span className={`type-badge ${paper.paper_type}`}>
+                                        {paper.paper_type === 'guideline' ? '가이드라인' :
+                                         paper.paper_type === 'review' ? '리뷰' :
+                                         paper.paper_type === 'meta_analysis' ? '메타분석' : '연구'}
+                                      </span>
+                                    </div>
+                                    <div className="citation-title">
+                                      {paper.title_kr || paper.title}
+                                    </div>
+                                    <div className="citation-meta">
+                                      {paper.authors && <span>{paper.authors}</span>}
+                                      {paper.journal && <span>{paper.journal}</span>}
+                                      {paper.year && <span>{paper.year}</span>}
+                                    </div>
+                                    {paper.url && (
+                                      <a href={paper.url} target="_blank" rel="noopener noreferrer" className="citation-link">
+                                        원문 보기 →
+                                      </a>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Cross Reactivity Citations */}
+                          {patientGuide.citations.cross_reactivity?.length > 0 && (
+                            <div className="citation-group">
+                              <h4>교차반응 관련 문헌</h4>
+                              <div className="citation-list">
+                                {patientGuide.citations.cross_reactivity.map((paper, idx) => (
+                                  <div key={idx} className="citation-card">
+                                    <div className="citation-type">
+                                      <span className={`type-badge ${paper.paper_type}`}>
+                                        {paper.paper_type === 'guideline' ? '가이드라인' :
+                                         paper.paper_type === 'review' ? '리뷰' :
+                                         paper.paper_type === 'meta_analysis' ? '메타분석' : '연구'}
+                                      </span>
+                                    </div>
+                                    <div className="citation-title">
+                                      {paper.title_kr || paper.title}
+                                    </div>
+                                    <div className="citation-meta">
+                                      {paper.authors && <span>{paper.authors}</span>}
+                                      {paper.journal && <span>{paper.journal}</span>}
+                                      {paper.year && <span>{paper.year}</span>}
+                                    </div>
+                                    {paper.url && (
+                                      <a href={paper.url} target="_blank" rel="noopener noreferrer" className="citation-link">
+                                        원문 보기 →
+                                      </a>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Emergency Citations */}
+                          {patientGuide.citations.emergency?.length > 0 && (
+                            <div className="citation-group">
+                              <h4>응급 대처 관련 문헌</h4>
+                              <div className="citation-list">
+                                {patientGuide.citations.emergency.map((paper, idx) => (
+                                  <div key={idx} className="citation-card">
+                                    <div className="citation-type">
+                                      <span className={`type-badge ${paper.paper_type}`}>
+                                        {paper.paper_type === 'guideline' ? '가이드라인' :
+                                         paper.paper_type === 'review' ? '리뷰' :
+                                         paper.paper_type === 'meta_analysis' ? '메타분석' : '연구'}
+                                      </span>
+                                    </div>
+                                    <div className="citation-title">
+                                      {paper.title_kr || paper.title}
+                                    </div>
+                                    <div className="citation-meta">
+                                      {paper.authors && <span>{paper.authors}</span>}
+                                      {paper.journal && <span>{paper.journal}</span>}
+                                      {paper.year && <span>{paper.year}</span>}
+                                    </div>
+                                    {paper.url && (
+                                      <a href={paper.url} target="_blank" rel="noopener noreferrer" className="citation-link">
+                                        원문 보기 →
+                                      </a>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      <div className="citation-note">
+                        <p>출처는 지속적으로 업데이트됩니다. 의학적 결정은 반드시 전문의와 상담하세요.</p>
                       </div>
                     </>
                   ) : (
@@ -1305,6 +1473,127 @@ const MyDiagnosisPage = () => {
         .medical-note li {
           margin-bottom: 0.4rem;
           color: #333;
+        }
+
+        /* Citation Section */
+        .no-citations {
+          text-align: center;
+          padding: 3rem 1rem;
+          color: #666;
+        }
+
+        .no-citations p {
+          margin: 0;
+        }
+
+        .no-citations-sub {
+          font-size: 0.85rem;
+          margin-top: 0.5rem !important;
+          color: #999;
+        }
+
+        .citation-group {
+          margin-bottom: 1.5rem;
+        }
+
+        .citation-group h4 {
+          margin: 0 0 0.75rem;
+          color: #333;
+          font-size: 1rem;
+          padding-bottom: 0.5rem;
+          border-bottom: 1px solid #e0e0e0;
+        }
+
+        .citation-list {
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+
+        .citation-card {
+          background: #fafafa;
+          border: 1px solid #e0e0e0;
+          border-radius: 8px;
+          padding: 1rem;
+        }
+
+        .citation-type {
+          margin-bottom: 0.5rem;
+        }
+
+        .type-badge {
+          display: inline-block;
+          padding: 0.2rem 0.5rem;
+          border-radius: 4px;
+          font-size: 0.7rem;
+          font-weight: 600;
+          text-transform: uppercase;
+        }
+
+        .type-badge.research {
+          background: #e3f2fd;
+          color: #1565c0;
+        }
+
+        .type-badge.review {
+          background: #f3e5f5;
+          color: #7b1fa2;
+        }
+
+        .type-badge.guideline {
+          background: #e8f5e9;
+          color: #2e7d32;
+        }
+
+        .type-badge.meta_analysis {
+          background: #fff3e0;
+          color: #e65100;
+        }
+
+        .citation-title {
+          font-weight: 500;
+          color: #333;
+          margin-bottom: 0.5rem;
+          line-height: 1.4;
+        }
+
+        .citation-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+          font-size: 0.8rem;
+          color: #666;
+          margin-bottom: 0.5rem;
+        }
+
+        .citation-meta span:not(:last-child)::after {
+          content: '·';
+          margin-left: 0.5rem;
+        }
+
+        .citation-link {
+          display: inline-block;
+          color: #1976d2;
+          font-size: 0.85rem;
+          text-decoration: none;
+        }
+
+        .citation-link:hover {
+          text-decoration: underline;
+        }
+
+        .citation-note {
+          margin-top: 1.5rem;
+          padding: 0.75rem 1rem;
+          background: #f5f5f5;
+          border-radius: 6px;
+          font-size: 0.85rem;
+          color: #666;
+          text-align: center;
+        }
+
+        .citation-note p {
+          margin: 0;
         }
 
         @media (max-width: 600px) {

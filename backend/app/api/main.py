@@ -35,6 +35,7 @@ from ..models.prescription import GRADE_DESCRIPTIONS
 # Auth imports
 from ..auth.routes import router as auth_router
 from ..auth.diagnosis_routes import router as diagnosis_router
+from ..auth.paper_routes import router as paper_router
 from ..auth.config import auth_settings
 from ..database.connection import engine, init_db
 
@@ -63,6 +64,7 @@ app.add_middleware(
 # Include auth routers
 app.include_router(auth_router, prefix="/api")
 app.include_router(diagnosis_router, prefix="/api")
+app.include_router(paper_router, prefix="/api")
 
 # 전역 서비스 인스턴스
 _search_service: Optional[PaperSearchService] = None

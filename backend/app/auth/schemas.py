@@ -136,3 +136,110 @@ class TokenPayload(BaseModel):
     sub: str  # User ID
     exp: datetime
     auth_type: str
+
+
+# ============================================================================
+# Paper Schemas
+# ============================================================================
+
+class PaperAllergenLinkCreate(BaseModel):
+    """Link paper to allergen"""
+    allergen_code: str  # 'peanut', 'milk', etc.
+    link_type: str  # 'symptom', 'dietary', 'cross_reactivity', 'substitute', 'emergency', 'management', 'general'
+    specific_item: Optional[str] = None
+    relevance_score: int = 80
+    note: Optional[str] = None
+
+
+class PaperAllergenLinkResponse(BaseModel):
+    id: int
+    allergen_code: str
+    link_type: str
+    specific_item: Optional[str] = None
+    relevance_score: int
+    note: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PaperCreate(BaseModel):
+    """Create a new paper"""
+    pmid: Optional[str] = None
+    doi: Optional[str] = None
+    title: str
+    title_kr: Optional[str] = None
+    authors: Optional[str] = None
+    journal: Optional[str] = None
+    year: Optional[int] = None
+    abstract: Optional[str] = None
+    abstract_kr: Optional[str] = None
+    url: Optional[str] = None
+    pdf_url: Optional[str] = None
+    paper_type: str = "research"  # 'research', 'review', 'guideline', 'meta_analysis'
+    allergen_links: Optional[List[PaperAllergenLinkCreate]] = None
+
+
+class PaperUpdate(BaseModel):
+    """Update a paper"""
+    pmid: Optional[str] = None
+    doi: Optional[str] = None
+    title: Optional[str] = None
+    title_kr: Optional[str] = None
+    authors: Optional[str] = None
+    journal: Optional[str] = None
+    year: Optional[int] = None
+    abstract: Optional[str] = None
+    abstract_kr: Optional[str] = None
+    url: Optional[str] = None
+    pdf_url: Optional[str] = None
+    paper_type: Optional[str] = None
+    is_verified: Optional[bool] = None
+
+
+class PaperResponse(BaseModel):
+    """Paper response"""
+    id: int
+    pmid: Optional[str] = None
+    doi: Optional[str] = None
+    title: str
+    title_kr: Optional[str] = None
+    authors: Optional[str] = None
+    journal: Optional[str] = None
+    year: Optional[int] = None
+    abstract: Optional[str] = None
+    abstract_kr: Optional[str] = None
+    url: Optional[str] = None
+    pdf_url: Optional[str] = None
+    paper_type: str
+    is_verified: bool
+    created_at: datetime
+    allergen_links: List[PaperAllergenLinkResponse] = []
+
+    class Config:
+        from_attributes = True
+
+
+class PaperBrief(BaseModel):
+    """Brief paper info for citation display"""
+    id: int
+    pmid: Optional[str] = None
+    doi: Optional[str] = None
+    title: str
+    title_kr: Optional[str] = None
+    authors: Optional[str] = None
+    journal: Optional[str] = None
+    year: Optional[int] = None
+    url: Optional[str] = None
+    paper_type: str
+
+    class Config:
+        from_attributes = True
+
+
+class PaperListResponse(BaseModel):
+    """Paginated paper list"""
+    items: List[PaperResponse]
+    total: int
+    page: int
+    size: int
