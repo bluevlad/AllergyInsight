@@ -169,6 +169,10 @@ run_local.sh
 *.local.yaml
 *.local.yml
 
+# Local README files (with hardcoded paths)
+README.local.md
+**/README.local.md
+
 # Personal notes
 NOTES.md
 TODO.local.md

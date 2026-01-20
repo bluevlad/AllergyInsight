@@ -197,27 +197,32 @@ docker-compose down
 
 ### 방법 2: 로컬 개발 환경
 
-```powershell
+```bash
+# 프로젝트 루트로 이동 후 실행
+# ${PROJECT_ROOT}는 프로젝트 클론 위치로 대체
+
 # 백엔드 의존성
-cd C:\GIT\AllergyInsight\backend
+cd ${PROJECT_ROOT}/backend
 pip install -r requirements.txt
 
 # 프론트엔드 의존성
-cd C:\GIT\AllergyInsight\frontend
+cd ${PROJECT_ROOT}/frontend
 npm install
 ```
 
 터미널 1 (백엔드):
-```powershell
-cd C:\GIT\AllergyInsight\backend
+```bash
+cd ${PROJECT_ROOT}/backend
 uvicorn app.api.main:app --reload --port 9040
 ```
 
 터미널 2 (프론트엔드):
-```powershell
-cd C:\GIT\AllergyInsight\frontend
+```bash
+cd ${PROJECT_ROOT}/frontend
 npm run dev
 ```
+
+> 로컬 환경 전용 명령어는 [README.local.md](./README.local.md) 참조 (Git 제외)
 
 ### 접속 URL
 
