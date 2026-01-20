@@ -39,28 +39,28 @@ AllergyInsight는 알러지 검사 결과를 기반으로 관련 학술 논문�
 │                        Frontend                              │
 │                   (React + Vite, Port 4040)                  │
 ├─────────────────────────────────────────────────────────────┤
-│  Dashboard  │  Search Page  │  Q&A Page  │  Papers Page     │
+│  Login │ Dashboard │ Search │ Q&A │ MyDiagnosis │ Papers    │
 └──────────────────────────┬──────────────────────────────────┘
-                           │ HTTP/REST API
+                           │ HTTP/REST API + JWT Auth
 ┌──────────────────────────▼──────────────────────────────────┐
 │                     Backend API                              │
 │                 (FastAPI, Port 9040)                         │
 ├─────────────────────────────────────────────────────────────┤
-│  /api/stats     │  /api/search  │  /api/qa  │  /api/allergens│
+│  /auth/*  │  /api/stats  │  /api/search  │  /api/diagnosis  │
 └──────────────────────────┬──────────────────────────────────┘
                            │
 ┌──────────────────────────▼──────────────────────────────────┐
 │                      Services                                │
-├────────────────┬────────────────┬────────────────┬──────────┤
-│  PubMed        │  Semantic      │  Knowledge     │  Batch   │
-│  Service       │  Scholar       │  Extractor     │  Processor│
-└────────────────┴────────────────┴────────────────┴──────────┘
+├────────────┬────────────┬────────────┬────────────┬─────────┤
+│  Auth      │  PubMed    │  Semantic  │  Knowledge │  Batch  │
+│  (OAuth/PIN)│  Service   │  Scholar   │  Extractor │ Process │
+└────────────┴────────────┴────────────┴────────────┴─────────┘
                            │
 ┌──────────────────────────▼──────────────────────────────────┐
-│                   External APIs                              │
+│                   Data Layer                                 │
 ├─────────────────────────┬───────────────────────────────────┤
-│  PubMed E-utilities     │  Semantic Scholar API             │
-│  (NIH/NCBI)             │  (Allen Institute for AI)         │
+│  PostgreSQL (Port 5432) │  External APIs (PubMed, S2)       │
+│  Users, Kits, Diagnoses │  NIH/NCBI, Allen Institute        │
 └─────────────────────────┴───────────────────────────────────┘
 ```
 
@@ -72,9 +72,11 @@ AllergyInsight는 알러지 검사 결과를 기반으로 관련 학술 논문�
 | Python | 3.10+ | 메인 언어 |
 | FastAPI | 0.109.0 | REST API 프레임워크 |
 | Uvicorn | 0.27.0 | ASGI 서버 |
-| Requests | 2.31.0 | HTTP 클라이언트 |
-| aiohttp | 3.9.1 | 비동기 HTTP |
-| BeautifulSoup4 | 4.12.3 | XML/HTML 파싱 |
+| SQLAlchemy | 2.0.25 | ORM |
+| PostgreSQL | 15 | 관계형 데이터베이스 |
+| bcrypt | - | 비밀번호 해싱 |
+| python-jose | 3.3.0 | JWT 토큰 |
+| authlib | 1.3.0 | OAuth 인증 |
 | Pydantic | 2.5.3 | 데이터 검증 |
 
 ### Frontend
@@ -86,6 +88,13 @@ AllergyInsight는 알러지 검사 결과를 기반으로 관련 학술 논문�
 | Recharts | 2.12.0 | 차트 시각화 |
 | Axios | 1.6.7 | HTTP 클라이언트 |
 
+### Infrastructure
+| 기술 | 버전 | 용도 |
+|------|------|------|
+| Docker | - | 컨테이너화 |
+| Docker Compose | - | 멀티 컨테이너 관리 |
+| PostgreSQL | 15-alpine | 데이터베이스 |
+
 ## 프로젝트 구조
 
 ```
@@ -94,40 +103,55 @@ AllergyInsight/
 │   ├── app/
 │   │   ├── api/
 │   │   │   └── main.py              # FastAPI 애플리케이션
+│   │   ├── auth/                    # 인증 모듈
+│   │   │   ├── routes.py            # 인증 라우트
+│   │   │   ├── schemas.py           # Pydantic 스키마
+│   │   │   ├── jwt_handler.py       # JWT 처리
+│   │   │   ├── dependencies.py      # 인증 의존성
+│   │   │   └── config.py            # 인증 설정
+│   │   ├── database/                # 데이터베이스 모듈
+│   │   │   ├── connection.py        # DB 연결
+│   │   │   └── models.py            # SQLAlchemy 모델
 │   │   ├── models/
-│   │   │   ├── paper.py             # 논문 데이터 모델
-│   │   │   └── knowledge_base.py    # Q&A 관련 모델
+│   │   │   └── ...                  # 도메인 모델
 │   │   └── services/
-│   │       ├── pubmed_service.py    # PubMed API 클라이언트
-│   │       ├── semantic_scholar_service.py  # S2 API 클라이언트
-│   │       ├── paper_search_service.py      # 통합 검색 서비스
-│   │       ├── pdf_service.py       # PDF 처리
-│   │       ├── batch_processor.py   # 배치 처리
-│   │       ├── progressive_loader.py # 점진적 로딩
-│   │       ├── knowledge_extractor.py # 지식 추출
-│   │       ├── qa_engine.py         # Q&A 엔진
-│   │       └── symptom_qa_interface.py # Q&A 인터페이스
-│   └── requirements.txt
+│   │       └── ...                  # 비즈니스 로직
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── README.md                    # 백엔드 상세 문서
 ├── frontend/
 │   ├── src/
+│   │   ├── contexts/
+│   │   │   └── AuthContext.jsx      # 인증 상태 관리
 │   │   ├── pages/
-│   │   │   ├── Dashboard.jsx        # 대시보드 페이지
-│   │   │   ├── SearchPage.jsx       # 논문 검색 페이지
-│   │   │   ├── QAPage.jsx           # Q&A 페이지
-│   │   │   └── PapersPage.jsx       # 논문 목록 페이지
+│   │   │   ├── LoginPage.jsx        # 로그인 페이지
+│   │   │   ├── MyDiagnosisPage.jsx  # 내 진단 결과
+│   │   │   ├── Dashboard.jsx        # 대시보드
+│   │   │   └── ...                  # 기타 페이지
 │   │   ├── services/
 │   │   │   └── api.js               # API 클라이언트
-│   │   ├── App.jsx                  # 메인 앱 컴포넌트
-│   │   ├── main.jsx                 # 엔트리 포인트
-│   │   └── index.css                # 전역 스타일
+│   │   └── App.jsx                  # 메인 앱 (라우팅)
+│   ├── Dockerfile
 │   ├── package.json
-│   └── vite.config.js
-├── run_dev.bat                      # 개발 서버 실행 스크립트
-├── .gitignore
-└── README.md
+│   └── README.md                    # 프론트엔드 상세 문서
+├── docker-compose.yml               # Docker 멀티 컨테이너 설정
+├── .env.example                     # 환경변수 예시
+└── README.md                        # 프로젝트 개요 (이 문서)
 ```
 
+> 상세 구조는 [backend/README.md](./backend/README.md) 및 [frontend/README.md](./frontend/README.md) 참조
+
 ## API 엔드포인트
+
+### 인증 (Authentication)
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | `/auth/google/login` | Google OAuth 로그인 |
+| GET | `/auth/google/callback` | Google OAuth 콜백 |
+| POST | `/auth/simple/register` | 간편 회원가입 (이름+전화/생년월일+키트) |
+| POST | `/auth/simple/login` | 간편 로그인 (이름+전화/생년월일+PIN) |
+| GET | `/auth/me` | 현재 사용자 정보 |
+| POST | `/auth/register-kit` | 진단 키트 등록 |
 
 ### 통계
 | 메서드 | 경로 | 설명 |
@@ -150,9 +174,28 @@ AllergyInsight/
 | POST | `/api/qa` | 질문-답변 |
 | GET | `/api/qa/questions/{allergen}` | 사전 정의 질문 목록 |
 
+> 전체 API 문서는 백엔드 실행 후 http://localhost:9040/docs 에서 확인
+
 ## 실행 방법
 
-### 1. 의존성 설치
+### 방법 1: Docker Compose (권장)
+
+```bash
+# 환경변수 설정
+cp .env.example .env
+# .env 파일 편집하여 필요한 값 설정
+
+# 컨테이너 빌드 및 실행
+docker-compose up -d --build
+
+# 로그 확인
+docker-compose logs -f
+
+# 종료
+docker-compose down
+```
+
+### 방법 2: 로컬 개발 환경
 
 ```powershell
 # 백엔드 의존성
@@ -163,15 +206,6 @@ pip install -r requirements.txt
 cd C:\GIT\AllergyInsight\frontend
 npm install
 ```
-
-### 2. 서버 실행
-
-**방법 1: 배치 파일 사용 (Windows)**
-```powershell
-C:\GIT\AllergyInsight\run_dev.bat
-```
-
-**방법 2: 수동 실행**
 
 터미널 1 (백엔드):
 ```powershell
@@ -185,13 +219,25 @@ cd C:\GIT\AllergyInsight\frontend
 npm run dev
 ```
 
-### 3. 접속
+### 접속 URL
 
 | 서비스 | URL |
 |--------|-----|
-| 대시보드 | http://localhost:4040 |
-| API 문서 | http://localhost:9040/docs |
+| 프론트엔드 | http://localhost:4040 |
+| API 문서 (Swagger) | http://localhost:9040/docs |
 | API 서버 | http://localhost:9040 |
+| PostgreSQL | localhost:5432 |
+
+## 환경변수
+
+| 변수명 | 설명 | 기본값 |
+|--------|------|--------|
+| `DATABASE_URL` | PostgreSQL 연결 문자열 | - |
+| `JWT_SECRET_KEY` | JWT 서명 키 | - |
+| `GOOGLE_CLIENT_ID` | Google OAuth 클라이언트 ID | - |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth 시크릿 | - |
+| `FRONTEND_URL` | 프론트엔드 URL | http://localhost:4040 |
+| `BACKEND_URL` | 백엔드 URL | http://localhost:9040 |
 
 ## 화면 구성
 
@@ -244,22 +290,29 @@ npm run dev
 | pet_dander | 반려동물 비듬 |
 | cockroach | 바퀴벌레 |
 
-## 향후 개발 계획
+## 개발 현황
 
-### Phase 2: AI 기능 강화
+### Phase 1: 핵심 기능 (완료)
+- [x] PubMed / Semantic Scholar 논문 검색
+- [x] Q&A 시스템
+- [x] 웹 대시보드
+
+### Phase 2: 인증 및 인프라 (완료)
+- [x] Docker 컨테이너화
+- [x] PostgreSQL 데이터베이스
+- [x] 사용자 인증 시스템 (Google OAuth + 간편 로그인)
+- [x] 진단 키트 등록 시스템
+- [x] JWT 기반 인증
+
+### Phase 3: AI 기능 강화 (예정)
 - [ ] ChromaDB 벡터 데이터베이스 연동
 - [ ] OpenAI/Claude API 연동 RAG 구현
 - [ ] 논문 전문 임베딩 및 의미 검색
 
-### Phase 3: 기능 확장
-- [ ] 사용자 인증 시스템
+### Phase 4: 추가 기능 (예정)
 - [ ] 검색 이력 저장 (DB)
 - [ ] 논문 북마크 동기화
 - [ ] 알림 시스템
-
-### Phase 4: 운영 환경
-- [ ] Docker 컨테이너화
-- [ ] PostgreSQL 데이터베이스
 - [ ] Redis 캐시 서버
 - [ ] CI/CD 파이프라인
 
