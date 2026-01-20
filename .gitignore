@@ -180,3 +180,5 @@ TODO.local.md
 *.bak
 *.backup
 *.orig
+test_data.sql
+test_data2.sql
