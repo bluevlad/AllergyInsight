@@ -8,6 +8,8 @@ from .progressive_loader import ProgressiveLoader, SmartLoader, LoadingStrategy
 from .knowledge_extractor import KnowledgeExtractor
 from .qa_engine import QAEngine
 from .symptom_qa_interface import SymptomQAInterface
+from .prescription_engine import PrescriptionEngine
+from .diagnosis_repository import DiagnosisRepository, StoredDiagnosis, StoredPrescription
 
 __all__ = [
     "PubMedService",
@@ -24,4 +26,9 @@ __all__ = [
     "KnowledgeExtractor",
     "QAEngine",
     "SymptomQAInterface",
+    # Prescription services
+    "PrescriptionEngine",
+    "DiagnosisRepository",
+    "StoredDiagnosis",
+    "StoredPrescription",
 ]

@@ -4,6 +4,8 @@ import Dashboard from './pages/Dashboard';
 import SearchPage from './pages/SearchPage';
 import QAPage from './pages/QAPage';
 import PapersPage from './pages/PapersPage';
+import DiagnosisPage from './pages/DiagnosisPage';
+import PrescriptionPage from './pages/PrescriptionPage';
 
 function App() {
   return (
@@ -11,11 +13,14 @@ function App() {
       <div className="app-container">
         {/* 헤더 */}
         <header className="header">
-          <h1>🔬 AllergyInsight</h1>
-          <p className="header-subtitle">알러지 논문 검색 및 Q&A 시스템</p>
+          <h1>AllergyInsight</h1>
+          <p className="header-subtitle">SGTi-Allergy Screen PLUS 진단 결과 분석 및 처방 권고 시스템</p>
           <nav className="nav">
             <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               대시보드
+            </NavLink>
+            <NavLink to="/diagnosis" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+              진단 입력
             </NavLink>
             <NavLink to="/search" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               논문 검색
@@ -33,6 +38,8 @@ function App() {
         <main className="main-content">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/diagnosis" element={<DiagnosisPage />} />
+            <Route path="/prescription" element={<PrescriptionPage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/qa" element={<QAPage />} />
             <Route path="/papers" element={<PapersPage />} />
@@ -41,7 +48,7 @@ function App() {
 
         {/* 푸터 */}
         <footer style={{ textAlign: 'center', padding: '1rem', color: '#666', fontSize: '0.875rem' }}>
-          AllergyInsight v1.0.0 | 논문 기반 알러지 정보 시스템
+          AllergyInsight v1.1.0 | SGTi-Allergy Screen PLUS 기반 알러지 처방 권고 시스템
         </footer>
       </div>
     </BrowserRouter>

@@ -89,6 +89,69 @@ export const allergenApi = {
 };
 
 /**
+ * SGTi 정보 API
+ */
+export const sgtiApi = {
+  // SGTi 제품 정보 조회
+  getInfo: () => api.get('/sgti/info'),
+
+  // 등급 정보 조회
+  getGrades: () => api.get('/sgti/grades'),
+};
+
+/**
+ * 진단 API
+ */
+export const diagnosisApi = {
+  // 진단 결과 저장
+  create: (diagnosisResults, diagnosisDate = null, patientInfo = null) =>
+    api.post('/diagnosis', {
+      diagnosis_results: diagnosisResults,
+      diagnosis_date: diagnosisDate,
+      patient_info: patientInfo,
+    }),
+
+  // 진단 결과 조회
+  get: (diagnosisId) => api.get(`/diagnosis/${diagnosisId}`),
+
+  // 진단 결과 목록 조회
+  list: (limit = 50, offset = 0) =>
+    api.get('/diagnosis', { params: { limit, offset } }),
+
+  // 진단 결과 삭제
+  delete: (diagnosisId) => api.delete(`/diagnosis/${diagnosisId}`),
+};
+
+/**
+ * 처방 API
+ */
+export const prescriptionApi = {
+  // 처방 권고 생성 (진단 ID 사용)
+  generateFromDiagnosis: (diagnosisId) =>
+    api.post('/prescription/generate', {
+      diagnosis_id: diagnosisId,
+    }),
+
+  // 처방 권고 생성 (직접 입력)
+  generate: (diagnosisResults, diagnosisDate = null) =>
+    api.post('/prescription/generate', {
+      diagnosis_results: diagnosisResults,
+      diagnosis_date: diagnosisDate,
+    }),
+
+  // 처방 권고 조회
+  get: (prescriptionId) => api.get(`/prescription/${prescriptionId}`),
+
+  // 진단 ID로 처방 권고 조회
+  getByDiagnosis: (diagnosisId) =>
+    api.get(`/prescription/by-diagnosis/${diagnosisId}`),
+
+  // 처방 권고 목록 조회
+  list: (limit = 50, offset = 0) =>
+    api.get('/prescription', { params: { limit, offset } }),
+};
+
+/**
  * 헬스 체크
  */
 export const healthCheck = () => api.get('/health');

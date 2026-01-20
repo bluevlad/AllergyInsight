@@ -328,7 +328,7 @@ Copyright (c) 2024-2026 운몽시스템즈 (Unmong Systems). All rights reserved
 | 채널 | 연락처 |
 |------|--------|
 | GitHub Issues | 기술 문의 및 버그 리포트 |
-| Email | contact@unmongsystems.com |
+| Email | rainend00@gmail.com |
 
 </div>
 
