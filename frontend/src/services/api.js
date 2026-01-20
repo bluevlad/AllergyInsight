@@ -221,6 +221,9 @@ export const myDiagnosisApi = {
 
   // 알러젠 정보
   getAllergenInfo: () => api.get('/diagnosis/allergen-info'),
+
+  // 환자 가이드 (증상, 식이관리, 응급대처)
+  getPatientGuide: (diagnosisId) => api.get(`/diagnosis/my/${diagnosisId}/patient-guide`),
 };
 
 export default api;
