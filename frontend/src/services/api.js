@@ -13,11 +13,27 @@ const api = axios.create({
   },
 });
 
+// 요청 인터셉터 - 토큰 추가
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 // 응답 인터셉터
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
     console.error('API Error:', error);
+    // 401 에러 시 토큰 제거
+    if (error.response?.status === 401) {
+      localStorage.removeItem('access_token');
+    }
     throw error;
   }
 );
@@ -155,5 +171,56 @@ export const prescriptionApi = {
  * 헬스 체크
  */
 export const healthCheck = () => api.get('/health');
+
+/**
+ * 인증 API
+ */
+export const authApi = {
+  // 현재 사용자 정보
+  getMe: () => api.get('/auth/me'),
+
+  // 로그아웃
+  logout: () => api.post('/auth/logout'),
+
+  // 간편 등록
+  registerSimple: (data) => api.post('/auth/simple/register', {
+    name: data.name,
+    phone: data.phone || null,
+    birth_date: data.birthDate || null,
+    serial_number: data.serialNumber,
+    pin: data.pin,
+  }),
+
+  // 간편 로그인
+  loginSimple: (data) => api.post('/auth/simple/login', {
+    name: data.name,
+    birth_date: data.birthDate || null,
+    phone: data.phone || null,
+    access_pin: data.accessPin,
+  }),
+
+  // 키트 등록 (로그인 사용자)
+  registerKit: (serialNumber, pin) => api.post('/auth/register-kit', {
+    serial_number: serialNumber,
+    pin: pin,
+  }),
+};
+
+/**
+ * 진단 이력 API (인증 필요)
+ */
+export const myDiagnosisApi = {
+  // 내 진단 이력
+  getAll: () => api.get('/diagnosis/my'),
+
+  // 최신 진단 요약
+  getLatest: () => api.get('/diagnosis/my/latest'),
+
+  // 특정 진단 상세
+  get: (diagnosisId) => api.get(`/diagnosis/my/${diagnosisId}`),
+
+  // 알러젠 정보
+  getAllergenInfo: () => api.get('/diagnosis/allergen-info'),
+};
 
 export default api;

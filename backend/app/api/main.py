@@ -2,6 +2,7 @@
 
 FastAPI 기반 REST API 서버입니다.
 논문 검색, Q&A, 수집 현황 조회 기능을 제공합니다.
+인증 및 진단키트 관리 기능을 포함합니다.
 
 실행 방법:
     cd C:\GIT\AllergyInsight\backend
@@ -9,10 +10,12 @@ FastAPI 기반 REST API 서버입니다.
 """
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 import asyncio
+import os
 
 from ..services import (
     PaperSearchService,
@@ -29,6 +32,12 @@ from ..services.batch_processor import ProcessingStatus
 from ..data.allergen_prescription_db import get_allergen_list
 from ..models.prescription import GRADE_DESCRIPTIONS
 
+# Auth imports
+from ..auth.routes import router as auth_router
+from ..auth.diagnosis_routes import router as diagnosis_router
+from ..auth.config import auth_settings
+from ..database.connection import engine, init_db
+
 # FastAPI 앱 생성
 app = FastAPI(
     title="AllergyInsight API",
@@ -44,6 +53,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Session middleware (required for OAuth)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=auth_settings.jwt_secret_key,
+)
+
+# Include auth routers
+app.include_router(auth_router, prefix="/api")
+app.include_router(diagnosis_router, prefix="/api")
 
 # 전역 서비스 인스턴스
 _search_service: Optional[PaperSearchService] = None
@@ -695,6 +714,12 @@ async def list_prescriptions(limit: int = 50, offset: int = 0):
 # =====================
 # 앱 이벤트
 # =====================
+
+@app.on_event("startup")
+async def startup_event():
+    """앱 시작 시 데이터베이스 초기화"""
+    init_db()
+
 
 @app.on_event("shutdown")
 async def shutdown_event():

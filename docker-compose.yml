@@ -1,4 +1,25 @@
 services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: allergyinsight-db
+    environment:
+      POSTGRES_DB: allergyinsight
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-allergyinsight2024}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - allergyinsight-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: ./backend
@@ -7,6 +28,19 @@ services:
     ports:
       - "9040:9040"
     environment:
+      # Database
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:-allergyinsight2024}@db:5432/allergyinsight
+      # Google OAuth
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      # JWT
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-super-secret-key-change-in-production}
+      - JWT_ALGORITHM=HS256
+      - JWT_EXPIRE_MINUTES=1440
+      # URLs (for OAuth redirect)
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:4040}
+      - BACKEND_URL=${BACKEND_URL:-http://localhost:9040}
+      # Existing
       - PUBMED_API_KEY=${PUBMED_API_KEY:-}
       - PUBMED_EMAIL=${PUBMED_EMAIL:-}
       - SEMANTIC_SCHOLAR_API_KEY=${SEMANTIC_SCHOLAR_API_KEY:-}
@@ -19,6 +53,9 @@ services:
     networks:
       - allergyinsight-network
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9040/api/health"]
       interval: 30s
@@ -45,3 +82,4 @@ networks:
 
 volumes:
   backend_downloads:
+  postgres_data:
