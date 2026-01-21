@@ -109,10 +109,19 @@ def get_citations_by_specific_item(
     link_type: str = None,
     limit: int = 2
 ) -> List[Dict[str, Any]]:
-    """Get citations for a specific item (symptom, food, etc.)"""
+    """Get citations for a specific item (symptom, food, etc.)
+
+    Supports partial matching: "우유 (일반, 저지방)" will match "우유"
+    """
+    import re
+
+    # 괄호 앞의 메인 이름만 추출 (e.g., "우유 (일반, 저지방)" -> "우유")
+    main_name = re.split(r'\s*[\(\(]', specific_item)[0].strip()
+
+    # 정확한 매칭 먼저 시도
     query = db.query(Paper).join(PaperAllergenLink).filter(
         PaperAllergenLink.allergen_code == allergen_code,
-        PaperAllergenLink.specific_item == specific_item,
+        PaperAllergenLink.specific_item == main_name,
         Paper.is_verified == True
     )
 
@@ -123,6 +132,22 @@ def get_citations_by_specific_item(
         PaperAllergenLink.relevance_score.desc(),
         Paper.year.desc()
     ).limit(limit).all()
+
+    # 결과가 없으면 부분 매칭 시도 (LIKE)
+    if not papers and len(main_name) >= 2:
+        query = db.query(Paper).join(PaperAllergenLink).filter(
+            PaperAllergenLink.allergen_code == allergen_code,
+            PaperAllergenLink.specific_item.ilike(f"%{main_name}%"),
+            Paper.is_verified == True
+        )
+
+        if link_type:
+            query = query.filter(PaperAllergenLink.link_type == link_type)
+
+        papers = query.order_by(
+            PaperAllergenLink.relevance_score.desc(),
+            Paper.year.desc()
+        ).limit(limit).all()
 
     return [
         {
