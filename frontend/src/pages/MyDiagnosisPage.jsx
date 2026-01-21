@@ -7,12 +7,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { myDiagnosisApi } from '../services/api';
 
 // Citation Badge Component - 출처 표시 컴포넌트
-const CitationBadge = ({ citations, small = false }) => {
+const CitationBadge = ({ citations, small = false, showCount = true }) => {
   const [showTooltip, setShowTooltip] = useState(false);
 
   if (!citations || citations.length === 0) return null;
 
   const citation = citations[0]; // 첫 번째 출처만 표시
+  const count = citations.length;
 
   return (
     <span
@@ -22,6 +23,7 @@ const CitationBadge = ({ citations, small = false }) => {
       onClick={() => citation.url && window.open(citation.url, '_blank')}
     >
       <span className="citation-icon">📄</span>
+      {showCount && count > 1 && <span className="citation-count">{count}</span>}
       {showTooltip && (
         <div className="citation-tooltip">
           <div className="citation-tooltip-title">
@@ -33,8 +35,18 @@ const CitationBadge = ({ citations, small = false }) => {
             {citation.journal && <span>{citation.journal}</span>}
           </div>
           {citation.url && <div className="citation-tooltip-link">클릭하여 원문 보기</div>}
+          {count > 1 && <div className="citation-tooltip-more">외 {count - 1}건의 출처</div>}
         </div>
       )}
+    </span>
+  );
+};
+
+// No Citation Badge - 출처 없음 표시 컴포넌트
+const NoCitationBadge = ({ small = false }) => {
+  return (
+    <span className={`no-citation-badge ${small ? 'small' : ''}`} title="일반 정보 (출처 준비중)">
+      <span className="no-citation-icon">ℹ️</span>
     </span>
   );
 };
@@ -314,8 +326,10 @@ const MyDiagnosisPage = () => {
                                       <strong>{s.name}</strong>
                                       <span className="symptom-detail">발생확률 {s.probability}, {s.onset}</span>
                                     </div>
-                                    {s.citations && s.citations.length > 0 && (
+                                    {s.citations && s.citations.length > 0 ? (
                                       <CitationBadge citations={s.citations} />
+                                    ) : (
+                                      <NoCitationBadge />
                                     )}
                                   </li>
                                 ))}
@@ -342,8 +356,10 @@ const MyDiagnosisPage = () => {
                                       <strong>{s.name}</strong>
                                       <span className="symptom-detail">발생확률 {s.probability}, {s.onset}</span>
                                     </div>
-                                    {s.citations && s.citations.length > 0 && (
+                                    {s.citations && s.citations.length > 0 ? (
                                       <CitationBadge citations={s.citations} />
+                                    ) : (
+                                      <NoCitationBadge />
                                     )}
                                   </li>
                                 ))}
@@ -370,8 +386,10 @@ const MyDiagnosisPage = () => {
                                       <strong>{s.name}</strong>
                                       <span className="symptom-detail">발생확률 {s.probability}, {s.onset}</span>
                                     </div>
-                                    {s.citations && s.citations.length > 0 && (
+                                    {s.citations && s.citations.length > 0 ? (
                                       <CitationBadge citations={s.citations} />
+                                    ) : (
+                                      <NoCitationBadge />
                                     )}
                                   </li>
                                 ))}
@@ -413,8 +431,10 @@ const MyDiagnosisPage = () => {
                                     <span className="food-tag danger">
                                       {typeof food === 'object' ? food.name : food}
                                     </span>
-                                    {food.citations && food.citations.length > 0 && (
+                                    {food.citations && food.citations.length > 0 ? (
                                       <CitationBadge citations={food.citations} small />
+                                    ) : (
+                                      <NoCitationBadge small />
                                     )}
                                   </span>
                                 ))}
@@ -435,7 +455,16 @@ const MyDiagnosisPage = () => {
                               </div>
                               <div className="food-tags">
                                 {item.sources.map((source, i) => (
-                                  <span key={i} className="food-tag warning">{source}</span>
+                                  <span key={i} className="food-tag-with-citation">
+                                    <span className="food-tag warning">
+                                      {typeof source === 'object' ? source.name : source}
+                                    </span>
+                                    {source.citations && source.citations.length > 0 ? (
+                                      <CitationBadge citations={source.citations} small />
+                                    ) : (
+                                      <NoCitationBadge small />
+                                    )}
+                                  </span>
                                 ))}
                               </div>
                             </div>
@@ -454,8 +483,10 @@ const MyDiagnosisPage = () => {
                                 <span className="cross-arrow">→</span>
                                 <span className="cross-to">{item.to_allergen}</span>
                                 <span className="cross-prob">{item.probability}</span>
-                                {item.citations && item.citations.length > 0 && (
+                                {item.citations && item.citations.length > 0 ? (
                                   <CitationBadge citations={item.citations} small />
+                                ) : (
+                                  <NoCitationBadge small />
                                 )}
                               </div>
                             ))}
@@ -479,8 +510,10 @@ const MyDiagnosisPage = () => {
                                   <span key={i} className="alt-tag">{alt}</span>
                                 ))}
                               </div>
-                              {item.citations && item.citations.length > 0 && (
+                              {item.citations && item.citations.length > 0 ? (
                                 <CitationBadge citations={item.citations} small />
+                              ) : (
+                                <NoCitationBadge small />
                               )}
                             </div>
                           ))}
@@ -1682,6 +1715,45 @@ const MyDiagnosisPage = () => {
 
         .citation-badge:hover .citation-icon {
           opacity: 1;
+        }
+
+        .citation-count {
+          font-size: 0.65rem;
+          font-weight: bold;
+          color: #1976d2;
+          margin-left: 1px;
+          vertical-align: super;
+        }
+
+        .citation-badge.small .citation-count {
+          font-size: 0.55rem;
+        }
+
+        .citation-tooltip-more {
+          font-size: 0.7rem;
+          color: #1976d2;
+          margin-top: 0.5rem;
+          font-style: italic;
+        }
+
+        /* No Citation Badge */
+        .no-citation-badge {
+          display: inline-flex;
+          align-items: center;
+          margin-left: 0.5rem;
+          opacity: 0.4;
+        }
+
+        .no-citation-badge.small {
+          margin-left: 0.25rem;
+        }
+
+        .no-citation-icon {
+          font-size: 0.75rem;
+        }
+
+        .no-citation-badge.small .no-citation-icon {
+          font-size: 0.6rem;
         }
 
         .citation-tooltip {

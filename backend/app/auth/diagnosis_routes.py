@@ -397,10 +397,20 @@ async def get_patient_guide(
                 })
 
             if allergen_info.get("hidden_sources"):
+                # 숨겨진 알러젠별 출처 조회
+                sources_with_citations = []
+                for source in allergen_info["hidden_sources"][:6]:
+                    source_citations = get_citations_by_specific_item(
+                        db, allergen_code, source, "hidden_source", limit=1
+                    )
+                    sources_with_citations.append({
+                        "name": source,
+                        "citations": source_citations
+                    })
                 dietary_management["hidden_sources"].append({
                     "allergen": allergen_name,
                     "allergen_code": allergen_code,
-                    "sources": allergen_info["hidden_sources"][:6],
+                    "sources": sources_with_citations,
                 })
 
             if allergen_info.get("cross_reactivity"):
