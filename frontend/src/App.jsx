@@ -93,6 +93,9 @@ const UserNav = () => {
       <NavLink to="/my-diagnosis" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
         내 검사 결과
       </NavLink>
+      <NavLink to="/diagnosis" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+        진단 입력
+      </NavLink>
       <NavLink to="/qa" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
         Q&A
       </NavLink>
@@ -129,6 +132,9 @@ const AppLayout = () => {
           {/* User Routes */}
           <Route path="/my-diagnosis" element={
             <ProtectedRoute><MyDiagnosisPage /></ProtectedRoute>
+          } />
+          <Route path="/diagnosis" element={
+            <ProtectedRoute><DiagnosisPage /></ProtectedRoute>
           } />
           <Route path="/prescription" element={
             <ProtectedRoute><PrescriptionPage /></ProtectedRoute>

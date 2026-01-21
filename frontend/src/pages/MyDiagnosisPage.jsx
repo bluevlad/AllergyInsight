@@ -6,6 +6,39 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { myDiagnosisApi } from '../services/api';
 
+// Citation Badge Component - 출처 표시 컴포넌트
+const CitationBadge = ({ citations, small = false }) => {
+  const [showTooltip, setShowTooltip] = useState(false);
+
+  if (!citations || citations.length === 0) return null;
+
+  const citation = citations[0]; // 첫 번째 출처만 표시
+
+  return (
+    <span
+      className={`citation-badge ${small ? 'small' : ''}`}
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+      onClick={() => citation.url && window.open(citation.url, '_blank')}
+    >
+      <span className="citation-icon">📄</span>
+      {showTooltip && (
+        <div className="citation-tooltip">
+          <div className="citation-tooltip-title">
+            {citation.title_kr || citation.title}
+          </div>
+          <div className="citation-tooltip-meta">
+            {citation.authors && <span>{citation.authors.split(',')[0]} 외</span>}
+            {citation.year && <span>{citation.year}</span>}
+            {citation.journal && <span>{citation.journal}</span>}
+          </div>
+          {citation.url && <div className="citation-tooltip-link">클릭하여 원문 보기</div>}
+        </div>
+      )}
+    </span>
+  );
+};
+
 const MyDiagnosisPage = () => {
   const navigate = useNavigate();
   const { user, registerKit, logout } = useAuth();
@@ -276,9 +309,14 @@ const MyDiagnosisPage = () => {
                               </div>
                               <ul className="symptom-list">
                                 {item.symptoms.map((s, i) => (
-                                  <li key={i}>
-                                    <strong>{s.name}</strong>
-                                    <span className="symptom-detail">발생확률 {s.probability}, {s.onset}</span>
+                                  <li key={i} className="symptom-item-with-citation">
+                                    <div className="symptom-content">
+                                      <strong>{s.name}</strong>
+                                      <span className="symptom-detail">발생확률 {s.probability}, {s.onset}</span>
+                                    </div>
+                                    {s.citations && s.citations.length > 0 && (
+                                      <CitationBadge citations={s.citations} />
+                                    )}
                                   </li>
                                 ))}
                               </ul>
@@ -299,9 +337,14 @@ const MyDiagnosisPage = () => {
                               </div>
                               <ul className="symptom-list">
                                 {item.symptoms.map((s, i) => (
-                                  <li key={i}>
-                                    <strong>{s.name}</strong>
-                                    <span className="symptom-detail">발생확률 {s.probability}, {s.onset}</span>
+                                  <li key={i} className="symptom-item-with-citation">
+                                    <div className="symptom-content">
+                                      <strong>{s.name}</strong>
+                                      <span className="symptom-detail">발생확률 {s.probability}, {s.onset}</span>
+                                    </div>
+                                    {s.citations && s.citations.length > 0 && (
+                                      <CitationBadge citations={s.citations} />
+                                    )}
                                   </li>
                                 ))}
                               </ul>
@@ -322,9 +365,14 @@ const MyDiagnosisPage = () => {
                               </div>
                               <ul className="symptom-list">
                                 {item.symptoms.map((s, i) => (
-                                  <li key={i}>
-                                    <strong>{s.name}</strong>
-                                    <span className="symptom-detail">발생확률 {s.probability}, {s.onset}</span>
+                                  <li key={i} className="symptom-item-with-citation">
+                                    <div className="symptom-content">
+                                      <strong>{s.name}</strong>
+                                      <span className="symptom-detail">발생확률 {s.probability}, {s.onset}</span>
+                                    </div>
+                                    {s.citations && s.citations.length > 0 && (
+                                      <CitationBadge citations={s.citations} />
+                                    )}
                                   </li>
                                 ))}
                               </ul>
@@ -361,7 +409,14 @@ const MyDiagnosisPage = () => {
                               </div>
                               <div className="food-tags">
                                 {item.foods.map((food, i) => (
-                                  <span key={i} className="food-tag danger">{food}</span>
+                                  <span key={i} className="food-tag-with-citation">
+                                    <span className="food-tag danger">
+                                      {typeof food === 'object' ? food.name : food}
+                                    </span>
+                                    {food.citations && food.citations.length > 0 && (
+                                      <CitationBadge citations={food.citations} small />
+                                    )}
+                                  </span>
                                 ))}
                               </div>
                             </div>
@@ -399,6 +454,9 @@ const MyDiagnosisPage = () => {
                                 <span className="cross-arrow">→</span>
                                 <span className="cross-to">{item.to_allergen}</span>
                                 <span className="cross-prob">{item.probability}</span>
+                                {item.citations && item.citations.length > 0 && (
+                                  <CitationBadge citations={item.citations} small />
+                                )}
                               </div>
                             ))}
                           </div>
@@ -421,6 +479,9 @@ const MyDiagnosisPage = () => {
                                   <span key={i} className="alt-tag">{alt}</span>
                                 ))}
                               </div>
+                              {item.citations && item.citations.length > 0 && (
+                                <CitationBadge citations={item.citations} small />
+                              )}
                             </div>
                           ))}
                         </div>
@@ -1596,6 +1657,105 @@ const MyDiagnosisPage = () => {
           margin: 0;
         }
 
+        /* Citation Badge Styles */
+        .citation-badge {
+          display: inline-flex;
+          align-items: center;
+          position: relative;
+          cursor: pointer;
+          margin-left: 0.5rem;
+        }
+
+        .citation-badge.small {
+          margin-left: 0.25rem;
+        }
+
+        .citation-icon {
+          font-size: 0.9rem;
+          opacity: 0.7;
+          transition: opacity 0.2s;
+        }
+
+        .citation-badge.small .citation-icon {
+          font-size: 0.75rem;
+        }
+
+        .citation-badge:hover .citation-icon {
+          opacity: 1;
+        }
+
+        .citation-tooltip {
+          position: absolute;
+          bottom: 100%;
+          left: 50%;
+          transform: translateX(-50%);
+          background: white;
+          border: 1px solid #e0e0e0;
+          border-radius: 8px;
+          padding: 0.75rem;
+          width: 280px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          z-index: 1000;
+          margin-bottom: 0.5rem;
+        }
+
+        .citation-tooltip::after {
+          content: '';
+          position: absolute;
+          top: 100%;
+          left: 50%;
+          transform: translateX(-50%);
+          border: 6px solid transparent;
+          border-top-color: white;
+        }
+
+        .citation-tooltip-title {
+          font-size: 0.85rem;
+          font-weight: 500;
+          color: #333;
+          margin-bottom: 0.5rem;
+          line-height: 1.4;
+        }
+
+        .citation-tooltip-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.25rem;
+          font-size: 0.75rem;
+          color: #666;
+          margin-bottom: 0.5rem;
+        }
+
+        .citation-tooltip-meta span:not(:last-child)::after {
+          content: ' · ';
+        }
+
+        .citation-tooltip-link {
+          font-size: 0.75rem;
+          color: #1976d2;
+          margin-top: 0.25rem;
+        }
+
+        /* Symptom item with citation */
+        .symptom-item-with-citation {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 0.5rem;
+        }
+
+        .symptom-content {
+          flex: 1;
+        }
+
+        /* Food tag with citation */
+        .food-tag-with-citation {
+          display: inline-flex;
+          align-items: center;
+          margin-right: 0.5rem;
+          margin-bottom: 0.5rem;
+        }
+
         @media (max-width: 600px) {
           .tab-navigation {
             gap: 0;
@@ -1613,6 +1773,13 @@ const MyDiagnosisPage = () => {
           .substitute-card {
             flex-direction: column;
             align-items: flex-start;
+          }
+
+          .citation-tooltip {
+            width: 220px;
+            left: auto;
+            right: 0;
+            transform: none;
           }
         }
       `}</style>

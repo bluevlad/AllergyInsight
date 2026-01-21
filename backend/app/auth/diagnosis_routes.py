@@ -102,6 +102,66 @@ def get_citations_by_link_type(
     ]
 
 
+def get_citations_by_specific_item(
+    db: Session,
+    allergen_code: str,
+    specific_item: str,
+    link_type: str = None,
+    limit: int = 2
+) -> List[Dict[str, Any]]:
+    """Get citations for a specific item (symptom, food, etc.)"""
+    query = db.query(Paper).join(PaperAllergenLink).filter(
+        PaperAllergenLink.allergen_code == allergen_code,
+        PaperAllergenLink.specific_item == specific_item,
+        Paper.is_verified == True
+    )
+
+    if link_type:
+        query = query.filter(PaperAllergenLink.link_type == link_type)
+
+    papers = query.order_by(
+        PaperAllergenLink.relevance_score.desc(),
+        Paper.year.desc()
+    ).limit(limit).all()
+
+    return [
+        {
+            "id": p.id,
+            "pmid": p.pmid,
+            "title": p.title,
+            "title_kr": p.title_kr,
+            "authors": p.authors,
+            "year": p.year,
+            "url": p.url,
+            "paper_type": p.paper_type,
+        }
+        for p in papers
+    ]
+
+
+def get_item_citations_batch(
+    db: Session,
+    items: List[Dict[str, str]],  # [{"allergen_code": ..., "specific_item": ..., "link_type": ...}]
+    limit_per_item: int = 1
+) -> Dict[str, List[Dict[str, Any]]]:
+    """여러 항목에 대한 출처를 일괄 조회"""
+    result = {}
+
+    for item in items:
+        key = f"{item['allergen_code']}:{item['specific_item']}"
+        citations = get_citations_by_specific_item(
+            db,
+            allergen_code=item["allergen_code"],
+            specific_item=item["specific_item"],
+            link_type=item.get("link_type"),
+            limit=limit_per_item
+        )
+        if citations:
+            result[key] = citations
+
+    return result
+
+
 def get_risk_levels(results: dict) -> tuple:
     """Get high risk and moderate risk allergens"""
     high_risk = []
@@ -298,44 +358,79 @@ async def get_patient_guide(
         # Get symptoms for this grade
         symptoms_data = allergen_info.get("symptoms_by_grade", {}).get(grade_range, {})
         if symptoms_data:
+            # 증상별 출처 조회
+            symptoms_with_citations = []
+            for symptom in symptoms_data.get("symptoms", []):
+                symptom_name = symptom.get("name", "") if isinstance(symptom, dict) else symptom
+                symptom_citations = get_citations_by_specific_item(
+                    db, allergen_code, symptom_name, "symptom", limit=1
+                )
+                symptom_entry = symptom.copy() if isinstance(symptom, dict) else {"name": symptom}
+                symptom_entry["citations"] = symptom_citations
+                symptoms_with_citations.append(symptom_entry)
+
             symptoms_risk[risk_level].append({
                 "allergen": allergen_name,
                 "allergen_code": allergen_code,
                 "grade": grade,
                 "severity": symptoms_data.get("severity", "unknown"),
-                "symptoms": symptoms_data.get("symptoms", []),
+                "symptoms": symptoms_with_citations,
             })
 
         # Collect dietary info (for food allergens)
         if allergen_info.get("category") == "food":
             if allergen_info.get("avoid_foods"):
+                # 회피식품별 출처 조회
+                foods_with_citations = []
+                for food in allergen_info["avoid_foods"][:8]:
+                    food_citations = get_citations_by_specific_item(
+                        db, allergen_code, food, "dietary", limit=1
+                    )
+                    foods_with_citations.append({
+                        "name": food,
+                        "citations": food_citations
+                    })
                 dietary_management["avoid_foods"].append({
                     "allergen": allergen_name,
-                    "foods": allergen_info["avoid_foods"][:8],  # Top 8
+                    "allergen_code": allergen_code,
+                    "foods": foods_with_citations,
                 })
 
             if allergen_info.get("hidden_sources"):
                 dietary_management["hidden_sources"].append({
                     "allergen": allergen_name,
-                    "sources": allergen_info["hidden_sources"][:6],  # Top 6
+                    "allergen_code": allergen_code,
+                    "sources": allergen_info["hidden_sources"][:6],
                 })
 
             if allergen_info.get("cross_reactivity"):
                 for cross in allergen_info["cross_reactivity"]:
+                    # 교차반응 출처 조회
+                    cross_citations = get_citations_by_specific_item(
+                        db, allergen_code, "교차반응", "cross_reactivity", limit=1
+                    )
                     dietary_management["cross_reactivity"].append({
                         "from_allergen": allergen_name,
+                        "from_allergen_code": allergen_code,
                         "to_allergen": cross.get("allergen_kr", ""),
                         "probability": cross.get("probability", ""),
                         "related_foods": cross.get("related_foods", [])[:5],
+                        "citations": cross_citations,
                     })
 
             if allergen_info.get("substitutes"):
                 for sub in allergen_info["substitutes"][:3]:
+                    # 대체식품 출처 조회
+                    sub_citations = get_citations_by_specific_item(
+                        db, allergen_code, sub.get("original", ""), "substitute", limit=1
+                    )
                     dietary_management["substitutes"].append({
                         "allergen": allergen_name,
+                        "allergen_code": allergen_code,
                         "original": sub.get("original", ""),
                         "alternatives": sub.get("alternatives", []),
                         "notes": sub.get("notes", ""),
+                        "citations": sub_citations,
                     })
 
             if allergen_info.get("restaurant_cautions"):
