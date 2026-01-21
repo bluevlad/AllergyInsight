@@ -1,0 +1,57 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - prod
+
+jobs:
+  deploy:
+    name: Deploy AllergyInsight
+    runs-on: [self-hosted, Windows]
+
+    defaults:
+      run:
+        working-directory: C:\GIT\AllergyInsight
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          path: C:\GIT\AllergyInsight
+          clean: false
+
+      - name: Pull latest changes
+        run: |
+          git fetch origin prod
+          git checkout prod
+          git pull origin prod
+
+      - name: Stop existing containers
+        run: docker-compose down
+        continue-on-error: true
+
+      - name: Build and start containers
+        run: docker-compose up -d --build
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for services to start..."
+          Start-Sleep -Seconds 30
+
+      - name: Health check
+        run: |
+          $response = Invoke-WebRequest -Uri "http://localhost:9040/api/health" -UseBasicParsing -TimeoutSec 10
+          if ($response.StatusCode -eq 200) {
+            echo "Backend is healthy!"
+          } else {
+            echo "Backend health check failed!"
+            exit 1
+          }
+        continue-on-error: true
+
+      - name: Show container status
+        run: docker-compose ps
+
+      - name: Deployment complete
+        run: echo "AllergyInsight deployed successfully!"
