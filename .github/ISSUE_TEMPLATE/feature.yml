@@ -1,0 +1,51 @@
+name: 기능 요청
+description: 새로운 기능을 제안합니다
+title: "[Feature] "
+labels: ["feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        새로운 기능 요청을 작성해 주세요.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 기능 설명
+      description: 구현하려는 기능을 설명해 주세요
+      placeholder: 어떤 기능인가요?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reason
+    attributes:
+      label: 필요한 이유
+      description: 이 기능이 왜 필요한지 설명해 주세요
+      placeholder: 왜 이 기능이 필요한가요?
+    validations:
+      required: true
+
+  - type: textarea
+    id: implementation
+    attributes:
+      label: 구현 방안 (선택)
+      description: 구현 방법에 대한 아이디어가 있다면 작성해 주세요
+      placeholder: 어떻게 구현할 수 있을까요?
+
+  - type: textarea
+    id: related
+    attributes:
+      label: 관련 파일/이슈
+      description: 관련된 파일이나 이슈가 있다면 링크해 주세요
+      placeholder: |
+        - #123
+        - src/pages/SomePage.jsx
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: 체크리스트
+      options:
+        - label: 기존 이슈와 중복되지 않음을 확인했습니다
+          required: true

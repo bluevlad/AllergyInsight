@@ -1,0 +1,65 @@
+name: 버그 리포트
+description: 버그를 신고합니다
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        버그를 발견하셨군요. 자세히 알려주세요.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 버그 설명
+      description: 어떤 문제가 발생했나요?
+      placeholder: 버그에 대해 설명해 주세요
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 방법
+      description: 버그를 재현하는 방법을 단계별로 설명해 주세요
+      placeholder: |
+        1. '...'로 이동
+        2. '...'를 클릭
+        3. 에러 발생
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 예상 동작
+      description: 정상적으로 동작했다면 어떻게 되어야 하나요?
+      placeholder: 예상했던 동작을 설명해 주세요
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 실제 동작
+      description: 실제로 어떻게 동작했나요?
+      placeholder: 실제 동작을 설명해 주세요
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: 환경 정보
+      description: 버그가 발생한 환경을 알려주세요
+      placeholder: |
+        - OS: Windows 11
+        - Browser: Chrome 120
+        - 기타: ...
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 에러 로그 (선택)
+      description: 에러 메시지나 로그가 있다면 첨부해 주세요
+      render: shell
