@@ -218,6 +218,46 @@ const MyDiagnosisPage = () => {
             <div className="diagnosis-detail">
               <h3>{formatDate(selectedDiagnosis.diagnosis_date)} 검사 결과</h3>
 
+              {/* Summary Cards */}
+              {patientGuide && (
+                <div className="summary-cards">
+                  <div className="summary-card positive">
+                    <div className="summary-value">
+                      {Object.values(selectedDiagnosis.results).filter(g => g > 0).length}
+                    </div>
+                    <div className="summary-label">양성 항원</div>
+                  </div>
+                  <div className="summary-card grade">
+                    <div className="summary-value">
+                      {Math.max(...Object.values(selectedDiagnosis.results))}
+                    </div>
+                    <div className="summary-label">최고 등급</div>
+                  </div>
+                  <div className={`summary-card risk ${patientGuide.emergency_medical.has_severe_allergy ? 'danger' : 'safe'}`}>
+                    <div className="summary-value">
+                      {patientGuide.emergency_medical.has_severe_allergy ? '높음' : '낮음'}
+                    </div>
+                    <div className="summary-label">위험도</div>
+                  </div>
+                  <div className="summary-card dietary">
+                    <div className="summary-value">
+                      {patientGuide.dietary_management.avoid_foods.length}
+                    </div>
+                    <div className="summary-label">식이 제한</div>
+                  </div>
+                </div>
+              )}
+
+              {/* High Risk Alert */}
+              {patientGuide?.symptoms_risk?.high_risk?.length > 0 && (
+                <div className="high-risk-alert">
+                  <h4>고위험 알러젠 경고</h4>
+                  <p>다음 항원에 대해 특별한 주의가 필요합니다: <strong>
+                    {patientGuide.symptoms_risk.high_risk.map(item => item.allergen).join(', ')}
+                  </strong></p>
+                </div>
+              )}
+
               {/* Tab Navigation */}
               <div className="tab-navigation">
                 <button
@@ -227,16 +267,10 @@ const MyDiagnosisPage = () => {
                   검사 결과
                 </button>
                 <button
-                  className={`tab-btn ${activeTab === 'symptoms' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('symptoms')}
+                  className={`tab-btn ${activeTab === 'allergen-detail' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('allergen-detail')}
                 >
-                  증상/위험도
-                </button>
-                <button
-                  className={`tab-btn ${activeTab === 'dietary' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('dietary')}
-                >
-                  식이 관리
+                  상세 정보
                 </button>
                 <button
                   className={`tab-btn ${activeTab === 'emergency' ? 'active' : ''}`}
@@ -298,232 +332,270 @@ const MyDiagnosisPage = () => {
                 </>
               )}
 
-              {/* Tab: Symptoms & Risk */}
-              {activeTab === 'symptoms' && (
+              {/* Tab: Allergen Detail (통합 뷰) */}
+              {activeTab === 'allergen-detail' && (
                 <div className="patient-guide-section">
                   {guideLoading ? (
                     <div className="loading-small">로딩 중...</div>
                   ) : patientGuide ? (
                     <>
                       <div className="guide-intro">
-                        <p>검사 결과에 따른 예상 증상과 위험도입니다.</p>
+                        <p>알러젠별 상세 정보입니다. 각 알러젠에 대한 증상, 회피 식품, 대체 식품을 확인하세요.</p>
                       </div>
 
-                      {/* High Risk */}
-                      {patientGuide.symptoms_risk.high_risk.length > 0 && (
-                        <div className="risk-group high-risk">
-                          <h4><span className="risk-badge danger">고위험</span> 강한 반응 예상</h4>
-                          {patientGuide.symptoms_risk.high_risk.map((item, idx) => (
-                            <div key={idx} className="symptom-card">
-                              <div className="symptom-header">
-                                <span className="allergen-badge">{item.allergen}</span>
-                                <span className="grade-badge">등급 {item.grade}</span>
+                      {/* 알러젠별 통합 카드 - 고위험 */}
+                      {patientGuide.symptoms_risk.high_risk.map((symptomItem, idx) => {
+                        const allergenCode = symptomItem.allergen_code;
+                        const avoidFoods = patientGuide.dietary_management.avoid_foods.find(f => f.allergen_code === allergenCode);
+                        const hiddenSources = patientGuide.dietary_management.hidden_sources.find(h => h.allergen_code === allergenCode);
+                        const substitutes = patientGuide.dietary_management.substitutes.filter(s => s.allergen_code === allergenCode);
+                        const crossReactions = patientGuide.dietary_management.cross_reactivity.filter(c => c.from_allergen_code === allergenCode);
+
+                        return (
+                          <div key={idx} className="allergen-detail-card high-risk">
+                            <div className="allergen-detail-header">
+                              <div className="allergen-title">
+                                <span className="allergen-name-large">{symptomItem.allergen}</span>
+                                <span className="grade-pill high">{symptomItem.grade}등급</span>
+                                <span className="risk-pill danger">고위험</span>
                               </div>
-                              <ul className="symptom-list">
-                                {item.symptoms.map((s, i) => (
-                                  <li key={i} className="symptom-item-with-citation">
-                                    <div className="symptom-content">
-                                      <strong>{s.name}</strong>
-                                      <span className="symptom-detail">발생확률 {s.probability}, {s.onset}</span>
+                            </div>
+                            <div className="allergen-detail-body">
+                              {/* 2단 레이아웃: 증상 | 회피 식품 */}
+                              <div className="two-column-layout">
+                                <div className="column">
+                                  <h5>예상 증상</h5>
+                                  <ul className="symptom-list-compact">
+                                    {symptomItem.symptoms.map((s, i) => (
+                                      <li key={i}>
+                                        <span className="symptom-name">{s.name}</span>
+                                        <span className="symptom-meta">{s.probability}</span>
+                                        {s.citations?.length > 0 ? <CitationBadge citations={s.citations} small /> : <NoCitationBadge small />}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                                <div className="column">
+                                  <h5>회피 식품</h5>
+                                  <div className="food-tags-compact">
+                                    {avoidFoods?.foods?.map((food, i) => (
+                                      <span key={i} className="food-tag-sm danger">
+                                        {typeof food === 'object' ? food.name : food}
+                                        {food.citations?.length > 0 && <CitationBadge citations={food.citations} small />}
+                                      </span>
+                                    )) || <span className="no-data">해당 없음</span>}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* 2단 레이아웃: 숨겨진 알러젠 | 대체 식품 */}
+                              <div className="two-column-layout">
+                                <div className="column">
+                                  <h5>숨겨진 알러젠</h5>
+                                  <div className="food-tags-compact">
+                                    {hiddenSources?.sources?.map((source, i) => (
+                                      <span key={i} className="food-tag-sm warning">
+                                        {typeof source === 'object' ? source.name : source}
+                                        {source.citations?.length > 0 && <CitationBadge citations={source.citations} small />}
+                                      </span>
+                                    )) || <span className="no-data">해당 없음</span>}
+                                  </div>
+                                </div>
+                                <div className="column">
+                                  <h5>대체 식품</h5>
+                                  {substitutes.length > 0 ? substitutes.map((sub, i) => (
+                                    <div key={i} className="substitute-row">
+                                      <span className="sub-original">{sub.original}</span>
+                                      <span className="sub-arrow">→</span>
+                                      <span className="sub-alternatives">{sub.alternatives.join(', ')}</span>
+                                      {sub.citations?.length > 0 && <CitationBadge citations={sub.citations} small />}
                                     </div>
-                                    {s.citations && s.citations.length > 0 ? (
-                                      <CitationBadge citations={s.citations} />
-                                    ) : (
-                                      <NoCitationBadge />
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                                  )) : <span className="no-data">해당 없음</span>}
+                                </div>
+                              </div>
 
-                      {/* Moderate Risk */}
-                      {patientGuide.symptoms_risk.moderate_risk.length > 0 && (
-                        <div className="risk-group moderate-risk">
-                          <h4><span className="risk-badge warning">주의</span> 중등도 반응 예상</h4>
-                          {patientGuide.symptoms_risk.moderate_risk.map((item, idx) => (
-                            <div key={idx} className="symptom-card">
-                              <div className="symptom-header">
-                                <span className="allergen-badge">{item.allergen}</span>
-                                <span className="grade-badge">등급 {item.grade}</span>
-                              </div>
-                              <ul className="symptom-list">
-                                {item.symptoms.map((s, i) => (
-                                  <li key={i} className="symptom-item-with-citation">
-                                    <div className="symptom-content">
-                                      <strong>{s.name}</strong>
-                                      <span className="symptom-detail">발생확률 {s.probability}, {s.onset}</span>
-                                    </div>
-                                    {s.citations && s.citations.length > 0 ? (
-                                      <CitationBadge citations={s.citations} />
-                                    ) : (
-                                      <NoCitationBadge />
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Low Risk */}
-                      {patientGuide.symptoms_risk.low_risk.length > 0 && (
-                        <div className="risk-group low-risk">
-                          <h4><span className="risk-badge info">경미</span> 약한 반응 예상</h4>
-                          {patientGuide.symptoms_risk.low_risk.map((item, idx) => (
-                            <div key={idx} className="symptom-card">
-                              <div className="symptom-header">
-                                <span className="allergen-badge">{item.allergen}</span>
-                                <span className="grade-badge">등급 {item.grade}</span>
-                              </div>
-                              <ul className="symptom-list">
-                                {item.symptoms.map((s, i) => (
-                                  <li key={i} className="symptom-item-with-citation">
-                                    <div className="symptom-content">
-                                      <strong>{s.name}</strong>
-                                      <span className="symptom-detail">발생확률 {s.probability}, {s.onset}</span>
-                                    </div>
-                                    {s.citations && s.citations.length > 0 ? (
-                                      <CitationBadge citations={s.citations} />
-                                    ) : (
-                                      <NoCitationBadge />
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <p>데이터를 불러오지 못했습니다.</p>
-                  )}
-                </div>
-              )}
-
-              {/* Tab: Dietary Management */}
-              {activeTab === 'dietary' && (
-                <div className="patient-guide-section">
-                  {guideLoading ? (
-                    <div className="loading-small">로딩 중...</div>
-                  ) : patientGuide ? (
-                    <>
-                      <div className="guide-intro">
-                        <p>무엇을 먹으면 안 되는지, 어떤 음식에 주의해야 하는지 안내합니다.</p>
-                      </div>
-
-                      {/* Avoid Foods */}
-                      {patientGuide.dietary_management.avoid_foods.length > 0 && (
-                        <div className="dietary-group">
-                          <h4>회피해야 할 식품</h4>
-                          {patientGuide.dietary_management.avoid_foods.map((item, idx) => (
-                            <div key={idx} className="dietary-card">
-                              <div className="dietary-header">
-                                <span className="allergen-badge danger">{item.allergen}</span>
-                              </div>
-                              <div className="food-tags">
-                                {item.foods.map((food, i) => (
-                                  <span key={i} className="food-tag-with-citation">
-                                    <span className="food-tag danger">
-                                      {typeof food === 'object' ? food.name : food}
-                                    </span>
-                                    {food.citations && food.citations.length > 0 ? (
-                                      <CitationBadge citations={food.citations} small />
-                                    ) : (
-                                      <NoCitationBadge small />
-                                    )}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Hidden Sources */}
-                      {patientGuide.dietary_management.hidden_sources.length > 0 && (
-                        <div className="dietary-group">
-                          <h4>숨겨진 알러젠 주의</h4>
-                          {patientGuide.dietary_management.hidden_sources.map((item, idx) => (
-                            <div key={idx} className="dietary-card">
-                              <div className="dietary-header">
-                                <span className="allergen-badge warning">{item.allergen}</span>
-                              </div>
-                              <div className="food-tags">
-                                {item.sources.map((source, i) => (
-                                  <span key={i} className="food-tag-with-citation">
-                                    <span className="food-tag warning">
-                                      {typeof source === 'object' ? source.name : source}
-                                    </span>
-                                    {source.citations && source.citations.length > 0 ? (
-                                      <CitationBadge citations={source.citations} small />
-                                    ) : (
-                                      <NoCitationBadge small />
-                                    )}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Cross Reactivity */}
-                      {patientGuide.dietary_management.cross_reactivity.length > 0 && (
-                        <div className="dietary-group">
-                          <h4>교차반응 주의</h4>
-                          <div className="cross-reaction-list">
-                            {patientGuide.dietary_management.cross_reactivity.map((item, idx) => (
-                              <div key={idx} className="cross-card">
-                                <span className="cross-from">{item.from_allergen}</span>
-                                <span className="cross-arrow">→</span>
-                                <span className="cross-to">{item.to_allergen}</span>
-                                <span className="cross-prob">{item.probability}</span>
-                                {item.citations && item.citations.length > 0 ? (
-                                  <CitationBadge citations={item.citations} small />
-                                ) : (
-                                  <NoCitationBadge small />
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Substitutes */}
-                      {patientGuide.dietary_management.substitutes.length > 0 && (
-                        <div className="dietary-group">
-                          <h4>대체 식품</h4>
-                          {patientGuide.dietary_management.substitutes.map((item, idx) => (
-                            <div key={idx} className="substitute-card">
-                              <div className="substitute-original">
-                                <span className="allergen-small">{item.allergen}</span>
-                                <strong>{item.original}</strong>
-                              </div>
-                              <div className="substitute-arrow">→</div>
-                              <div className="substitute-alternatives">
-                                {item.alternatives.map((alt, i) => (
-                                  <span key={i} className="alt-tag">{alt}</span>
-                                ))}
-                              </div>
-                              {item.citations && item.citations.length > 0 ? (
-                                <CitationBadge citations={item.citations} small />
-                              ) : (
-                                <NoCitationBadge small />
+                              {/* 교차반응 */}
+                              {crossReactions.length > 0 && (
+                                <div className="cross-reaction-section">
+                                  <h5>교차반응 주의</h5>
+                                  <div className="cross-tags">
+                                    {crossReactions.map((cross, i) => (
+                                      <span key={i} className="cross-tag">
+                                        → {cross.to_allergen} ({cross.probability})
+                                        {cross.citations?.length > 0 && <CitationBadge citations={cross.citations} small />}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
                               )}
                             </div>
-                          ))}
-                        </div>
-                      )}
+                          </div>
+                        );
+                      })}
 
-                      {/* Restaurant Cautions */}
+                      {/* 알러젠별 통합 카드 - 중위험 */}
+                      {patientGuide.symptoms_risk.moderate_risk.map((symptomItem, idx) => {
+                        const allergenCode = symptomItem.allergen_code;
+                        const avoidFoods = patientGuide.dietary_management.avoid_foods.find(f => f.allergen_code === allergenCode);
+                        const hiddenSources = patientGuide.dietary_management.hidden_sources.find(h => h.allergen_code === allergenCode);
+                        const substitutes = patientGuide.dietary_management.substitutes.filter(s => s.allergen_code === allergenCode);
+                        const crossReactions = patientGuide.dietary_management.cross_reactivity.filter(c => c.from_allergen_code === allergenCode);
+
+                        return (
+                          <div key={idx} className="allergen-detail-card moderate-risk">
+                            <div className="allergen-detail-header">
+                              <div className="allergen-title">
+                                <span className="allergen-name-large">{symptomItem.allergen}</span>
+                                <span className="grade-pill moderate">{symptomItem.grade}등급</span>
+                                <span className="risk-pill warning">주의</span>
+                              </div>
+                            </div>
+                            <div className="allergen-detail-body">
+                              <div className="two-column-layout">
+                                <div className="column">
+                                  <h5>예상 증상</h5>
+                                  <ul className="symptom-list-compact">
+                                    {symptomItem.symptoms.map((s, i) => (
+                                      <li key={i}>
+                                        <span className="symptom-name">{s.name}</span>
+                                        <span className="symptom-meta">{s.probability}</span>
+                                        {s.citations?.length > 0 ? <CitationBadge citations={s.citations} small /> : <NoCitationBadge small />}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                                <div className="column">
+                                  <h5>회피 식품</h5>
+                                  <div className="food-tags-compact">
+                                    {avoidFoods?.foods?.map((food, i) => (
+                                      <span key={i} className="food-tag-sm danger">
+                                        {typeof food === 'object' ? food.name : food}
+                                        {food.citations?.length > 0 && <CitationBadge citations={food.citations} small />}
+                                      </span>
+                                    )) || <span className="no-data">해당 없음</span>}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="two-column-layout">
+                                <div className="column">
+                                  <h5>숨겨진 알러젠</h5>
+                                  <div className="food-tags-compact">
+                                    {hiddenSources?.sources?.map((source, i) => (
+                                      <span key={i} className="food-tag-sm warning">
+                                        {typeof source === 'object' ? source.name : source}
+                                        {source.citations?.length > 0 && <CitationBadge citations={source.citations} small />}
+                                      </span>
+                                    )) || <span className="no-data">해당 없음</span>}
+                                  </div>
+                                </div>
+                                <div className="column">
+                                  <h5>대체 식품</h5>
+                                  {substitutes.length > 0 ? substitutes.map((sub, i) => (
+                                    <div key={i} className="substitute-row">
+                                      <span className="sub-original">{sub.original}</span>
+                                      <span className="sub-arrow">→</span>
+                                      <span className="sub-alternatives">{sub.alternatives.join(', ')}</span>
+                                      {sub.citations?.length > 0 && <CitationBadge citations={sub.citations} small />}
+                                    </div>
+                                  )) : <span className="no-data">해당 없음</span>}
+                                </div>
+                              </div>
+
+                              {crossReactions.length > 0 && (
+                                <div className="cross-reaction-section">
+                                  <h5>교차반응 주의</h5>
+                                  <div className="cross-tags">
+                                    {crossReactions.map((cross, i) => (
+                                      <span key={i} className="cross-tag">
+                                        → {cross.to_allergen} ({cross.probability})
+                                        {cross.citations?.length > 0 && <CitationBadge citations={cross.citations} small />}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* 알러젠별 통합 카드 - 경미 */}
+                      {patientGuide.symptoms_risk.low_risk.map((symptomItem, idx) => {
+                        const allergenCode = symptomItem.allergen_code;
+                        const avoidFoods = patientGuide.dietary_management.avoid_foods.find(f => f.allergen_code === allergenCode);
+                        const hiddenSources = patientGuide.dietary_management.hidden_sources.find(h => h.allergen_code === allergenCode);
+                        const substitutes = patientGuide.dietary_management.substitutes.filter(s => s.allergen_code === allergenCode);
+
+                        return (
+                          <div key={idx} className="allergen-detail-card low-risk">
+                            <div className="allergen-detail-header">
+                              <div className="allergen-title">
+                                <span className="allergen-name-large">{symptomItem.allergen}</span>
+                                <span className="grade-pill low">{symptomItem.grade}등급</span>
+                                <span className="risk-pill info">경미</span>
+                              </div>
+                            </div>
+                            <div className="allergen-detail-body">
+                              <div className="two-column-layout">
+                                <div className="column">
+                                  <h5>예상 증상</h5>
+                                  <ul className="symptom-list-compact">
+                                    {symptomItem.symptoms.map((s, i) => (
+                                      <li key={i}>
+                                        <span className="symptom-name">{s.name}</span>
+                                        <span className="symptom-meta">{s.probability}</span>
+                                        {s.citations?.length > 0 ? <CitationBadge citations={s.citations} small /> : <NoCitationBadge small />}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                                <div className="column">
+                                  <h5>회피 식품</h5>
+                                  <div className="food-tags-compact">
+                                    {avoidFoods?.foods?.map((food, i) => (
+                                      <span key={i} className="food-tag-sm danger">
+                                        {typeof food === 'object' ? food.name : food}
+                                        {food.citations?.length > 0 && <CitationBadge citations={food.citations} small />}
+                                      </span>
+                                    )) || <span className="no-data">해당 없음</span>}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {(hiddenSources?.sources?.length > 0 || substitutes.length > 0) && (
+                                <div className="two-column-layout">
+                                  <div className="column">
+                                    <h5>숨겨진 알러젠</h5>
+                                    <div className="food-tags-compact">
+                                      {hiddenSources?.sources?.map((source, i) => (
+                                        <span key={i} className="food-tag-sm warning">
+                                          {typeof source === 'object' ? source.name : source}
+                                        </span>
+                                      )) || <span className="no-data">해당 없음</span>}
+                                    </div>
+                                  </div>
+                                  <div className="column">
+                                    <h5>대체 식품</h5>
+                                    {substitutes.length > 0 ? substitutes.map((sub, i) => (
+                                      <div key={i} className="substitute-row">
+                                        <span className="sub-original">{sub.original}</span>
+                                        <span className="sub-arrow">→</span>
+                                        <span className="sub-alternatives">{sub.alternatives.join(', ')}</span>
+                                      </div>
+                                    )) : <span className="no-data">해당 없음</span>}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* 외식 시 주의 */}
                       {patientGuide.dietary_management.restaurant_cautions.length > 0 && (
-                        <div className="dietary-group">
-                          <h4>외식 시 주의</h4>
+                        <div className="restaurant-cautions-section">
+                          <h4>외식 시 주의사항</h4>
                           <ul className="caution-list">
                             {patientGuide.dietary_management.restaurant_cautions.map((caution, idx) => (
                               <li key={idx}>{caution}</li>
@@ -1828,7 +1900,377 @@ const MyDiagnosisPage = () => {
           margin-bottom: 0.5rem;
         }
 
+        /* Summary Cards */
+        .summary-cards {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 1rem;
+          margin-bottom: 1.5rem;
+        }
+
+        .summary-card {
+          background: white;
+          border-radius: 12px;
+          padding: 1.25rem;
+          text-align: center;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+          border: 1px solid #e0e0e0;
+        }
+
+        .summary-card.positive {
+          border-left: 4px solid #2196F3;
+        }
+
+        .summary-card.grade {
+          border-left: 4px solid #9c27b0;
+        }
+
+        .summary-card.risk {
+          border-left: 4px solid #ff9800;
+        }
+
+        .summary-card.risk.danger {
+          border-left-color: #f44336;
+          background: linear-gradient(135deg, #fff5f5, #ffebee);
+        }
+
+        .summary-card.risk.safe {
+          border-left-color: #4caf50;
+        }
+
+        .summary-card.dietary {
+          border-left: 4px solid #ff5722;
+        }
+
+        .summary-value {
+          font-size: 2rem;
+          font-weight: 700;
+          color: #333;
+          line-height: 1;
+        }
+
+        .summary-card.risk.danger .summary-value {
+          color: #d32f2f;
+        }
+
+        .summary-label {
+          font-size: 0.85rem;
+          color: #666;
+          margin-top: 0.5rem;
+        }
+
+        /* High Risk Alert */
+        .high-risk-alert {
+          background: linear-gradient(135deg, #fff5f5, #ffebee);
+          border: 2px solid #ef5350;
+          border-radius: 12px;
+          padding: 1rem 1.25rem;
+          margin-bottom: 1.5rem;
+        }
+
+        .high-risk-alert h4 {
+          margin: 0 0 0.5rem;
+          color: #c62828;
+          font-size: 1rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .high-risk-alert h4::before {
+          content: '⚠️';
+        }
+
+        .high-risk-alert p {
+          margin: 0;
+          color: #d32f2f;
+          font-size: 0.95rem;
+        }
+
+        /* Allergen Detail Cards */
+        .allergen-detail-card {
+          background: white;
+          border-radius: 12px;
+          margin-bottom: 1.25rem;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+          overflow: hidden;
+        }
+
+        .allergen-detail-card.high-risk {
+          border: 2px solid #ef5350;
+        }
+
+        .allergen-detail-card.moderate-risk {
+          border: 2px solid #ffb74d;
+        }
+
+        .allergen-detail-card.low-risk {
+          border: 2px solid #81c784;
+        }
+
+        .allergen-detail-header {
+          padding: 1rem 1.25rem;
+          background: #fafafa;
+          border-bottom: 1px solid #e0e0e0;
+        }
+
+        .allergen-detail-card.high-risk .allergen-detail-header {
+          background: linear-gradient(135deg, #ffebee, #ffcdd2);
+        }
+
+        .allergen-detail-card.moderate-risk .allergen-detail-header {
+          background: linear-gradient(135deg, #fff8e1, #ffe0b2);
+        }
+
+        .allergen-detail-card.low-risk .allergen-detail-header {
+          background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+        }
+
+        .allergen-title {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          flex-wrap: wrap;
+        }
+
+        .allergen-name-large {
+          font-size: 1.25rem;
+          font-weight: 600;
+          color: #333;
+        }
+
+        .grade-pill {
+          padding: 0.25rem 0.6rem;
+          border-radius: 20px;
+          font-size: 0.8rem;
+          font-weight: 600;
+        }
+
+        .grade-pill.high {
+          background: #d32f2f;
+          color: white;
+        }
+
+        .grade-pill.moderate {
+          background: #f57c00;
+          color: white;
+        }
+
+        .grade-pill.low {
+          background: #388e3c;
+          color: white;
+        }
+
+        .risk-pill {
+          padding: 0.25rem 0.6rem;
+          border-radius: 20px;
+          font-size: 0.75rem;
+          font-weight: 500;
+        }
+
+        .risk-pill.danger {
+          background: #ffcdd2;
+          color: #c62828;
+        }
+
+        .risk-pill.warning {
+          background: #ffe0b2;
+          color: #e65100;
+        }
+
+        .risk-pill.info {
+          background: #c8e6c9;
+          color: #2e7d32;
+        }
+
+        .allergen-detail-body {
+          padding: 1.25rem;
+        }
+
+        /* Two Column Layout */
+        .two-column-layout {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 1.5rem;
+          margin-bottom: 1rem;
+        }
+
+        .two-column-layout:last-child {
+          margin-bottom: 0;
+        }
+
+        .column h5 {
+          margin: 0 0 0.75rem;
+          font-size: 0.9rem;
+          color: #555;
+          padding-bottom: 0.5rem;
+          border-bottom: 1px solid #eee;
+        }
+
+        /* Compact Symptom List */
+        .symptom-list-compact {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+        }
+
+        .symptom-list-compact li {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.4rem 0;
+          border-bottom: 1px dotted #eee;
+          flex-wrap: wrap;
+        }
+
+        .symptom-list-compact li:last-child {
+          border-bottom: none;
+        }
+
+        .symptom-name {
+          font-size: 0.9rem;
+          color: #333;
+        }
+
+        .symptom-meta {
+          font-size: 0.75rem;
+          color: #888;
+          background: #f5f5f5;
+          padding: 0.15rem 0.4rem;
+          border-radius: 4px;
+        }
+
+        /* Compact Food Tags */
+        .food-tags-compact {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+
+        .food-tag-sm {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.25rem;
+          padding: 0.3rem 0.6rem;
+          border-radius: 6px;
+          font-size: 0.85rem;
+        }
+
+        .food-tag-sm.danger {
+          background: #ffebee;
+          color: #c62828;
+          border: 1px solid #ffcdd2;
+        }
+
+        .food-tag-sm.warning {
+          background: #fff8e1;
+          color: #e65100;
+          border: 1px solid #ffe0b2;
+        }
+
+        /* Substitute Row */
+        .substitute-row {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.4rem 0;
+          font-size: 0.9rem;
+          flex-wrap: wrap;
+        }
+
+        .sub-original {
+          color: #c62828;
+          text-decoration: line-through;
+          text-decoration-color: #ef9a9a;
+        }
+
+        .sub-arrow {
+          color: #4caf50;
+          font-weight: bold;
+        }
+
+        .sub-alternatives {
+          color: #2e7d32;
+          font-weight: 500;
+        }
+
+        /* Cross Reaction Section */
+        .cross-reaction-section {
+          margin-top: 0.5rem;
+          padding-top: 1rem;
+          border-top: 1px solid #eee;
+        }
+
+        .cross-reaction-section h5 {
+          margin: 0 0 0.75rem;
+          font-size: 0.9rem;
+          color: #555;
+        }
+
+        .cross-tags {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+
+        .cross-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.25rem;
+          padding: 0.3rem 0.6rem;
+          background: #fff3e0;
+          color: #e65100;
+          border: 1px solid #ffe0b2;
+          border-radius: 6px;
+          font-size: 0.85rem;
+        }
+
+        /* Restaurant Cautions */
+        .restaurant-cautions-section {
+          background: #f5f5f5;
+          border-radius: 10px;
+          padding: 1rem 1.25rem;
+          margin-top: 1rem;
+        }
+
+        .restaurant-cautions-section h4 {
+          margin: 0 0 0.75rem;
+          font-size: 1rem;
+          color: #333;
+        }
+
+        /* No Data */
+        .no-data {
+          color: #999;
+          font-size: 0.85rem;
+          font-style: italic;
+        }
+
+        @media (max-width: 900px) {
+          .summary-cards {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+
         @media (max-width: 600px) {
+          .summary-cards {
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+          }
+
+          .summary-card {
+            padding: 1rem;
+          }
+
+          .summary-value {
+            font-size: 1.5rem;
+          }
+
+          .two-column-layout {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+          }
+
           .tab-navigation {
             gap: 0;
           }
@@ -1852,6 +2294,12 @@ const MyDiagnosisPage = () => {
             left: auto;
             right: 0;
             transform: none;
+          }
+
+          .allergen-title {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.5rem;
           }
         }
       `}</style>
