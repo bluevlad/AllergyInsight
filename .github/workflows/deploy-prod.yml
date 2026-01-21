@@ -15,17 +15,11 @@ jobs:
         working-directory: C:\GIT\AllergyInsight
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          path: C:\GIT\AllergyInsight
-          clean: false
-
       - name: Pull latest changes
         run: |
           git fetch origin prod
           git checkout prod
-          git pull origin prod
+          git reset --hard origin/prod
 
       - name: Stop existing containers
         run: docker-compose down
