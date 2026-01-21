@@ -15,6 +15,10 @@ jobs:
         working-directory: C:\GIT\AllergyInsight
 
     steps:
+      - name: Configure git safe directory
+        working-directory: C:\
+        run: git config --global --add safe.directory C:/GIT/AllergyInsight
+
       - name: Pull latest changes
         run: |
           git fetch origin prod
