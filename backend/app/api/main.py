@@ -38,6 +38,10 @@ from ..auth.diagnosis_routes import router as diagnosis_router
 from ..auth.paper_routes import router as paper_router
 from ..auth.config import auth_settings
 from ..database.connection import engine, init_db
+from ..database.seed_users import seed_users
+
+# Phase 1: Organization imports
+from ..organization.routes import router as organization_router
 
 # FastAPI 앱 생성
 app = FastAPI(
@@ -65,6 +69,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/api")
 app.include_router(diagnosis_router, prefix="/api")
 app.include_router(paper_router, prefix="/api")
+app.include_router(organization_router, prefix="/api")
 
 # 전역 서비스 인스턴스
 _search_service: Optional[PaperSearchService] = None
@@ -719,8 +724,9 @@ async def list_prescriptions(limit: int = 50, offset: int = 0):
 
 @app.on_event("startup")
 async def startup_event():
-    """앱 시작 시 데이터베이스 초기화"""
+    """앱 시작 시 데이터베이스 초기화 및 시드 데이터 생성"""
     init_db()
+    seed_users()  # 테스트 사용자 시딩
 
 
 @app.on_event("shutdown")

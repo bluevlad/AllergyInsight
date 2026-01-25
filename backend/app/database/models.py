@@ -1,6 +1,6 @@
 """Database Models"""
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, ForeignKey, JSON, Index
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, ForeignKey, JSON, Index, Text
 from sqlalchemy.orm import relationship
 from .connection import Base
 
@@ -27,7 +27,9 @@ class User(Base):
     birth_date = Column(Date, nullable=True)
     access_pin_hash = Column(String(255), nullable=True)  # For simple login
 
-    # Role: 'user' or 'admin'
+    # Role: 확장된 역할 체계 지원
+    # 'patient', 'doctor', 'nurse', 'lab_tech', 'hospital_admin', 'super_admin'
+    # Legacy: 'user', 'admin'
     role = Column(String(20), default="user")
 
     # Metadata
@@ -36,14 +38,28 @@ class User(Base):
     is_active = Column(Boolean, default=True)
 
     # Relationships
-    diagnoses = relationship("UserDiagnosis", back_populates="user")
+    diagnoses = relationship("UserDiagnosis", back_populates="user", foreign_keys="[UserDiagnosis.user_id]")
     registered_kits = relationship("DiagnosisKit", back_populates="registered_user", foreign_keys="[DiagnosisKit.registered_user_id]")
+
+    # Phase 1: 조직 관련 관계 추가
+    organization_memberships = relationship("OrganizationMember", back_populates="user", cascade="all, delete-orphan")
+    hospital_connections = relationship("HospitalPatient", back_populates="patient_user", foreign_keys="[HospitalPatient.patient_user_id]")
 
     # Indexes
     __table_args__ = (
         Index('idx_users_google_id', 'google_id'),
         Index('idx_users_name_birth', 'name', 'birth_date'),
+        Index('idx_users_role', 'role'),
     )
+
+    def is_staff(self) -> bool:
+        """병원 직원 역할인지 확인"""
+        staff_roles = ['doctor', 'nurse', 'lab_tech', 'hospital_admin']
+        return self.role in staff_roles
+
+    def is_admin_role(self) -> bool:
+        """관리자 역할인지 확인 (super_admin 또는 legacy admin)"""
+        return self.role in ['super_admin', 'admin']
 
 
 class DiagnosisKit(Base):
@@ -68,6 +84,9 @@ class DiagnosisKit(Base):
     is_registered = Column(Boolean, default=False)
     registered_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     registered_at = Column(DateTime, nullable=True)
+
+    # Phase 1: 병원에서 생성한 키트인 경우 조직 ID
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
 
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -94,16 +113,22 @@ class UserDiagnosis(Base):
     # Cached prescription
     prescription = Column(JSON, nullable=True)
 
+    # Phase 1: 병원에서 입력한 경우
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
+    entered_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # 입력한 의료진
+    doctor_note = Column(Text, nullable=True)  # 의사 소견
+
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
-    user = relationship("User", back_populates="diagnoses")
+    user = relationship("User", back_populates="diagnoses", foreign_keys=[user_id])
     kit = relationship("DiagnosisKit", back_populates="user_diagnoses")
 
     # Indexes
     __table_args__ = (
         Index('idx_user_diagnoses_user', 'user_id'),
+        Index('idx_user_diagnoses_org', 'organization_id'),
     )
 
 
