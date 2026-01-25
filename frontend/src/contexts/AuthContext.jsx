@@ -110,12 +110,17 @@ export const AuthProvider = ({ children }) => {
     setAccessPin(null);
   };
 
+  // Phase 2: Hospital staff role check
+  const hospitalStaffRoles = ['doctor', 'nurse', 'lab_tech', 'hospital_admin'];
+  const isHospitalStaff = user && hospitalStaffRoles.includes(user.role);
+
   const value = {
     user,
     loading,
     accessPin,
     isAuthenticated: !!user,
-    isAdmin: user?.role === 'admin',
+    isAdmin: user?.role === 'admin' || user?.role === 'super_admin',
+    isHospitalStaff,
     loginWithGoogle,
     registerSimple,
     loginSimple,

@@ -1,0 +1,91 @@
+# 테스트 환경용 Docker Compose
+# 운영 환경(4040, 9040, 5432)과 포트 충돌 방지
+# 사용법: docker-compose -f docker-compose.test.yml up -d
+
+services:
+  # PostgreSQL Database (Test)
+  db:
+    image: postgres:15-alpine
+    container_name: allergyinsight-test-db
+    environment:
+      POSTGRES_DB: allergyinsight_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-allergyinsight2024}
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    networks:
+      - allergyinsight-test-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: allergyinsight-test-backend
+    ports:
+      - "9041:9040"
+    environment:
+      # Database
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:-allergyinsight2024}@db:5432/allergyinsight_test
+      # Google OAuth
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      # JWT
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-test-secret-key-for-development}
+      - JWT_ALGORITHM=HS256
+      - JWT_EXPIRE_MINUTES=1440
+      # URLs (테스트 포트)
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:4041}
+      - BACKEND_URL=${BACKEND_URL:-http://localhost:9041}
+      # Existing
+      - PUBMED_API_KEY=${PUBMED_API_KEY:-}
+      - PUBMED_EMAIL=${PUBMED_EMAIL:-}
+      - SEMANTIC_SCHOLAR_API_KEY=${SEMANTIC_SCHOLAR_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - DOWNLOAD_DIR=/app/downloads/papers
+      - DEFAULT_MAX_RESULTS=20
+      - SEARCH_TIMEOUT=30
+    volumes:
+      - backend_test_downloads:/app/downloads
+    networks:
+      - allergyinsight-test-network
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9040/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://localhost:9041
+    container_name: allergyinsight-test-frontend
+    ports:
+      - "4041:4040"
+    depends_on:
+      - backend
+    networks:
+      - allergyinsight-test-network
+    restart: unless-stopped
+
+networks:
+  allergyinsight-test-network:
+    driver: bridge
+
+volumes:
+  backend_test_downloads:
+  postgres_test_data:

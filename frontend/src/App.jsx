@@ -13,9 +13,14 @@ import LoginPage from './pages/LoginPage';
 import AuthCallback from './pages/AuthCallback';
 import MyDiagnosisPage from './pages/MyDiagnosisPage';
 
+// Hospital Pages (Phase 2)
+import HospitalDashboard from './pages/hospital/HospitalDashboard';
+import PatientListPage from './pages/hospital/PatientListPage';
+import PatientRegisterPage from './pages/hospital/PatientRegisterPage';
+
 // Protected Route Component
-const ProtectedRoute = ({ children, adminOnly = false }) => {
-  const { isAuthenticated, isAdmin, loading } = useAuth();
+const ProtectedRoute = ({ children, adminOnly = false, hospitalOnly = false }) => {
+  const { isAuthenticated, isAdmin, isHospitalStaff, loading } = useAuth();
 
   if (loading) {
     return (
@@ -30,6 +35,10 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
   }
 
   if (adminOnly && !isAdmin) {
+    return <Navigate to="/my-diagnosis" replace />;
+  }
+
+  if (hospitalOnly && !isHospitalStaff && !isAdmin) {
     return <Navigate to="/my-diagnosis" replace />;
   }
 
@@ -84,9 +93,9 @@ const AdminNav = () => {
 
 // User Navigation Component
 const UserNav = () => {
-  const { isAuthenticated, isAdmin } = useAuth();
+  const { isAuthenticated, isAdmin, isHospitalStaff } = useAuth();
 
-  if (!isAuthenticated || isAdmin) return null;
+  if (!isAuthenticated || isAdmin || isHospitalStaff) return null;
 
   return (
     <nav className="nav">
@@ -103,21 +112,50 @@ const UserNav = () => {
   );
 };
 
+// Hospital Staff Navigation Component (Phase 2)
+const HospitalNav = () => {
+  const { isHospitalStaff } = useAuth();
+
+  if (!isHospitalStaff) return null;
+
+  return (
+    <nav className="nav">
+      <NavLink to="/hospital" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+        대시보드
+      </NavLink>
+      <NavLink to="/hospital/patients" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+        환자 관리
+      </NavLink>
+      <NavLink to="/admin/diagnosis" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+        진단 입력
+      </NavLink>
+    </nav>
+  );
+};
+
 // Main App Layout
 const AppLayout = () => {
-  const { isAuthenticated, isAdmin, user } = useAuth();
+  const { isAuthenticated, isAdmin, isHospitalStaff, user } = useAuth();
+
+  const getSubtitle = () => {
+    if (isAdmin) return 'SGTi-Allergy Screen PLUS 진단 결과 분석 및 처방 권고 시스템';
+    if (isHospitalStaff) return '병원 환자 관리 시스템';
+    return '나의 알러지 검사 결과 조회';
+  };
+
+  const getNav = () => {
+    if (isAdmin) return <AdminNav />;
+    if (isHospitalStaff) return <HospitalNav />;
+    return <UserNav />;
+  };
 
   return (
     <div className="app-container">
       {/* 헤더 */}
       <header className="header">
         <h1>AllergyInsight</h1>
-        <p className="header-subtitle">
-          {isAdmin
-            ? 'SGTi-Allergy Screen PLUS 진단 결과 분석 및 처방 권고 시스템'
-            : '나의 알러지 검사 결과 조회'}
-        </p>
-        {isAdmin ? <AdminNav /> : <UserNav />}
+        <p className="header-subtitle">{getSubtitle()}</p>
+        {getNav()}
       </header>
 
       {/* 메인 컨텐츠 */}
@@ -141,6 +179,17 @@ const AppLayout = () => {
           } />
           <Route path="/qa" element={
             <ProtectedRoute><QAPage /></ProtectedRoute>
+          } />
+
+          {/* Hospital Staff Routes (Phase 2) */}
+          <Route path="/hospital" element={
+            <ProtectedRoute hospitalOnly><HospitalDashboard /></ProtectedRoute>
+          } />
+          <Route path="/hospital/patients" element={
+            <ProtectedRoute hospitalOnly><PatientListPage /></ProtectedRoute>
+          } />
+          <Route path="/hospital/patients/new" element={
+            <ProtectedRoute hospitalOnly><PatientRegisterPage /></ProtectedRoute>
           } />
 
           {/* Admin Routes */}

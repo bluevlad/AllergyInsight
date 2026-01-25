@@ -260,4 +260,42 @@ export const papersApi = {
     api.get(`/papers/citations/by-type/${linkType}`, { params: { allergen_code: allergenCode } }),
 };
 
+/**
+ * 병원 관리 API (Phase 2)
+ */
+export const hospitalApi = {
+  // 대시보드 통계
+  getDashboard: () => api.get('/hospital/dashboard'),
+
+  // 의사별 통계
+  getDoctorStats: () => api.get('/hospital/doctors/stats'),
+
+  // 환자 목록
+  getPatients: (params = {}) => api.get('/hospital/patients', { params }),
+
+  // 환자 상세
+  getPatient: (patientId) => api.get(`/hospital/patients/${patientId}`),
+
+  // 기존 사용자 환자 등록
+  registerPatient: (data) => api.post('/hospital/patients', data),
+
+  // 신규 사용자 환자 등록
+  registerNewPatient: (data) => api.post('/hospital/patients/new', data),
+
+  // 환자 정보 수정
+  updatePatient: (patientId, data) => api.put(`/hospital/patients/${patientId}`, data),
+
+  // 환자 동의서 서명 (환자 본인)
+  signConsent: (patientId, data) => api.post(`/hospital/patients/${patientId}/consent`, data),
+
+  // 내 병원 연결 목록 (환자용)
+  getMyHospitals: () => api.get('/hospital/my-hospitals'),
+
+  // 환자 진단 이력
+  getPatientDiagnoses: (patientId) => api.get(`/hospital/patients/${patientId}/diagnoses`),
+
+  // 진단 결과 입력
+  createDiagnosis: (patientId, data) => api.post(`/hospital/patients/${patientId}/diagnoses`, data),
+};
+
 export default api;

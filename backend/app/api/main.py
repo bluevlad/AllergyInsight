@@ -43,6 +43,9 @@ from ..database.seed_users import seed_users
 # Phase 1: Organization imports
 from ..organization.routes import router as organization_router
 
+# Phase 2: Hospital imports
+from ..hospital.routes import router as hospital_router
+
 # FastAPI 앱 생성
 app = FastAPI(
     title="AllergyInsight API",
@@ -70,6 +73,7 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(diagnosis_router, prefix="/api")
 app.include_router(paper_router, prefix="/api")
 app.include_router(organization_router, prefix="/api")
+app.include_router(hospital_router, prefix="/api")
 
 # 전역 서비스 인스턴스
 _search_service: Optional[PaperSearchService] = None

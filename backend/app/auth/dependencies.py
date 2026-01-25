@@ -246,3 +246,7 @@ async def require_org_context(
             detail="Organization affiliation required",
         )
     return ctx
+
+
+# Alias for hospital module
+get_organization_context = require_org_context
