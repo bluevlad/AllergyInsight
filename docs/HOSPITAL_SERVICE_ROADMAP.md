@@ -118,24 +118,24 @@ def get_organization_patients(db, current_user):
 
 ## 3. 개발 단계별 로드맵
 
-### Phase 1: 기반 구축 (현재)
+### Phase 1: 기반 구축 ✅ 완료
 
 - [x] 개발 로드맵 문서 작성
-- [ ] Organization 모델 추가
-- [ ] OrganizationMember 모델 추가
-- [ ] HospitalPatient 모델 추가
-- [ ] UserRole enum 정의 및 역할 체계 확장
-- [ ] 권한 미들웨어 리팩토링
-- [ ] Organization CRUD API 구현
-- [ ] 병원 관리자 가입 플로우 구현
+- [x] Organization 모델 추가
+- [x] OrganizationMember 모델 추가
+- [x] HospitalPatient 모델 추가
+- [x] UserRole enum 정의 및 역할 체계 확장
+- [x] 권한 미들웨어 리팩토링
+- [x] Organization CRUD API 구현
+- [x] 병원 관리자 가입 플로우 구현
 
-### Phase 2: 핵심 기능
+### Phase 2: 핵심 기능 ✅ 완료
 
-- [ ] 병원-환자 연결 시스템
-- [ ] 환자 동의서 관리
-- [ ] 병원 대시보드 UI
-- [ ] 환자 목록/검색 기능
-- [ ] 진단 워크플로우 (검체 접수 → 결과 입력 → 의사 검토)
+- [x] 병원-환자 연결 시스템
+- [x] 환자 동의서 관리
+- [x] 병원 대시보드 UI
+- [x] 환자 목록/검색 기능
+- [ ] 진단 워크플로우 (검체 접수 → 결과 입력 → 의사 검토) - 기본 구현 완료, 고도화 예정
 
 ### Phase 3: 고급 기능
 
@@ -299,3 +299,5 @@ PUT    /api/hospital/diagnoses/{id}/review       # 의사 검토/소견
 | 날짜 | 버전 | 내용 |
 |------|------|------|
 | 2025-01-25 | 1.0 | 초기 로드맵 작성 |
+| 2025-01-25 | 1.1 | Phase 1 완료 - 조직 관리 기반 구축 |
+| 2025-01-25 | 1.2 | Phase 2 완료 - 환자 관리 시스템 구현 |
