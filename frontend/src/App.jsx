@@ -1,30 +1,124 @@
+/**
+ * AllergyInsight Main App
+ *
+ * URL 기반 라우팅으로 Professional과 Consumer 앱을 분기합니다.
+ * - /pro/* : 의료진 전용 (Professional)
+ * - /app/* : 일반 사용자 (Consumer)
+ */
 import React from 'react';
-import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AuthProvider, useAuth } from './shared/contexts/AuthContext';
 
-// Pages
-import Dashboard from './pages/Dashboard';
-import SearchPage from './pages/SearchPage';
-import QAPage from './pages/QAPage';
-import PapersPage from './pages/PapersPage';
-import DiagnosisPage from './pages/DiagnosisPage';
-import PrescriptionPage from './pages/PrescriptionPage';
+// Apps
+import ProApp from './apps/professional/ProApp';
+import ConsumerApp from './apps/consumer/ConsumerApp';
+
+// Public Pages
 import LoginPage from './pages/LoginPage';
 import AuthCallback from './pages/AuthCallback';
-import MyDiagnosisPage from './pages/MyDiagnosisPage';
 
-// Hospital Pages (Phase 2)
-import HospitalDashboard from './pages/hospital/HospitalDashboard';
-import PatientListPage from './pages/hospital/PatientListPage';
-import PatientRegisterPage from './pages/hospital/PatientRegisterPage';
-
-// Protected Route Component
-const ProtectedRoute = ({ children, adminOnly = false, hospitalOnly = false }) => {
-  const { isAuthenticated, isAdmin, isHospitalStaff, loading } = useAuth();
+/**
+ * Protected Route Component
+ * - professionalOnly: 의료진만 접근 가능
+ */
+const ProtectedRoute = ({ children, professionalOnly = false }) => {
+  const { isAuthenticated, isProfessional, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        background: '#f8f9fa',
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div className="spinner" style={{
+            width: '40px',
+            height: '40px',
+            border: '4px solid #e9ecef',
+            borderTop: '4px solid #667eea',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 1rem',
+          }} />
+          <p style={{ color: '#666' }}>로딩 중...</p>
+        </div>
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    // 로그인 후 원래 페이지로 리다이렉트하기 위해 현재 위치 저장
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (professionalOnly && !isProfessional) {
+    // 의료진 전용 페이지에 일반 사용자가 접근 시 Consumer 앱으로 리다이렉트
+    return <Navigate to="/app" replace />;
+  }
+
+  return children;
+};
+
+/**
+ * Public Route Component
+ * - 이미 로그인된 경우 적절한 앱으로 리다이렉트
+ */
+const PublicRoute = ({ children }) => {
+  const { isAuthenticated, getDefaultApp, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+      }}>
+        <p>로딩 중...</p>
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    // 로그인 후 원래 가려던 페이지가 있으면 해당 페이지로
+    const from = location.state?.from?.pathname;
+    if (from && from !== '/login') {
+      return <Navigate to={from} replace />;
+    }
+    // 없으면 역할 기반 기본 앱으로
+    const defaultApp = getDefaultApp();
+    return <Navigate to={defaultApp === 'professional' ? '/pro' : '/app'} replace />;
+  }
+
+  return children;
+};
+
+/**
+ * Role Based Redirect
+ * - 로그인 상태와 역할에 따라 적절한 앱으로 리다이렉트
+ */
+const RoleBasedRedirect = () => {
+  const { isAuthenticated, getDefaultApp, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+      }}>
         <p>로딩 중...</p>
       </div>
     );
@@ -34,206 +128,61 @@ const ProtectedRoute = ({ children, adminOnly = false, hospitalOnly = false }) =
     return <Navigate to="/login" replace />;
   }
 
-  if (adminOnly && !isAdmin) {
-    return <Navigate to="/my-diagnosis" replace />;
-  }
-
-  if (hospitalOnly && !isHospitalStaff && !isAdmin) {
-    return <Navigate to="/my-diagnosis" replace />;
-  }
-
-  return children;
+  const defaultApp = getDefaultApp();
+  return <Navigate to={defaultApp === 'professional' ? '/pro' : '/app'} replace />;
 };
 
-// Public Route Component (redirects if logged in)
-const PublicRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
-        <p>로딩 중...</p>
-      </div>
-    );
-  }
-
-  if (isAuthenticated) {
-    return <Navigate to="/my-diagnosis" replace />;
-  }
-
-  return children;
-};
-
-// Admin Navigation Component
-const AdminNav = () => {
-  const { user, isAdmin } = useAuth();
-
-  if (!isAdmin) return null;
-
+/**
+ * Main Router
+ */
+const AppRouter = () => {
   return (
-    <nav className="nav">
-      <NavLink to="/admin" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-        대시보드
-      </NavLink>
-      <NavLink to="/admin/diagnosis" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-        진단 입력
-      </NavLink>
-      <NavLink to="/admin/search" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-        논문 검색
-      </NavLink>
-      <NavLink to="/admin/qa" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-        Q&A
-      </NavLink>
-      <NavLink to="/admin/papers" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-        논문 목록
-      </NavLink>
-    </nav>
+    <Routes>
+      {/* Public Routes */}
+      <Route path="/login" element={
+        <PublicRoute>
+          <LoginPage />
+        </PublicRoute>
+      } />
+      <Route path="/auth/callback" element={<AuthCallback />} />
+
+      {/* Professional App (/pro/*) */}
+      <Route path="/pro/*" element={
+        <ProtectedRoute professionalOnly>
+          <ProApp />
+        </ProtectedRoute>
+      } />
+
+      {/* Consumer App (/app/*) */}
+      <Route path="/app/*" element={
+        <ProtectedRoute>
+          <ConsumerApp />
+        </ProtectedRoute>
+      } />
+
+      {/* Default Route - Role based redirect */}
+      <Route path="/" element={<RoleBasedRedirect />} />
+
+      {/* Legacy Routes Redirect */}
+      <Route path="/admin/*" element={<Navigate to="/pro" replace />} />
+      <Route path="/hospital/*" element={<Navigate to="/pro" replace />} />
+      <Route path="/my-diagnosis" element={<Navigate to="/app/my-diagnosis" replace />} />
+      <Route path="/diagnosis" element={<Navigate to="/app/my-diagnosis" replace />} />
+
+      {/* Catch all */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 };
 
-// User Navigation Component
-const UserNav = () => {
-  const { isAuthenticated, isAdmin, isHospitalStaff } = useAuth();
-
-  if (!isAuthenticated || isAdmin || isHospitalStaff) return null;
-
-  return (
-    <nav className="nav">
-      <NavLink to="/my-diagnosis" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-        내 검사 결과
-      </NavLink>
-      <NavLink to="/diagnosis" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-        진단 입력
-      </NavLink>
-      <NavLink to="/qa" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-        Q&A
-      </NavLink>
-    </nav>
-  );
-};
-
-// Hospital Staff Navigation Component (Phase 2)
-const HospitalNav = () => {
-  const { isHospitalStaff } = useAuth();
-
-  if (!isHospitalStaff) return null;
-
-  return (
-    <nav className="nav">
-      <NavLink to="/hospital" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-        대시보드
-      </NavLink>
-      <NavLink to="/hospital/patients" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-        환자 관리
-      </NavLink>
-      <NavLink to="/admin/diagnosis" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-        진단 입력
-      </NavLink>
-    </nav>
-  );
-};
-
-// Main App Layout
-const AppLayout = () => {
-  const { isAuthenticated, isAdmin, isHospitalStaff, user } = useAuth();
-
-  const getSubtitle = () => {
-    if (isAdmin) return 'SGTi-Allergy Screen PLUS 진단 결과 분석 및 처방 권고 시스템';
-    if (isHospitalStaff) return '병원 환자 관리 시스템';
-    return '나의 알러지 검사 결과 조회';
-  };
-
-  const getNav = () => {
-    if (isAdmin) return <AdminNav />;
-    if (isHospitalStaff) return <HospitalNav />;
-    return <UserNav />;
-  };
-
-  return (
-    <div className="app-container">
-      {/* 헤더 */}
-      <header className="header">
-        <h1>AllergyInsight</h1>
-        <p className="header-subtitle">{getSubtitle()}</p>
-        {getNav()}
-      </header>
-
-      {/* 메인 컨텐츠 */}
-      <main className="main-content">
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/login" element={
-            <PublicRoute><LoginPage /></PublicRoute>
-          } />
-          <Route path="/auth/callback" element={<AuthCallback />} />
-
-          {/* User Routes */}
-          <Route path="/my-diagnosis" element={
-            <ProtectedRoute><MyDiagnosisPage /></ProtectedRoute>
-          } />
-          <Route path="/diagnosis" element={
-            <ProtectedRoute><DiagnosisPage /></ProtectedRoute>
-          } />
-          <Route path="/prescription" element={
-            <ProtectedRoute><PrescriptionPage /></ProtectedRoute>
-          } />
-          <Route path="/qa" element={
-            <ProtectedRoute><QAPage /></ProtectedRoute>
-          } />
-
-          {/* Hospital Staff Routes (Phase 2) */}
-          <Route path="/hospital" element={
-            <ProtectedRoute hospitalOnly><HospitalDashboard /></ProtectedRoute>
-          } />
-          <Route path="/hospital/patients" element={
-            <ProtectedRoute hospitalOnly><PatientListPage /></ProtectedRoute>
-          } />
-          <Route path="/hospital/patients/new" element={
-            <ProtectedRoute hospitalOnly><PatientRegisterPage /></ProtectedRoute>
-          } />
-
-          {/* Admin Routes */}
-          <Route path="/admin" element={
-            <ProtectedRoute adminOnly><Dashboard /></ProtectedRoute>
-          } />
-          <Route path="/admin/diagnosis" element={
-            <ProtectedRoute adminOnly><DiagnosisPage /></ProtectedRoute>
-          } />
-          <Route path="/admin/search" element={
-            <ProtectedRoute adminOnly><SearchPage /></ProtectedRoute>
-          } />
-          <Route path="/admin/qa" element={
-            <ProtectedRoute adminOnly><QAPage /></ProtectedRoute>
-          } />
-          <Route path="/admin/papers" element={
-            <ProtectedRoute adminOnly><PapersPage /></ProtectedRoute>
-          } />
-
-          {/* Default Route */}
-          <Route path="/" element={
-            isAuthenticated
-              ? (isAdmin ? <Navigate to="/admin" replace /> : <Navigate to="/my-diagnosis" replace />)
-              : <Navigate to="/login" replace />
-          } />
-
-          {/* Catch all */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </main>
-
-      {/* 푸터 */}
-      <footer style={{ textAlign: 'center', padding: '1rem', color: '#666', fontSize: '0.875rem' }}>
-        AllergyInsight v1.1.0 | SGTi-Allergy Screen PLUS 기반 알러지 처방 권고 시스템
-      </footer>
-    </div>
-  );
-};
-
+/**
+ * App Component
+ */
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppLayout />
+        <AppRouter />
       </AuthProvider>
     </BrowserRouter>
   );

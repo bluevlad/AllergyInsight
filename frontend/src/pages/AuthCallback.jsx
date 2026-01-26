@@ -3,12 +3,12 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../shared/contexts/AuthContext';
 
 const AuthCallback = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { handleOAuthCallback } = useAuth();
+  const { handleOAuthCallback, getDefaultApp } = useAuth();
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -25,7 +25,8 @@ const AuthCallback = () => {
       if (token) {
         try {
           await handleOAuthCallback(token);
-          navigate('/my-diagnosis');
+          const defaultApp = getDefaultApp();
+          navigate(defaultApp === 'professional' ? '/pro' : '/app');
         } catch (err) {
           setError('인증 처리 중 오류가 발생했습니다.');
           setTimeout(() => navigate('/login'), 3000);

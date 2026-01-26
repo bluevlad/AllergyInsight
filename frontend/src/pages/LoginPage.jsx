@@ -3,11 +3,11 @@
  */
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../shared/contexts/AuthContext';
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const { loginWithGoogle, registerSimple, loginSimple, accessPin, clearAccessPin } = useAuth();
+  const { loginWithGoogle, registerSimple, loginSimple, accessPin, clearAccessPin, getDefaultApp } = useAuth();
 
   const [mode, setMode] = useState('login'); // 'login', 'register'
   const [identifyMethod, setIdentifyMethod] = useState('phone'); // 'phone', 'birthdate'
@@ -80,7 +80,8 @@ const LoginPage = () => {
       }
 
       await loginSimple(data);
-      navigate('/my-diagnosis');
+      const defaultApp = getDefaultApp();
+      navigate(defaultApp === 'professional' ? '/pro' : '/app');
     } catch (err) {
       const message = err.response?.data?.detail || '로그인에 실패했습니다.';
       setError(message);
@@ -91,7 +92,8 @@ const LoginPage = () => {
 
   const handlePinConfirm = () => {
     clearAccessPin();
-    navigate('/my-diagnosis');
+    const defaultApp = getDefaultApp();
+    navigate(defaultApp === 'professional' ? '/pro' : '/app');
   };
 
   // Show access PIN after registration

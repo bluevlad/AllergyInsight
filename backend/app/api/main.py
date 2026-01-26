@@ -46,11 +46,15 @@ from ..organization.routes import router as organization_router
 # Phase 2: Hospital imports
 from ..hospital.routes import router as hospital_router
 
+# Service Bifurcation: Professional & Consumer imports
+from ..professional.routes import router as professional_router
+from ..consumer.routes import router as consumer_router
+
 # FastAPI 앱 생성
 app = FastAPI(
     title="AllergyInsight API",
-    description="SGTi-Allergy Screen PLUS 기반 알러지 진단 및 처방 권고 시스템",
-    version="1.1.0",
+    description="SGTi-Allergy Screen PLUS 기반 알러지 진단 및 처방 권고 시스템 (Professional/Consumer 서비스 이원화)",
+    version="2.0.0",
 )
 
 # CORS 설정
@@ -68,12 +72,16 @@ app.add_middleware(
     secret_key=auth_settings.jwt_secret_key,
 )
 
-# Include auth routers
+# Include auth routers (Core)
 app.include_router(auth_router, prefix="/api")
 app.include_router(diagnosis_router, prefix="/api")
 app.include_router(paper_router, prefix="/api")
 app.include_router(organization_router, prefix="/api")
 app.include_router(hospital_router, prefix="/api")
+
+# Include service routers (Bifurcated)
+app.include_router(professional_router, prefix="/api")  # /api/pro/*
+app.include_router(consumer_router, prefix="/api")      # /api/consumer/*
 
 # 전역 서비스 인스턴스
 _search_service: Optional[PaperSearchService] = None
@@ -190,8 +198,12 @@ async def root():
     """API 루트"""
     return {
         "name": "AllergyInsight API",
-        "version": "1.1.0",
+        "version": "2.0.0",
         "status": "running",
+        "services": {
+            "professional": "/api/pro/*",
+            "consumer": "/api/consumer/*",
+        },
         "endpoints": {
             "search": "/api/search",
             "qa": "/api/qa",
@@ -200,7 +212,19 @@ async def root():
             "diagnosis": "/api/diagnosis",
             "prescription": "/api/prescription",
             "sgti": "/api/sgti",
-        }
+        },
+        "professional_endpoints": {
+            "diagnosis": "/api/pro/diagnosis",
+            "patients": "/api/pro/patients",
+            "research": "/api/pro/research",
+            "dashboard": "/api/pro/dashboard",
+        },
+        "consumer_endpoints": {
+            "my_diagnoses": "/api/consumer/my/diagnoses",
+            "guide": "/api/consumer/guide",
+            "emergency": "/api/consumer/emergency",
+            "kit": "/api/consumer/kit",
+        },
     }
 
 

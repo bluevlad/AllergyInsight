@@ -1,301 +1,148 @@
 /**
- * AllergyInsight API 클라이언트
+ * AllergyInsight API 클라이언트 - Re-export for backward compatibility
+ *
+ * @deprecated 이 경로는 deprecated입니다.
+ * 대신 'shared/services/api' 또는 앱별 API 클라이언트를 사용하세요:
+ * - Professional: 'apps/professional/services/proApi'
+ * - Consumer: 'apps/consumer/services/consumerApi'
  */
-import axios from 'axios';
 
-const API_BASE = '/api';
+// Re-export from shared
+export {
+  authApi,
+  allergenApi,
+  sgtiApi,
+  healthCheck,
+  default as apiClient,
+} from '../shared/services/api';
 
-const api = axios.create({
-  baseURL: API_BASE,
-  timeout: 60000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+// Re-export apiClient as default
+import apiClient from '../shared/services/apiClient';
+export default apiClient;
 
-// 요청 인터셉터 - 토큰 추가
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// 응답 인터셉터
-api.interceptors.response.use(
-  (response) => response.data,
-  (error) => {
-    console.error('API Error:', error);
-    // 401 에러 시 토큰 제거
-    if (error.response?.status === 401) {
-      localStorage.removeItem('access_token');
-    }
-    throw error;
-  }
-);
+// Legacy APIs - kept for backward compatibility
+// These should be migrated to the appropriate app-specific API clients
 
 /**
  * 통계 API
  */
 export const statsApi = {
-  // 전체 통계 조회
-  getStats: () => api.get('/stats'),
-
-  // 요약 통계 조회
-  getSummary: () => api.get('/stats/summary'),
-
-  // 통계 초기화
-  reset: () => api.delete('/stats/reset'),
+  getStats: () => apiClient.get('/stats'),
+  getSummary: () => apiClient.get('/stats/summary'),
+  reset: () => apiClient.delete('/stats/reset'),
 };
 
 /**
  * 검색 API
  */
 export const searchApi = {
-  // 논문 검색
   search: (allergen, options = {}) =>
-    api.post('/search', {
+    apiClient.post('/search', {
       allergen,
       include_cross_reactivity: options.includeCrossReactivity ?? true,
       max_results: options.maxResults ?? 20,
     }),
-
-  // 배치 검색 시작
   batchSearch: (allergens, grades = null) =>
-    api.post('/batch/search', {
+    apiClient.post('/batch/search', {
       allergens,
       grades,
       include_cross_reactivity: true,
     }),
-
-  // 배치 상태 조회
-  getBatchStatus: (jobId) => api.get(`/batch/status/${jobId}`),
-
-  // 배치 결과 조회
-  getBatchResults: (jobId) => api.get(`/batch/results/${jobId}`),
+  getBatchStatus: (jobId) => apiClient.get(`/batch/status/${jobId}`),
+  getBatchResults: (jobId) => apiClient.get(`/batch/results/${jobId}`),
 };
 
 /**
  * Q&A API
  */
 export const qaApi = {
-  // 질문하기
   ask: (question, allergen = 'peanut', maxCitations = 5) =>
-    api.post('/qa', {
+    apiClient.post('/qa', {
       question,
       allergen,
       max_citations: maxCitations,
     }),
-
-  // 사전 정의 질문 조회
   getQuestions: (allergen = 'peanut') =>
-    api.get(`/qa/questions/${allergen}`),
-};
-
-/**
- * 알러지 정보 API
- */
-export const allergenApi = {
-  // 알러지 목록 조회
-  getAll: () => api.get('/allergens'),
-};
-
-/**
- * SGTi 정보 API
- */
-export const sgtiApi = {
-  // SGTi 제품 정보 조회
-  getInfo: () => api.get('/sgti/info'),
-
-  // 등급 정보 조회
-  getGrades: () => api.get('/sgti/grades'),
+    apiClient.get(`/qa/questions/${allergen}`),
 };
 
 /**
  * 진단 API
  */
 export const diagnosisApi = {
-  // 진단 결과 저장
   create: (diagnosisResults, diagnosisDate = null, patientInfo = null) =>
-    api.post('/diagnosis', {
+    apiClient.post('/diagnosis', {
       diagnosis_results: diagnosisResults,
       diagnosis_date: diagnosisDate,
       patient_info: patientInfo,
     }),
-
-  // 진단 결과 조회
-  get: (diagnosisId) => api.get(`/diagnosis/${diagnosisId}`),
-
-  // 진단 결과 목록 조회
+  get: (diagnosisId) => apiClient.get(`/diagnosis/${diagnosisId}`),
   list: (limit = 50, offset = 0) =>
-    api.get('/diagnosis', { params: { limit, offset } }),
-
-  // 진단 결과 삭제
-  delete: (diagnosisId) => api.delete(`/diagnosis/${diagnosisId}`),
+    apiClient.get('/diagnosis', { params: { limit, offset } }),
+  delete: (diagnosisId) => apiClient.delete(`/diagnosis/${diagnosisId}`),
 };
 
 /**
  * 처방 API
  */
 export const prescriptionApi = {
-  // 처방 권고 생성 (진단 ID 사용)
   generateFromDiagnosis: (diagnosisId) =>
-    api.post('/prescription/generate', {
+    apiClient.post('/prescription/generate', {
       diagnosis_id: diagnosisId,
     }),
-
-  // 처방 권고 생성 (직접 입력)
   generate: (diagnosisResults, diagnosisDate = null) =>
-    api.post('/prescription/generate', {
+    apiClient.post('/prescription/generate', {
       diagnosis_results: diagnosisResults,
       diagnosis_date: diagnosisDate,
     }),
-
-  // 처방 권고 조회
-  get: (prescriptionId) => api.get(`/prescription/${prescriptionId}`),
-
-  // 진단 ID로 처방 권고 조회
+  get: (prescriptionId) => apiClient.get(`/prescription/${prescriptionId}`),
   getByDiagnosis: (diagnosisId) =>
-    api.get(`/prescription/by-diagnosis/${diagnosisId}`),
-
-  // 처방 권고 목록 조회
+    apiClient.get(`/prescription/by-diagnosis/${diagnosisId}`),
   list: (limit = 50, offset = 0) =>
-    api.get('/prescription', { params: { limit, offset } }),
-};
-
-/**
- * 헬스 체크
- */
-export const healthCheck = () => api.get('/health');
-
-/**
- * 인증 API
- */
-export const authApi = {
-  // 현재 사용자 정보
-  getMe: () => api.get('/auth/me'),
-
-  // 로그아웃
-  logout: () => api.post('/auth/logout'),
-
-  // 간편 등록
-  registerSimple: (data) => api.post('/auth/simple/register', {
-    name: data.name,
-    phone: data.phone || null,
-    birth_date: data.birthDate || null,
-    serial_number: data.serialNumber,
-    pin: data.pin,
-  }),
-
-  // 간편 로그인
-  loginSimple: (data) => api.post('/auth/simple/login', {
-    name: data.name,
-    birth_date: data.birthDate || null,
-    phone: data.phone || null,
-    access_pin: data.accessPin,
-  }),
-
-  // 키트 등록 (로그인 사용자)
-  registerKit: (serialNumber, pin) => api.post('/auth/register-kit', {
-    serial_number: serialNumber,
-    pin: pin,
-  }),
+    apiClient.get('/prescription', { params: { limit, offset } }),
 };
 
 /**
  * 진단 이력 API (인증 필요)
  */
 export const myDiagnosisApi = {
-  // 내 진단 이력
-  getAll: () => api.get('/diagnosis/my'),
-
-  // 최신 진단 요약
-  getLatest: () => api.get('/diagnosis/my/latest'),
-
-  // 특정 진단 상세
-  get: (diagnosisId) => api.get(`/diagnosis/my/${diagnosisId}`),
-
-  // 알러젠 정보
-  getAllergenInfo: () => api.get('/diagnosis/allergen-info'),
-
-  // 환자 가이드 (증상, 식이관리, 응급대처)
-  getPatientGuide: (diagnosisId) => api.get(`/diagnosis/my/${diagnosisId}/patient-guide`),
+  getAll: () => apiClient.get('/diagnosis/my'),
+  getLatest: () => apiClient.get('/diagnosis/my/latest'),
+  get: (diagnosisId) => apiClient.get(`/diagnosis/my/${diagnosisId}`),
+  getAllergenInfo: () => apiClient.get('/diagnosis/allergen-info'),
+  getPatientGuide: (diagnosisId) => apiClient.get(`/diagnosis/my/${diagnosisId}/patient-guide`),
 };
 
 /**
  * 논문/출처 API
  */
 export const papersApi = {
-  // 논문 목록 조회
-  list: (params = {}) => api.get('/papers', { params }),
-
-  // 논문 상세 조회
-  get: (paperId) => api.get(`/papers/${paperId}`),
-
-  // 논문 등록
-  create: (paperData) => api.post('/papers', paperData),
-
-  // 논문 수정
-  update: (paperId, paperData) => api.put(`/papers/${paperId}`, paperData),
-
-  // 논문 삭제
-  delete: (paperId) => api.delete(`/papers/${paperId}`),
-
-  // 알러젠 링크 추가
-  addLink: (paperId, linkData) => api.post(`/papers/${paperId}/links`, linkData),
-
-  // 알러젠 링크 삭제
-  removeLink: (paperId, linkId) => api.delete(`/papers/${paperId}/links/${linkId}`),
-
-  // 알러젠별 출처 조회
+  list: (params = {}) => apiClient.get('/papers', { params }),
+  get: (paperId) => apiClient.get(`/papers/${paperId}`),
+  create: (paperData) => apiClient.post('/papers', paperData),
+  update: (paperId, paperData) => apiClient.put(`/papers/${paperId}`, paperData),
+  delete: (paperId) => apiClient.delete(`/papers/${paperId}`),
+  addLink: (paperId, linkData) => apiClient.post(`/papers/${paperId}/links`, linkData),
+  removeLink: (paperId, linkId) => apiClient.delete(`/papers/${paperId}/links/${linkId}`),
   getCitationsForAllergen: (allergenCode, linkType = null) =>
-    api.get(`/papers/citations/${allergenCode}`, { params: { link_type: linkType } }),
-
-  // 링크 타입별 출처 조회
+    apiClient.get(`/papers/citations/${allergenCode}`, { params: { link_type: linkType } }),
   getCitationsByType: (linkType, allergenCode = null) =>
-    api.get(`/papers/citations/by-type/${linkType}`, { params: { allergen_code: allergenCode } }),
+    apiClient.get(`/papers/citations/by-type/${linkType}`, { params: { allergen_code: allergenCode } }),
 };
 
 /**
  * 병원 관리 API (Phase 2)
  */
 export const hospitalApi = {
-  // 대시보드 통계
-  getDashboard: () => api.get('/hospital/dashboard'),
-
-  // 의사별 통계
-  getDoctorStats: () => api.get('/hospital/doctors/stats'),
-
-  // 환자 목록
-  getPatients: (params = {}) => api.get('/hospital/patients', { params }),
-
-  // 환자 상세
-  getPatient: (patientId) => api.get(`/hospital/patients/${patientId}`),
-
-  // 기존 사용자 환자 등록
-  registerPatient: (data) => api.post('/hospital/patients', data),
-
-  // 신규 사용자 환자 등록
-  registerNewPatient: (data) => api.post('/hospital/patients/new', data),
-
-  // 환자 정보 수정
-  updatePatient: (patientId, data) => api.put(`/hospital/patients/${patientId}`, data),
-
-  // 환자 동의서 서명 (환자 본인)
-  signConsent: (patientId, data) => api.post(`/hospital/patients/${patientId}/consent`, data),
-
-  // 내 병원 연결 목록 (환자용)
-  getMyHospitals: () => api.get('/hospital/my-hospitals'),
-
-  // 환자 진단 이력
-  getPatientDiagnoses: (patientId) => api.get(`/hospital/patients/${patientId}/diagnoses`),
-
-  // 진단 결과 입력
-  createDiagnosis: (patientId, data) => api.post(`/hospital/patients/${patientId}/diagnoses`, data),
+  getDashboard: () => apiClient.get('/hospital/dashboard'),
+  getDoctorStats: () => apiClient.get('/hospital/doctors/stats'),
+  getPatients: (params = {}) => apiClient.get('/hospital/patients', { params }),
+  getPatient: (patientId) => apiClient.get(`/hospital/patients/${patientId}`),
+  registerPatient: (data) => apiClient.post('/hospital/patients', data),
+  registerNewPatient: (data) => apiClient.post('/hospital/patients/new', data),
+  updatePatient: (patientId, data) => apiClient.put(`/hospital/patients/${patientId}`, data),
+  signConsent: (patientId, data) => apiClient.post(`/hospital/patients/${patientId}/consent`, data),
+  getMyHospitals: () => apiClient.get('/hospital/my-hospitals'),
+  getPatientDiagnoses: (patientId) => apiClient.get(`/hospital/patients/${patientId}/diagnoses`),
+  createDiagnosis: (patientId, data) => apiClient.post(`/hospital/patients/${patientId}/diagnoses`, data),
 };
-
-export default api;
