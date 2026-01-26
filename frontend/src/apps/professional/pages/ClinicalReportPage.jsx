@@ -285,6 +285,57 @@ const Section = ({ title, children, icon }) => (
   </div>
 );
 
+// 진단 선택 컴포넌트
+const DiagnosisSelector = ({ diagnoses, selectedId, onSelect, patientName }) => {
+  if (!diagnoses || diagnoses.length === 0) return null;
+
+  return (
+    <div
+      style={{
+        marginBottom: '24px',
+        padding: '16px',
+        backgroundColor: '#f0f9ff',
+        borderRadius: '8px',
+        border: '1px solid #0ea5e9',
+      }}
+    >
+      <div style={{ marginBottom: '12px', fontWeight: 'bold', color: '#0369a1' }}>
+        {patientName} 환자의 진단 이력 ({diagnoses.length}건)
+      </div>
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        {diagnoses.map((diag) => {
+          const isSelected = selectedId === diag.id;
+          const positiveCount = diag.positive_count ||
+            (diag.results ? Object.values(diag.results).filter(v => v > 0).length : 0);
+
+          return (
+            <button
+              key={diag.id}
+              onClick={() => onSelect(diag.id)}
+              style={{
+                padding: '10px 16px',
+                borderRadius: '8px',
+                border: isSelected ? '2px solid #0369a1' : '1px solid #d1d5db',
+                backgroundColor: isSelected ? '#0369a1' : '#fff',
+                color: isSelected ? '#fff' : '#374151',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              <div style={{ fontWeight: 'bold' }}>
+                {diag.diagnosis_date || new Date(diag.created_at).toLocaleDateString('ko-KR')}
+              </div>
+              <div style={{ fontSize: '12px', marginTop: '4px' }}>
+                양성 {positiveCount}개 | ID: {diag.id}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // 메인 컴포넌트
 export default function ClinicalReportPage() {
   const { patientId } = useParams();
@@ -294,6 +345,10 @@ export default function ClinicalReportPage() {
   const [error, setError] = useState(null);
   const [searchMode, setSearchMode] = useState('patient');
   const [searchValue, setSearchValue] = useState('');
+  // 진단 목록 관련 상태 추가
+  const [diagnoses, setDiagnoses] = useState([]);
+  const [selectedDiagnosisId, setSelectedDiagnosisId] = useState(null);
+  const [patientInfo, setPatientInfo] = useState(null);
 
   useEffect(() => {
     // URL 파라미터에서 조회
@@ -301,7 +356,8 @@ export default function ClinicalReportPage() {
     const diagId = searchParams.get('diagnosis');
 
     if (patientId) {
-      fetchReport({ patient_id: patientId });
+      // 환자 ID가 있으면 진단 목록 먼저 조회
+      fetchPatientDiagnoses(patientId);
     } else if (kitSerial) {
       fetchReport({ kit_serial_number: kitSerial });
     } else if (diagId) {
@@ -311,12 +367,49 @@ export default function ClinicalReportPage() {
     }
   }, [patientId, searchParams]);
 
+  // 환자의 진단 목록 조회
+  const fetchPatientDiagnoses = async (pId) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await proApi.diagnosis.getByPatient(pId, 20);
+      const diagList = response.data || [];
+      setDiagnoses(diagList);
+
+      if (diagList.length === 0) {
+        setError('해당 환자의 진단 기록이 없습니다.');
+        setLoading(false);
+      } else if (diagList.length === 1) {
+        // 진단이 1개면 바로 보고서 로드
+        setSelectedDiagnosisId(diagList[0].id);
+        fetchReport({ diagnosis_id: diagList[0].id });
+      } else {
+        // 진단이 여러 개면 선택하도록
+        setLoading(false);
+      }
+    } catch (err) {
+      console.error('Failed to fetch diagnoses:', err);
+      setError(err.response?.data?.detail || '진단 목록을 불러오는데 실패했습니다.');
+      setLoading(false);
+    }
+  };
+
+  // 진단 선택 핸들러
+  const handleSelectDiagnosis = (diagId) => {
+    setSelectedDiagnosisId(diagId);
+    fetchReport({ diagnosis_id: diagId });
+  };
+
   const fetchReport = async (params) => {
     setLoading(true);
     setError(null);
     try {
       const response = await proApi.clinicalReport.get(params);
       setReport(response.data);
+      // 보고서에서 환자 정보 저장
+      if (response.data?.patient) {
+        setPatientInfo(response.data.patient);
+      }
     } catch (err) {
       console.error('Failed to fetch report:', err);
       setError(err.response?.data?.detail || '보고서를 불러오는데 실패했습니다.');
@@ -329,15 +422,20 @@ export default function ClinicalReportPage() {
     e.preventDefault();
     if (!searchValue.trim()) return;
 
-    const params = {};
+    // 이전 상태 초기화
+    setDiagnoses([]);
+    setSelectedDiagnosisId(null);
+    setReport(null);
+    setPatientInfo(null);
+
     if (searchMode === 'patient') {
-      params.patient_id = searchValue;
+      // 환자 ID로 검색 시 진단 목록 조회
+      fetchPatientDiagnoses(searchValue);
     } else if (searchMode === 'kit') {
-      params.kit_serial_number = searchValue;
+      fetchReport({ kit_serial_number: searchValue });
     } else if (searchMode === 'diagnosis') {
-      params.diagnosis_id = searchValue;
+      fetchReport({ diagnosis_id: searchValue });
     }
-    fetchReport(params);
   };
 
   if (loading) {
@@ -421,6 +519,17 @@ export default function ClinicalReportPage() {
               </button>
             </div>
           </form>
+
+          {/* 진단 목록 선택 UI */}
+          {diagnoses.length > 1 && !selectedDiagnosisId && (
+            <DiagnosisSelector
+              diagnoses={diagnoses}
+              selectedId={selectedDiagnosisId}
+              onSelect={handleSelectDiagnosis}
+              patientName={patientInfo?.name || `ID: ${searchValue}`}
+            />
+          )}
+
           {error && (
             <div
               style={{
@@ -438,6 +547,16 @@ export default function ClinicalReportPage() {
 
       {report && (
         <>
+          {/* 진단 선택 (여러 진단이 있을 경우) */}
+          {diagnoses.length > 1 && (
+            <DiagnosisSelector
+              diagnoses={diagnoses}
+              selectedId={selectedDiagnosisId || report.diagnosis?.diagnosis_id}
+              onSelect={handleSelectDiagnosis}
+              patientName={report.patient?.name || patientInfo?.name}
+            />
+          )}
+
           {/* 헤더: 보고서 메타 정보 */}
           <div
             style={{
@@ -726,9 +845,15 @@ export default function ClinicalReportPage() {
           )}
 
           {/* 새로운 검색 버튼 */}
-          <div style={{ textAlign: 'center', marginTop: '24px' }}>
+          <div style={{ textAlign: 'center', marginTop: '24px', display: 'flex', gap: '12px', justifyContent: 'center' }}>
             <button
-              onClick={() => setReport(null)}
+              onClick={() => {
+                setReport(null);
+                setDiagnoses([]);
+                setSelectedDiagnosisId(null);
+                setPatientInfo(null);
+                setSearchValue('');
+              }}
               style={{
                 padding: '12px 24px',
                 backgroundColor: '#6b7280',
@@ -739,7 +864,21 @@ export default function ClinicalReportPage() {
                 cursor: 'pointer',
               }}
             >
-              다른 환자 조회
+              새로운 검색
+            </button>
+            <button
+              onClick={() => window.print()}
+              style={{
+                padding: '12px 24px',
+                backgroundColor: '#3b82f6',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                cursor: 'pointer',
+              }}
+            >
+              인쇄
             </button>
           </div>
         </>
