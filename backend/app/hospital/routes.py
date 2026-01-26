@@ -356,7 +356,7 @@ async def get_my_hospital_connections(
             "patient_number": hp.patient_number,
             "consent_signed": hp.consent_signed,
             "consent_date": hp.consent_date,
-            "status": hp.status.value,
+            "status": hp.status.value if hasattr(hp.status, 'value') else hp.status,
             "created_at": hp.created_at
         })
 

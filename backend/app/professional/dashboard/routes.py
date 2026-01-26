@@ -117,7 +117,7 @@ async def get_dashboard_stats(
             "id": hp.id,
             "patient_name": patient_user.name if patient_user else "Unknown",
             "patient_number": hp.patient_number,
-            "status": hp.status.value,
+            "status": hp.status.value if hasattr(hp.status, 'value') else hp.status,
             "created_at": hp.created_at.isoformat()
         })
 
