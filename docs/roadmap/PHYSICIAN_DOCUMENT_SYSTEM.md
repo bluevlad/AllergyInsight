@@ -413,36 +413,36 @@ ICD10_MAPPING = {
 
 ## 6. 구현 단계
 
-### Phase 1: 핵심 기능 (2주)
+### Phase 1: 핵심 기능 ✅ 완료 (2025-01-26)
 
-#### 1-A: 데이터베이스 확장 (3일)
+#### 1-A: 데이터베이스 확장 ✅
 
-- [ ] papers 테이블 컬럼 추가 (evidence_level, is_guideline 등)
-- [ ] clinical_statements 테이블 생성
-- [ ] diagnosis_clinical_notes 테이블 생성
-- [ ] diagnosis_evidence 테이블 생성
-- [ ] 인덱스 생성
+- [x] papers 테이블 컬럼 추가 (evidence_level, is_guideline, guideline_org)
+- [x] clinical_statements 테이블 생성
+- [ ] diagnosis_clinical_notes 테이블 생성 (Phase 2로 이동)
+- [ ] diagnosis_evidence 테이블 생성 (Phase 2로 이동)
+- [x] 인덱스 생성
 
-#### 1-B: 시드 데이터 (2일)
+#### 1-B: 시드 데이터 ✅
 
-- [ ] 가이드라인 논문 시드 (EAACI 2025, AAAAI-EAACI 2024 등)
-- [ ] 핵심 임상 진술문 시드 (20-30개)
-- [ ] ICD-10 매핑 데이터
+- [x] 가이드라인 논문 시드 (EAACI, AAAAI, WAO - 5개)
+- [x] 핵심 임상 진술문 시드 (14개)
+- [x] ICD-10 매핑 (코드에 내장)
 
-#### 1-C: Backend API (4일)
+#### 1-C: Backend API ✅
 
-- [ ] `GET /api/pro/diagnosis/{id}/clinical-report`
-- [ ] `GET /api/pro/diagnosis/{id}/decision-support`
-- [ ] `GET /api/pro/diagnosis/{id}/evidence`
-- [ ] `GET /api/pro/statements/by-allergen/{code}`
-- [ ] 권한 미들웨어 적용 (doctor only)
+- [x] `GET /api/pro/clinical-report` (patient_id, kit_serial_number, diagnosis_id 지원)
+- [x] `GET /api/pro/clinical-report/statements` (알러젠별/컨텍스트별 진술문 조회)
+- [x] `GET /api/pro/clinical-report/guidelines` (가이드라인 목록)
+- [x] 권한 미들웨어 적용 (require_professional)
 
-#### 1-D: Frontend UI (3일)
+#### 1-D: Frontend UI ✅
 
-- [ ] ClinicalReportPage.jsx 생성
-- [ ] EvidenceCard 컴포넌트 (인용 표시)
-- [ ] GradeBadge 컴포넌트 (⊕⊕⊕◯)
-- [ ] ReferenceList 컴포넌트
+- [x] ClinicalReportPage.jsx 생성
+- [x] ClinicalStatement 컴포넌트 (인용 표시)
+- [x] GradeBadge 컴포넌트 (⊕⊕⊕◯)
+- [x] Citation 컴포넌트
+- [x] ProNav에 임상보고서 메뉴 추가
 
 ### Phase 2: 고급 기능 (2주)
 
