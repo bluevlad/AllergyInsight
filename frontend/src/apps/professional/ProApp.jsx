@@ -17,6 +17,7 @@ import PatientRegisterPage from './pages/PatientRegisterPage';
 import SearchPage from './pages/SearchPage';
 import QAPage from './pages/QAPage';
 import PapersPage from './pages/PapersPage';
+import ClinicalReportPage from './pages/ClinicalReportPage';
 
 const ProApp = () => {
   const { user, loading, isProfessional } = useAuth();
@@ -67,6 +68,10 @@ const ProApp = () => {
           <Route path="/qa" element={<QAPage />} />
           <Route path="/papers" element={<PapersPage />} />
           <Route path="/papers/:id" element={<PapersPage />} />
+
+          {/* Clinical Report */}
+          <Route path="/clinical-report" element={<ClinicalReportPage />} />
+          <Route path="/clinical-report/:patientId" element={<ClinicalReportPage />} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/pro" replace />} />

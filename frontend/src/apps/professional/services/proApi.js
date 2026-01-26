@@ -45,6 +45,25 @@ export const proApi = {
   },
 
   // ============================================================================
+  // Clinical Report
+  // ============================================================================
+  clinicalReport: {
+    get: (params) => apiClient.get('/pro/clinical-report', { params }),
+    getByPatientId: (patientId) =>
+      apiClient.get('/pro/clinical-report', { params: { patient_id: patientId } }),
+    getByKitSerial: (serialNumber) =>
+      apiClient.get('/pro/clinical-report', { params: { kit_serial_number: serialNumber } }),
+    getByDiagnosisId: (diagnosisId) =>
+      apiClient.get('/pro/clinical-report', { params: { diagnosis_id: diagnosisId } }),
+    getStatements: (params = {}) =>
+      apiClient.get('/pro/clinical-report/statements', { params }),
+    getGuidelines: (organization = null) =>
+      apiClient.get('/pro/clinical-report/guidelines', {
+        params: organization ? { organization } : {},
+      }),
+  },
+
+  // ============================================================================
   // Research
   // ============================================================================
   research: {

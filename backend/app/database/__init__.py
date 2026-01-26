@@ -12,3 +12,6 @@ from .organization_models import (
     OrganizationMember,
     HospitalPatient,
 )
+
+# Clinical document models
+from .clinical_models import ClinicalStatement

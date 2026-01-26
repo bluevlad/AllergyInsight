@@ -12,6 +12,7 @@ const ProNav = () => {
     { to: '/pro/dashboard', label: '대시보드', icon: '📊' },
     { to: '/pro/patients', label: '환자 관리', icon: '👥' },
     { to: '/pro/diagnosis', label: '진단 입력', icon: '🩺' },
+    { to: '/pro/clinical-report', label: '임상보고서', icon: '📋' },
     { to: '/pro/search', label: '논문 검색', icon: '🔍' },
     { to: '/pro/qa', label: 'Q&A', icon: '💬' },
     { to: '/pro/papers', label: '논문 목록', icon: '📄' },

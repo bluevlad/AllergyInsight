@@ -160,6 +160,13 @@ class Paper(Base):
     # Paper type: 'research', 'review', 'guideline', 'meta_analysis'
     paper_type = Column(String(30), default="research")
 
+    # Evidence level (GRADE): 'A', 'B', 'C', 'D'
+    evidence_level = Column(String(10), nullable=True)
+
+    # Guideline info
+    is_guideline = Column(Boolean, default=False)
+    guideline_org = Column(String(50), nullable=True)  # 'EAACI', 'AAAAI', 'WAO'
+
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
@@ -167,6 +174,7 @@ class Paper(Base):
 
     # Relationships
     allergen_links = relationship("PaperAllergenLink", back_populates="paper", cascade="all, delete-orphan")
+    clinical_statements = relationship("ClinicalStatement", back_populates="paper")
 
     # Indexes
     __table_args__ = (

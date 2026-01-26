@@ -8,6 +8,7 @@ from .diagnosis import router as diagnosis_router
 from .patients import router as patients_router
 from .research import router as research_router
 from .dashboard import router as dashboard_router
+from .clinical_report import router as clinical_report_router
 
 router = APIRouter(prefix="/pro", tags=["Professional"])
 
@@ -16,3 +17,4 @@ router.include_router(diagnosis_router)
 router.include_router(patients_router)
 router.include_router(research_router)
 router.include_router(dashboard_router)
+router.include_router(clinical_report_router)
