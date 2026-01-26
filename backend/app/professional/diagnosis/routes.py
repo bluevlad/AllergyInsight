@@ -100,6 +100,44 @@ def generate_prescription(results: Dict[str, int]) -> Dict[str, Any]:
 # Endpoints
 # ============================================================================
 
+@router.get("/allergen-info")
+async def get_allergen_info_endpoint(
+    user: User = Depends(require_professional)
+):
+    """알러젠 정보 목록 조회 (진단 입력용)"""
+    return {
+        "food": [
+            {"code": "peanut", "name_kr": "땅콩", "name_en": "Peanut"},
+            {"code": "milk", "name_kr": "우유", "name_en": "Milk"},
+            {"code": "egg", "name_kr": "계란", "name_en": "Egg"},
+            {"code": "wheat", "name_kr": "밀", "name_en": "Wheat"},
+            {"code": "soy", "name_kr": "대두", "name_en": "Soy"},
+            {"code": "fish", "name_kr": "생선", "name_en": "Fish"},
+            {"code": "shellfish", "name_kr": "갑각류", "name_en": "Shellfish"},
+            {"code": "tree_nuts", "name_kr": "견과류", "name_en": "Tree Nuts"},
+            {"code": "sesame", "name_kr": "참깨", "name_en": "Sesame"},
+        ],
+        "inhalant": [
+            {"code": "dust_mite", "name_kr": "집먼지진드기", "name_en": "Dust Mite"},
+            {"code": "pollen", "name_kr": "꽃가루", "name_en": "Pollen"},
+            {"code": "mold", "name_kr": "곰팡이", "name_en": "Mold"},
+            {"code": "pet_dander", "name_kr": "반려동물", "name_en": "Pet Dander"},
+            {"code": "cockroach", "name_kr": "바퀴벌레", "name_en": "Cockroach"},
+            {"code": "latex", "name_kr": "라텍스", "name_en": "Latex"},
+            {"code": "bee_venom", "name_kr": "벌독", "name_en": "Bee Venom"},
+        ],
+        "grades": {
+            0: {"label": "음성", "color": "#4CAF50"},
+            1: {"label": "약양성", "color": "#8BC34A"},
+            2: {"label": "양성", "color": "#FFEB3B"},
+            3: {"label": "양성", "color": "#FFC107"},
+            4: {"label": "강양성", "color": "#FF9800"},
+            5: {"label": "강양성", "color": "#F44336"},
+            6: {"label": "최강양성", "color": "#B71C1C"},
+        }
+    }
+
+
 @router.post("", response_model=DiagnosisResponse)
 async def create_diagnosis(
     data: DiagnosisCreateRequest,
@@ -313,41 +351,3 @@ async def get_patient_diagnoses(
         ))
 
     return result
-
-
-@router.get("/allergen-info")
-async def get_allergen_info_endpoint(
-    user: User = Depends(require_professional)
-):
-    """알러젠 정보 목록 조회 (진단 입력용)"""
-    return {
-        "food": [
-            {"code": "peanut", "name_kr": "땅콩", "name_en": "Peanut"},
-            {"code": "milk", "name_kr": "우유", "name_en": "Milk"},
-            {"code": "egg", "name_kr": "계란", "name_en": "Egg"},
-            {"code": "wheat", "name_kr": "밀", "name_en": "Wheat"},
-            {"code": "soy", "name_kr": "대두", "name_en": "Soy"},
-            {"code": "fish", "name_kr": "생선", "name_en": "Fish"},
-            {"code": "shellfish", "name_kr": "갑각류", "name_en": "Shellfish"},
-            {"code": "tree_nuts", "name_kr": "견과류", "name_en": "Tree Nuts"},
-            {"code": "sesame", "name_kr": "참깨", "name_en": "Sesame"},
-        ],
-        "inhalant": [
-            {"code": "dust_mite", "name_kr": "집먼지진드기", "name_en": "Dust Mite"},
-            {"code": "pollen", "name_kr": "꽃가루", "name_en": "Pollen"},
-            {"code": "mold", "name_kr": "곰팡이", "name_en": "Mold"},
-            {"code": "pet_dander", "name_kr": "반려동물", "name_en": "Pet Dander"},
-            {"code": "cockroach", "name_kr": "바퀴벌레", "name_en": "Cockroach"},
-            {"code": "latex", "name_kr": "라텍스", "name_en": "Latex"},
-            {"code": "bee_venom", "name_kr": "벌독", "name_en": "Bee Venom"},
-        ],
-        "grades": {
-            0: {"label": "음성", "color": "#4CAF50"},
-            1: {"label": "약양성", "color": "#8BC34A"},
-            2: {"label": "양성", "color": "#FFEB3B"},
-            3: {"label": "양성", "color": "#FFC107"},
-            4: {"label": "강양성", "color": "#FF9800"},
-            5: {"label": "강양성", "color": "#F44336"},
-            6: {"label": "최강양성", "color": "#B71C1C"},
-        }
-    }
