@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from ...database.connection import get_db
 from ...database.models import User, UserDiagnosis, DiagnosisKit
+from ...database.organization_models import HospitalPatient
 from ...core.auth import require_professional
 from ...core.allergen import get_allergen_info, ALLERGEN_PRESCRIPTION_DB
 
@@ -313,14 +314,38 @@ async def update_diagnosis(
 
 @router.get("/patient/{patient_id}", response_model=List[DiagnosisResponse])
 async def get_patient_diagnoses(
-    patient_id: int,
+    patient_id: str,
     limit: int = Query(10, ge=1, le=50),
     user: User = Depends(require_professional),
     db: Session = Depends(get_db)
 ):
-    """특정 환자의 진단 이력 조회"""
+    """특정 환자의 진단 이력 조회
+
+    patient_id는 다음 형식을 지원합니다:
+    - 정수 (user_id): "2"
+    - 환자번호 (patient_number): "P-2026-0001"
+    """
+    # patient_id가 숫자인지 환자번호인지 판별
+    actual_user_id = None
+
+    if patient_id.isdigit():
+        # 숫자인 경우 user_id로 직접 사용
+        actual_user_id = int(patient_id)
+    else:
+        # 환자번호인 경우 HospitalPatient에서 user_id 조회
+        hp = db.query(HospitalPatient).filter(
+            HospitalPatient.patient_number == patient_id
+        ).first()
+        if hp:
+            actual_user_id = hp.patient_user_id
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"환자번호 '{patient_id}'를 찾을 수 없습니다"
+            )
+
     diagnoses = db.query(UserDiagnosis).filter(
-        UserDiagnosis.user_id == patient_id
+        UserDiagnosis.user_id == actual_user_id
     ).order_by(UserDiagnosis.diagnosis_date.desc()).limit(limit).all()
 
     result = []

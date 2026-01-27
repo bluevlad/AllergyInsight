@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from ...database import get_db, User, DiagnosisKit, UserDiagnosis, Paper
 from ...database.clinical_models import ClinicalStatement
+from ...database.organization_models import HospitalPatient
 from ...core.auth.dependencies import require_professional
 from ...data.allergen_prescription_db import get_allergen_info
 from .schemas import (
@@ -153,7 +154,7 @@ def get_icd10_codes(positive_allergens: List[str]) -> List[str]:
     """,
 )
 async def get_clinical_report(
-    patient_id: Optional[int] = Query(None, description="환자 ID"),
+    patient_id: Optional[str] = Query(None, description="환자 ID (숫자) 또는 환자번호 (P-XXXX-XXXX)"),
     kit_serial_number: Optional[str] = Query(None, description="진단 키트 시리얼 번호"),
     diagnosis_id: Optional[int] = Query(None, description="특정 진단 ID"),
     db: Session = Depends(get_db),
@@ -189,11 +190,28 @@ async def get_clinical_report(
                 .first()
             )
     elif patient_id:
-        user = db.query(User).filter(User.id == patient_id).first()
+        # patient_id가 숫자인지 환자번호인지 판별
+        actual_user_id = None
+        if patient_id.isdigit():
+            actual_user_id = int(patient_id)
+        else:
+            # 환자번호로 조회
+            hp = db.query(HospitalPatient).filter(
+                HospitalPatient.patient_number == patient_id
+            ).first()
+            if hp:
+                actual_user_id = hp.patient_user_id
+            else:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"환자번호 '{patient_id}'를 찾을 수 없습니다"
+                )
+
+        user = db.query(User).filter(User.id == actual_user_id).first()
         if user:
             diagnosis = (
                 db.query(UserDiagnosis)
-                .filter(UserDiagnosis.user_id == patient_id)
+                .filter(UserDiagnosis.user_id == actual_user_id)
                 .order_by(UserDiagnosis.diagnosis_date.desc())
                 .first()
             )
