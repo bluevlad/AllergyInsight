@@ -373,7 +373,7 @@ export default function ClinicalReportPage() {
     setError(null);
     try {
       const response = await proApi.diagnosis.getByPatient(pId, 20);
-      const diagList = response.data || [];
+      const diagList = response || [];
       setDiagnoses(diagList);
 
       if (diagList.length === 0) {
@@ -405,10 +405,10 @@ export default function ClinicalReportPage() {
     setError(null);
     try {
       const response = await proApi.clinicalReport.get(params);
-      setReport(response.data);
+      setReport(response);
       // 보고서에서 환자 정보 저장
-      if (response.data?.patient) {
-        setPatientInfo(response.data.patient);
+      if (response?.patient) {
+        setPatientInfo(response.patient);
       }
     } catch (err) {
       console.error('Failed to fetch report:', err);
