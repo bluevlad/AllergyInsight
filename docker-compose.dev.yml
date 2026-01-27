@@ -1,22 +1,27 @@
-# 테스트 환경용 Docker Compose
+# 개발 환경용 Docker Compose
 # 운영 환경(4040, 9040, 5432)과 포트 충돌 방지
-# 사용법: docker-compose -f docker-compose.test.yml up -d
+# 사용법: docker-compose -f docker-compose.dev.yml up -d --build
+#
+# 포트 구성:
+#   - Frontend: 4041 (prod: 4040)
+#   - Backend:  9041 (prod: 9040)
+#   - Database: 5433 (prod: 5432)
 
 services:
-  # PostgreSQL Database (Test)
+  # PostgreSQL Database (Dev)
   db:
     image: postgres:15-alpine
-    container_name: allergyinsight-test-db
+    container_name: allergyinsight-dev-db
     environment:
-      POSTGRES_DB: allergyinsight_test
+      POSTGRES_DB: allergyinsight_dev
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${DB_PASSWORD:-allergyinsight2024}
     volumes:
-      - postgres_test_data:/var/lib/postgresql/data
+      - postgres_dev_data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
     networks:
-      - allergyinsight-test-network
+      - allergyinsight-dev-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -28,20 +33,20 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: allergyinsight-test-backend
+    container_name: allergyinsight-dev-backend
     ports:
       - "9041:9040"
     environment:
       # Database
-      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:-allergyinsight2024}@db:5432/allergyinsight_test
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:-allergyinsight2024}@db:5432/allergyinsight_dev
       # Google OAuth
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       # JWT
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-test-secret-key-for-development}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-for-development}
       - JWT_ALGORITHM=HS256
       - JWT_EXPIRE_MINUTES=1440
-      # URLs (테스트 포트)
+      # URLs (개발 포트)
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:4041}
       - BACKEND_URL=${BACKEND_URL:-http://localhost:9041}
       # Existing
@@ -53,9 +58,9 @@ services:
       - DEFAULT_MAX_RESULTS=20
       - SEARCH_TIMEOUT=30
     volumes:
-      - backend_test_downloads:/app/downloads
+      - backend_dev_downloads:/app/downloads
     networks:
-      - allergyinsight-test-network
+      - allergyinsight-dev-network
     restart: unless-stopped
     depends_on:
       db:
@@ -73,19 +78,19 @@ services:
       dockerfile: Dockerfile
       args:
         - VITE_API_URL=http://localhost:9041
-    container_name: allergyinsight-test-frontend
+    container_name: allergyinsight-dev-frontend
     ports:
       - "4041:4040"
     depends_on:
       - backend
     networks:
-      - allergyinsight-test-network
+      - allergyinsight-dev-network
     restart: unless-stopped
 
 networks:
-  allergyinsight-test-network:
+  allergyinsight-dev-network:
     driver: bridge
 
 volumes:
-  backend_test_downloads:
-  postgres_test_data:
+  backend_dev_downloads:
+  postgres_dev_data:
