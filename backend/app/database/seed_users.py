@@ -5,7 +5,10 @@ import bcrypt
 
 from .connection import SessionLocal
 from .models import User
-from .organization_models import Organization, OrganizationMember, OrganizationStatus
+from .organization_models import (
+    Organization, OrganizationMember, OrganizationStatus,
+    HospitalPatient, HospitalPatientStatus
+)
 
 
 def hash_pin(pin: str) -> str:
@@ -167,6 +170,67 @@ def seed_organization(db: Session):
 
     db.commit()
     print("Organization seeding completed!")
+
+    # Seed hospital patients
+    seed_hospital_patients(db, test_org)
+
+
+def seed_hospital_patients(db: Session, organization: Organization):
+    """Seed hospital patients linking regular users to the hospital"""
+    # Find 김철수 (regular patient user)
+    patient_user = db.query(User).filter(User.phone == "010-9999-8888").first()
+    if not patient_user:
+        print("Patient user (김철수) not found, skipping hospital patient seeding")
+        return
+
+    # Find 이의사's OrganizationMember record
+    doctor_user = db.query(User).filter(User.phone == "010-2222-3333").first()
+    if not doctor_user:
+        print("Doctor user (이의사) not found, skipping hospital patient seeding")
+        return
+
+    doctor_member = db.query(OrganizationMember).filter(
+        OrganizationMember.organization_id == organization.id,
+        OrganizationMember.user_id == doctor_user.id
+    ).first()
+
+    if not doctor_member:
+        print("Doctor OrganizationMember not found, skipping hospital patient seeding")
+        return
+
+    # Check if HospitalPatient already exists
+    existing_hp = db.query(HospitalPatient).filter(
+        HospitalPatient.organization_id == organization.id,
+        HospitalPatient.patient_user_id == patient_user.id
+    ).first()
+
+    if existing_hp:
+        # Update assigned_doctor_id if not set or incorrect
+        # (assigned_doctor_id should be OrganizationMember.id, not User.id)
+        if existing_hp.assigned_doctor_id != doctor_member.id:
+            existing_hp.assigned_doctor_id = doctor_member.id
+            existing_hp.status = HospitalPatientStatus.ACTIVE
+            existing_hp.consent_signed = True
+            existing_hp.consent_date = datetime.utcnow()
+            db.commit()
+            print(f"Updated HospitalPatient: {patient_user.name} -> assigned to {doctor_user.name} (OrganizationMember.id={doctor_member.id})")
+        else:
+            print(f"HospitalPatient already exists with correct doctor assignment: {patient_user.name}")
+        return
+
+    # Create HospitalPatient record
+    hp = HospitalPatient(
+        organization_id=organization.id,
+        patient_user_id=patient_user.id,
+        patient_number="P-2024-0001",
+        assigned_doctor_id=doctor_member.id,
+        consent_signed=True,
+        consent_date=datetime.utcnow(),
+        status=HospitalPatientStatus.ACTIVE
+    )
+    db.add(hp)
+    db.commit()
+    print(f"Created HospitalPatient: {patient_user.name} (assigned to {doctor_user.name})")
 
 
 if __name__ == "__main__":
