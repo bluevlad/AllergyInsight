@@ -50,6 +50,9 @@ from ..hospital.routes import router as hospital_router
 from ..professional.routes import router as professional_router
 from ..consumer.routes import router as consumer_router
 
+# Core: Allergen master data
+from ..core.allergen.routes import router as allergen_router
+
 # FastAPI 앱 생성
 app = FastAPI(
     title="AllergyInsight API",
@@ -82,6 +85,9 @@ app.include_router(hospital_router, prefix="/api")
 # Include service routers (Bifurcated)
 app.include_router(professional_router, prefix="/api")  # /api/pro/*
 app.include_router(consumer_router, prefix="/api")      # /api/consumer/*
+
+# Include core data routers
+app.include_router(allergen_router, prefix="/api")      # /api/allergens/*
 
 # 전역 서비스 인스턴스
 _search_service: Optional[PaperSearchService] = None
