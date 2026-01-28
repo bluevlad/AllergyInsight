@@ -1247,9 +1247,10 @@ def get_allergen_summary() -> dict:
 # ============================================================================
 # 코드-구 시스템 매핑 (allergen_prescription_db.py 연동용)
 # ============================================================================
-# 기존 시스템의 영문 코드와 새 코드 매핑
+# prescription DB의 영문 키와 master DB의 코드 매핑
 LEGACY_CODE_MAPPING = {
-    # 식품
+    # ========== 식품 알러젠 (21종) ==========
+    # 기본 9종
     "peanut": "f13",
     "milk": "f2",
     "egg": "f1",  # 흰자 기준
@@ -1259,7 +1260,23 @@ LEGACY_CODE_MAPPING = {
     "shellfish": "f24",  # 새우 기준
     "tree_nuts": "f256",  # 호두 기준
     "sesame": "f10",
-    # 흡입성
+
+    # Phase 2 추가 (12종)
+    "crab": "f23",
+    "tuna": "f40",
+    "salmon": "f41",
+    "apple": "f49",
+    "peach": "f95",
+    "kiwi": "f84",
+    "buckwheat": "f11",
+    "chicken": "f83",
+    "pork": "f26",
+    "beef": "f27",
+    "walnut": "f256",
+    "hazelnut": "f17",
+
+    # ========== 흡입성 알러젠 (15종) ==========
+    # 기본 7종
     "dust_mite": "d1",
     "pollen": "g6",  # 큰조아재비 기준
     "mold": "m6",  # 알터나리아 기준
@@ -1267,11 +1284,34 @@ LEGACY_CODE_MAPPING = {
     "dog": "e5",
     "cockroach": "i6",
     "pet_dander": "e1",  # 고양이 기준
+
+    # Phase 2 추가 (8종)
+    "d_pteronyssinus": "d1",
+    "d_farinae": "d2",
+    "japanese_cedar": "t17",
+    "birch": "t3",
+    "alternaria": "m6",
+    "aspergillus": "m3",
+    "timothy_grass": "g6",
+    "mugwort": "w6",
 }
 
 
+def get_prescription_code(master_code: str) -> Optional[str]:
+    """master DB 코드에서 prescription DB 키 조회"""
+    for legacy, new in LEGACY_CODE_MAPPING.items():
+        if new == master_code:
+            return legacy
+    return None
+
+
+def get_all_prescription_codes() -> List[str]:
+    """prescription DB에서 사용 가능한 모든 키 목록"""
+    return list(LEGACY_CODE_MAPPING.keys())
+
+
 def get_legacy_code(new_code: str) -> Optional[str]:
-    """새 코드에서 레거시 코드 조회"""
+    """새 코드(master DB)에서 레거시 코드(prescription DB) 조회"""
     for legacy, new in LEGACY_CODE_MAPPING.items():
         if new == new_code:
             return legacy
@@ -1279,5 +1319,5 @@ def get_legacy_code(new_code: str) -> Optional[str]:
 
 
 def get_new_code(legacy_code: str) -> Optional[str]:
-    """레거시 코드에서 새 코드 조회"""
+    """레거시 코드(prescription DB)에서 새 코드(master DB) 조회"""
     return LEGACY_CODE_MAPPING.get(legacy_code)

@@ -36,10 +36,12 @@ from .allergen_master import (
     LEGACY_CODE_MAPPING,
     get_legacy_code,
     get_new_code,
+    get_prescription_code,
+    get_all_prescription_codes,
 )
 
 __all__ = [
-    # Prescription DB (상세 처방 정보)
+    # Prescription DB (상세 처방 정보 - 36종)
     "ALLERGEN_PRESCRIPTION_DB",
     "FOOD_ALLERGENS",
     "INHALANT_ALLERGENS",
@@ -47,7 +49,7 @@ __all__ = [
     "EMERGENCY_GUIDELINES",
     "get_allergen_info",
     "get_cross_reactivities",
-    # Master DB (120종 기본 정보)
+    # Master DB (119종 기본 정보)
     "ALLERGEN_MASTER_DB",
     "AllergenCategory",
     "AllergenType",
@@ -60,7 +62,10 @@ __all__ = [
     "get_allergen_count",
     "search_allergens",
     "get_allergen_summary",
+    # 코드 매핑 (Master ↔ Prescription)
     "LEGACY_CODE_MAPPING",
     "get_legacy_code",
     "get_new_code",
+    "get_prescription_code",
+    "get_all_prescription_codes",
 ]
