@@ -62,6 +62,9 @@ const LoginPage = () => {
     }
   };
 
+  // 역할 기반 리다이렉트 결정
+  const PROFESSIONAL_ROLES = ['doctor', 'nurse', 'lab_tech', 'hospital_admin', 'admin', 'super_admin'];
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -79,9 +82,10 @@ const LoginPage = () => {
         data.birthDate = formData.birthDate;
       }
 
-      await loginSimple(data);
-      const defaultApp = getDefaultApp();
-      navigate(defaultApp === 'professional' ? '/pro' : '/app');
+      const result = await loginSimple(data);
+      // 반환된 user 정보로 직접 리다이렉트 결정 (상태 업데이트 대기 없이)
+      const isProfessional = result.user && PROFESSIONAL_ROLES.includes(result.user.role);
+      navigate(isProfessional ? '/pro' : '/app');
     } catch (err) {
       const message = err.response?.data?.detail || '로그인에 실패했습니다.';
       setError(message);

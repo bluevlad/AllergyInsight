@@ -30,15 +30,17 @@ export const AuthProvider = ({ children }) => {
     const token = localStorage.getItem('access_token');
     if (!token) {
       setLoading(false);
-      return;
+      return null;
     }
 
     try {
       const response = await authApi.getMe();
       setUser(response);
+      return response; // 사용자 정보 반환
     } catch (error) {
       console.error('Auth check failed:', error);
       localStorage.removeItem('access_token');
+      return null;
     } finally {
       setLoading(false);
     }
@@ -74,7 +76,8 @@ export const AuthProvider = ({ children }) => {
       const response = await authApi.loginSimple(data);
       localStorage.setItem('access_token', response.access_token);
       setUser(response.user);
-      return { success: true };
+      // 로그인한 사용자 정보 반환 (상태 업데이트 전에 리다이렉트 결정을 위해)
+      return { success: true, user: response.user };
     } catch (error) {
       console.error('Login failed:', error);
       throw error;
@@ -95,7 +98,8 @@ export const AuthProvider = ({ children }) => {
   // Handle OAuth callback
   const handleOAuthCallback = async (token) => {
     localStorage.setItem('access_token', token);
-    await checkAuth();
+    const user = await checkAuth();
+    return { user }; // 사용자 정보 반환
   };
 
   // Logout

@@ -5,10 +5,13 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../shared/contexts/AuthContext';
 
+// 역할 기반 리다이렉트 결정
+const PROFESSIONAL_ROLES = ['doctor', 'nurse', 'lab_tech', 'hospital_admin', 'admin', 'super_admin'];
+
 const AuthCallback = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { handleOAuthCallback, getDefaultApp } = useAuth();
+  const { handleOAuthCallback } = useAuth();
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -24,9 +27,10 @@ const AuthCallback = () => {
 
       if (token) {
         try {
-          await handleOAuthCallback(token);
-          const defaultApp = getDefaultApp();
-          navigate(defaultApp === 'professional' ? '/pro' : '/app');
+          const result = await handleOAuthCallback(token);
+          // 반환된 user 정보로 직접 리다이렉트 결정
+          const isProfessional = result.user && PROFESSIONAL_ROLES.includes(result.user.role);
+          navigate(isProfessional ? '/pro' : '/app');
         } catch (err) {
           setError('인증 처리 중 오류가 발생했습니다.');
           setTimeout(() => navigate('/login'), 3000);
