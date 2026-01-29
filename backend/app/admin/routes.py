@@ -460,7 +460,7 @@ async def get_allergens(
 ):
     """알러젠 목록 조회 (마스터 DB 기준)"""
     from ..data.allergen_master import ALLERGEN_MASTER_DB, AllergenCategory
-    from ..data.allergen_prescription_db import ALLERGEN_DATA
+    from ..data.allergen_prescription_db import ALLERGEN_PRESCRIPTION_DB
 
     allergens = []
     for code, data in ALLERGEN_MASTER_DB.items():
@@ -480,7 +480,7 @@ async def get_allergens(
                 continue
 
         # 처방 정보 유무 확인
-        has_prescription = code in ALLERGEN_DATA or data.get("name_en", "").lower().replace(" ", "_") in ALLERGEN_DATA
+        has_prescription = code in ALLERGEN_PRESCRIPTION_DB or data.get("name_en", "").lower().replace(" ", "_") in ALLERGEN_PRESCRIPTION_DB
 
         cat = data.get("category")
         typ = data.get("type")
@@ -512,7 +512,7 @@ async def get_allergen_detail(
 ):
     """알러젠 상세 조회"""
     from ..data.allergen_master import get_allergen_by_code, get_legacy_code
-    from ..data.allergen_prescription_db import ALLERGEN_DATA
+    from ..data.allergen_prescription_db import ALLERGEN_PRESCRIPTION_DB
 
     allergen = get_allergen_by_code(code)
     if not allergen:
@@ -522,8 +522,8 @@ async def get_allergen_detail(
     # 처방 정보 조회
     legacy_code = get_legacy_code(code)
     prescription = None
-    if legacy_code and legacy_code in ALLERGEN_DATA:
-        prescription = ALLERGEN_DATA[legacy_code]
+    if legacy_code and legacy_code in ALLERGEN_PRESCRIPTION_DB:
+        prescription = ALLERGEN_PRESCRIPTION_DB[legacy_code]
 
     cat = allergen.get("category")
     typ = allergen.get("type")
