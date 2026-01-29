@@ -65,18 +65,19 @@ const AdminNav = () => {
           padding: 0.5rem 1rem;
           border-radius: 6px;
           text-decoration: none;
-          color: #666;
+          color: rgba(255, 255, 255, 0.85);
           transition: all 0.2s;
         }
 
         .nav-link:hover {
-          background: rgba(255, 255, 255, 0.1);
-          color: #333;
+          background: rgba(255, 255, 255, 0.15);
+          color: white;
         }
 
         .nav-link.active {
-          background: #9b59b6;
+          background: rgba(255, 255, 255, 0.25);
           color: white;
+          font-weight: 600;
         }
 
         .switch-link {
@@ -99,7 +100,7 @@ const AdminNav = () => {
         }
 
         .user-info {
-          color: #666;
+          color: rgba(255, 255, 255, 0.9);
           font-size: 0.875rem;
         }
 
