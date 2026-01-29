@@ -30,7 +30,7 @@ TEST_USERS = [
         "phone": "010-1111-2222",
         "auth_type": "simple",
         "access_pin": "123456",
-        "role": "admin",
+        "role": "super_admin",
     },
     # Hospital staff test users (Phase 2)
     {
