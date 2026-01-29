@@ -15,9 +15,9 @@ from .schemas import (
     OrganizationListResponse, OrganizationListItem
 )
 from ..database.connection import get_db
-from ..database.models import User, DiagnosisKit, UserDiagnosis
+from ..database.models import User, DiagnosisKit, UserDiagnosis, Paper
 from ..database.organization_models import Organization, OrganizationMember
-from ..database.clinical_models import Paper, ClinicalStatement
+from ..database.clinical_models import ClinicalStatement
 from ..data.allergen_master import get_allergen_summary
 
 router = APIRouter()
