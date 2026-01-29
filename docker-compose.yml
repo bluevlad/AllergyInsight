@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_DB: allergyinsight
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-allergyinsight2024}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -29,12 +29,12 @@ services:
       - "9040:9040"
     environment:
       # Database
-      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:-allergyinsight2024}@db:5432/allergyinsight
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/allergyinsight
       # Google OAuth
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       # JWT
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-super-secret-key-change-in-production}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT_SECRET_KEY is required}
       - JWT_ALGORITHM=HS256
       - JWT_EXPIRE_MINUTES=1440
       # URLs (for OAuth redirect)
