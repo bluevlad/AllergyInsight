@@ -1,6 +1,6 @@
 """Admin 모듈 권한 체크 의존성"""
 from fastapi import Depends, HTTPException, status
-from ..core.auth.dependencies import get_current_user
+from ..auth.dependencies import get_current_user
 from ..database.models import User
 
 
