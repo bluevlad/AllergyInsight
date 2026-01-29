@@ -1,15 +1,16 @@
 """Admin 모듈 권한 체크 의존성"""
 from fastapi import Depends, HTTPException, status
-from ..auth.dependencies import get_current_user
+from ..auth.dependencies import require_auth
 from ..database.models import User
 
 
 async def require_super_admin(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_auth)
 ) -> User:
     """super_admin 역할만 접근 허용
 
     Raises:
+        HTTPException: 401 Unauthorized if not authenticated
         HTTPException: 403 Forbidden if not super_admin
     """
     if not current_user.is_admin_role():
@@ -21,7 +22,7 @@ async def require_super_admin(
 
 
 async def require_admin_or_hospital_admin(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_auth)
 ) -> User:
     """super_admin 또는 hospital_admin 역할 허용
 
