@@ -53,6 +53,9 @@ from ..consumer.routes import router as consumer_router
 # Core: Allergen master data
 from ..core.allergen.routes import router as allergen_router
 
+# Admin: Platform admin features
+from ..admin.routes import router as admin_router
+
 # FastAPI 앱 생성
 app = FastAPI(
     title="AllergyInsight API",
@@ -88,6 +91,9 @@ app.include_router(consumer_router, prefix="/api")      # /api/consumer/*
 
 # Include core data routers
 app.include_router(allergen_router, prefix="/api")      # /api/allergens/*
+
+# Include admin router (super_admin only)
+app.include_router(admin_router, prefix="/api/admin", tags=["Admin"])  # /api/admin/*
 
 # 전역 서비스 인스턴스
 _search_service: Optional[PaperSearchService] = None

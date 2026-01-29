@@ -19,6 +19,7 @@ export const useAuth = () => {
 // 역할 정의
 const PROFESSIONAL_ROLES = ['doctor', 'nurse', 'lab_tech', 'hospital_admin', 'admin', 'super_admin'];
 const ADMIN_ROLES = ['admin', 'super_admin'];
+const SUPER_ADMIN_ROLES = ['super_admin'];
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -122,6 +123,7 @@ export const AuthProvider = ({ children }) => {
 
   // 역할 기반 체크
   const isAdmin = user && ADMIN_ROLES.includes(user.role);
+  const isSuperAdmin = user && SUPER_ADMIN_ROLES.includes(user.role);
   const isProfessional = user && PROFESSIONAL_ROLES.includes(user.role);
   const isHospitalStaff = user && ['doctor', 'nurse', 'lab_tech', 'hospital_admin'].includes(user.role);
   const isConsumer = user && !isProfessional;
@@ -139,6 +141,7 @@ export const AuthProvider = ({ children }) => {
     accessPin,
     isAuthenticated: !!user,
     isAdmin,
+    isSuperAdmin,
     isProfessional,
     isHospitalStaff,
     isConsumer,

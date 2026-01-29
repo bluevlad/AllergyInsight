@@ -12,6 +12,7 @@ import { AuthProvider, useAuth } from './shared/contexts/AuthContext';
 // Apps
 import ProApp from './apps/professional/ProApp';
 import ConsumerApp from './apps/consumer/ConsumerApp';
+import AdminApp from './apps/admin/AdminApp';
 
 // Public Pages
 import LoginPage from './pages/LoginPage';
@@ -20,9 +21,10 @@ import AuthCallback from './pages/AuthCallback';
 /**
  * Protected Route Component
  * - professionalOnly: 의료진만 접근 가능
+ * - superAdminOnly: super_admin만 접근 가능
  */
-const ProtectedRoute = ({ children, professionalOnly = false }) => {
-  const { isAuthenticated, isProfessional, loading } = useAuth();
+const ProtectedRoute = ({ children, professionalOnly = false, superAdminOnly = false }) => {
+  const { isAuthenticated, isProfessional, isSuperAdmin, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -59,6 +61,11 @@ const ProtectedRoute = ({ children, professionalOnly = false }) => {
   if (!isAuthenticated) {
     // 로그인 후 원래 페이지로 리다이렉트하기 위해 현재 위치 저장
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (superAdminOnly && !isSuperAdmin) {
+    // super_admin 전용 페이지에 접근 시 Pro 앱으로 리다이렉트
+    return <Navigate to="/pro" replace />;
   }
 
   if (professionalOnly && !isProfessional) {
@@ -146,6 +153,13 @@ const AppRouter = () => {
       } />
       <Route path="/auth/callback" element={<AuthCallback />} />
 
+      {/* Admin App (/admin/*) - Super Admin Only */}
+      <Route path="/admin/*" element={
+        <ProtectedRoute superAdminOnly>
+          <AdminApp />
+        </ProtectedRoute>
+      } />
+
       {/* Professional App (/pro/*) */}
       <Route path="/pro/*" element={
         <ProtectedRoute professionalOnly>
@@ -164,7 +178,6 @@ const AppRouter = () => {
       <Route path="/" element={<RoleBasedRedirect />} />
 
       {/* Legacy Routes Redirect */}
-      <Route path="/admin/*" element={<Navigate to="/pro" replace />} />
       <Route path="/hospital/*" element={<Navigate to="/pro" replace />} />
       <Route path="/my-diagnosis" element={<Navigate to="/app/my-diagnosis" replace />} />
       <Route path="/diagnosis" element={<Navigate to="/app/my-diagnosis" replace />} />
