@@ -1,25 +1,4 @@
 services:
-  # PostgreSQL Database
-  db:
-    image: postgres:15-alpine
-    container_name: allergyinsight-db
-    environment:
-      POSTGRES_DB: allergyinsight
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    networks:
-      - allergyinsight-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   backend:
     build:
       context: ./backend
@@ -28,8 +7,8 @@ services:
     ports:
       - "9040:9040"
     environment:
-      # Database
-      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/allergyinsight
+      # Database (using shared postgresql container)
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:?DB_PASSWORD is required}@postgresql:5432/allergyinsight
       # Google OAuth
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
@@ -51,11 +30,9 @@ services:
     volumes:
       - backend_downloads:/app/downloads
     networks:
+      - database-network
       - allergyinsight-network
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9040/api/health"]
       interval: 30s
@@ -77,9 +54,10 @@ services:
     restart: unless-stopped
 
 networks:
+  database-network:
+    external: true
   allergyinsight-network:
     driver: bridge
 
 volumes:
   backend_downloads:
-  postgres_data:
