@@ -10,6 +10,9 @@ from .qa_engine import QAEngine
 from .symptom_qa_interface import SymptomQAInterface
 from .prescription_engine import PrescriptionEngine
 from .diagnosis_repository import DiagnosisRepository, StoredDiagnosis, StoredPrescription
+from .naver_news_service import NaverNewsService
+from .google_news_service import GoogleNewsService
+from .competitor_news_service import CompetitorNewsService
 
 __all__ = [
     "PubMedService",
@@ -31,4 +34,8 @@ __all__ = [
     "DiagnosisRepository",
     "StoredDiagnosis",
     "StoredPrescription",
+    # Competitor news services
+    "NaverNewsService",
+    "GoogleNewsService",
+    "CompetitorNewsService",
 ]

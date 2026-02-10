@@ -14,6 +14,7 @@ const AdminNav = () => {
     { to: '/admin/allergens', label: '알러젠 관리', icon: '🧬' },
     { to: '/admin/papers', label: '논문 관리', icon: '📄' },
     { to: '/admin/organizations', label: '조직 관리', icon: '🏥' },
+    { to: '/admin/news', label: '경쟁사 뉴스', icon: '📰' },
   ];
 
   return (

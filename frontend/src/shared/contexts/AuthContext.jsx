@@ -131,6 +131,7 @@ export const AuthProvider = ({ children }) => {
   // 접근 가능한 앱 결정
   const getDefaultApp = () => {
     if (!user) return 'login';
+    if (isSuperAdmin || isAdmin) return 'admin';
     if (isProfessional) return 'professional';
     return 'consumer';
   };

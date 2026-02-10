@@ -16,6 +16,7 @@ import UsersPage from './pages/UsersPage';
 import AllergensPage from './pages/AllergensPage';
 import PapersPage from './pages/PapersPage';
 import OrganizationsPage from './pages/OrganizationsPage';
+import CompetitorNewsPage from './pages/CompetitorNewsPage';
 
 const AdminApp = () => {
   const { user, loading, isSuperAdmin } = useAuth();
@@ -59,6 +60,9 @@ const AdminApp = () => {
           {/* Organizations */}
           <Route path="/organizations" element={<OrganizationsPage />} />
           <Route path="/organizations/:id" element={<OrganizationsPage />} />
+
+          {/* Competitor News */}
+          <Route path="/news" element={<CompetitorNewsPage />} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/admin" replace />} />

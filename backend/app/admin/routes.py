@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from datetime import datetime, timedelta
+
+from .news_routes import router as news_router
 from typing import Optional
 
 from .dependencies import require_super_admin
@@ -538,3 +540,10 @@ async def get_allergen_detail(
         "note": allergen.get("note"),
         "prescription": prescription
     }
+
+
+# ============================================================================
+# 경쟁사 뉴스 관리 (별도 라우터 include)
+# ============================================================================
+
+router.include_router(news_router)

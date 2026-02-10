@@ -5,6 +5,7 @@
 ```
 docs/
 ├── README.md              # 이 파일 (문서 구조 설명)
+├── GETTING_STARTED.md     # 시작 가이드 (설치, 접속, 테스트 계정)
 ├── IMPLEMENTATION.md      # 전체 구현 상세 문서
 │
 ├── adr/                   # Architecture Decision Records

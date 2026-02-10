@@ -8,17 +8,13 @@ on:
 jobs:
   deploy:
     name: Deploy AllergyInsight
-    runs-on: [self-hosted, Windows]
+    runs-on: [self-hosted, macOS]
 
     defaults:
       run:
-        working-directory: C:\GIT\AllergyInsight
+        working-directory: /Users/rainend/git/AllergyInsight
 
     steps:
-      - name: Configure git safe directory
-        working-directory: C:\
-        run: git config --global --add safe.directory C:/GIT/AllergyInsight
-
       - name: Pull latest changes
         run: |
           git fetch origin prod
@@ -29,78 +25,69 @@ jobs:
         id: check-docker
         run: |
           # 최근 커밋에서 변경된 파일 확인
-          $changedFiles = git diff --name-only HEAD~1 HEAD
+          changed_files=$(git diff --name-only HEAD~1 HEAD)
 
-          Write-Host "Changed files:"
-          Write-Host $changedFiles
+          echo "Changed files:"
+          echo "$changed_files"
 
           # Docker 재시작이 필요한 패턴
-          $dockerPaths = @(
-            'backend/',
-            'frontend/',
-            'docker-compose.yml',
-            'Dockerfile',
-            '.env'
-          )
-
-          $needRestart = $false
-          foreach ($file in $changedFiles -split "`n") {
-            foreach ($path in $dockerPaths) {
-              if ($file -like "$path*") {
-                $needRestart = $true
-                Write-Host "Docker restart needed: $file matches $path"
+          need_restart=false
+          for file in $changed_files; do
+            case "$file" in
+              backend/*|frontend/*|docker-compose.yml|Dockerfile|.env*)
+                need_restart=true
+                echo "Docker restart needed: $file"
                 break
-              }
-            }
-            if ($needRestart) { break }
-          }
+                ;;
+            esac
+          done
 
-          Write-Host "Need Docker restart: $needRestart"
-          echo "need_restart=$needRestart" >> $env:GITHUB_OUTPUT
+          echo "Need Docker restart: $need_restart"
+          echo "need_restart=$need_restart" >> $GITHUB_OUTPUT
 
       - name: Stop existing containers
-        if: steps.check-docker.outputs.need_restart == 'True'
+        if: steps.check-docker.outputs.need_restart == 'true'
         run: docker-compose down
         continue-on-error: true
 
       - name: Build and start containers
-        if: steps.check-docker.outputs.need_restart == 'True'
+        if: steps.check-docker.outputs.need_restart == 'true'
         run: docker-compose up -d --build
 
       - name: Wait for services to be healthy
-        if: steps.check-docker.outputs.need_restart == 'True'
+        if: steps.check-docker.outputs.need_restart == 'true'
         run: |
           echo "Waiting for services to start..."
-          Start-Sleep -Seconds 30
+          sleep 30
 
       - name: Health check
-        if: steps.check-docker.outputs.need_restart == 'True'
+        if: steps.check-docker.outputs.need_restart == 'true'
         run: |
-          $response = Invoke-WebRequest -Uri "http://localhost:9040/api/health" -UseBasicParsing -TimeoutSec 10
-          if ($response.StatusCode -eq 200) {
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:9040/api/health)
+          if [ "$response" = "200" ]; then
             echo "Backend is healthy!"
-          } else {
-            echo "Backend health check failed!"
+          else
+            echo "Backend health check failed! Status: $response"
             exit 1
-          }
+          fi
         continue-on-error: true
 
       - name: Show container status
-        if: steps.check-docker.outputs.need_restart == 'True'
+        if: steps.check-docker.outputs.need_restart == 'true'
         run: docker-compose ps
 
       - name: Skip Docker restart (docs/config only)
-        if: steps.check-docker.outputs.need_restart != 'True'
+        if: steps.check-docker.outputs.need_restart != 'true'
         run: |
-          Write-Host "=========================================="
-          Write-Host "Docker restart SKIPPED"
-          Write-Host "Only docs/config files were changed"
-          Write-Host "=========================================="
+          echo "=========================================="
+          echo "Docker restart SKIPPED"
+          echo "Only docs/config files were changed"
+          echo "=========================================="
 
       - name: Deployment complete
         run: |
-          if ("${{ steps.check-docker.outputs.need_restart }}" -eq "True") {
+          if [ "${{ steps.check-docker.outputs.need_restart }}" = "true" ]; then
             echo "AllergyInsight deployed with Docker restart!"
-          } else {
+          else
             echo "AllergyInsight synced (docs/config only, no Docker restart)"
-          }
+          fi
