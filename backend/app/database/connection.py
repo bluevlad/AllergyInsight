@@ -26,4 +26,5 @@ def get_db():
 def init_db():
     """Initialize database tables"""
     from . import models  # Import models to register them
+    from . import competitor_models  # 경쟁사 뉴스 모델
     Base.metadata.create_all(bind=engine)

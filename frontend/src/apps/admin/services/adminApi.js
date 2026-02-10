@@ -55,6 +55,19 @@ export const adminApi = {
     reject: (id, reason) => apiClient.post(`/admin/organizations/${id}/reject`, { reason }),
     delete: (id) => apiClient.delete(`/admin/organizations/${id}`),
   },
+
+  // ============================================================================
+  // Competitor News
+  // ============================================================================
+  news: {
+    list: (params = {}) => apiClient.get('/admin/news', { params }),
+    search: (params = {}) => apiClient.get('/admin/news/search', { params }),
+    companies: () => apiClient.get('/admin/news/companies'),
+    collect: (data) => apiClient.post('/admin/news/collect', data),
+    toggleRead: (id) => apiClient.put(`/admin/news/${id}/read`),
+    toggleImportant: (id) => apiClient.put(`/admin/news/${id}/important`),
+    stats: () => apiClient.get('/admin/news/stats'),
+  },
 };
 
 export default adminApi;
