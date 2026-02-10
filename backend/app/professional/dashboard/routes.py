@@ -69,24 +69,27 @@ async def get_dashboard_stats(
     week_start = today - timedelta(days=today.weekday())
     month_start = today.replace(day=1)
 
+    # admin은 조직 소속 없이도 전체 데이터 조회
+    org_filter = [HospitalPatient.organization_id == org_id] if org_id else []
+
     # 환자 통계
     total_patients = db.query(HospitalPatient).filter(
-        HospitalPatient.organization_id == org_id
+        *org_filter
     ).count()
 
     active_patients = db.query(HospitalPatient).filter(
-        HospitalPatient.organization_id == org_id,
+        *org_filter,
         HospitalPatient.status == HospitalPatientStatus.ACTIVE
     ).count()
 
     pending_consent = db.query(HospitalPatient).filter(
-        HospitalPatient.organization_id == org_id,
+        *org_filter,
         HospitalPatient.status == HospitalPatientStatus.PENDING_CONSENT
     ).count()
 
     # 병원 환자들의 user_id 서브쿼리
     patient_user_ids = db.query(HospitalPatient.patient_user_id).filter(
-        HospitalPatient.organization_id == org_id
+        *org_filter
     ).subquery()
 
     # 진단 통계
@@ -107,7 +110,7 @@ async def get_dashboard_stats(
 
     # 최근 등록 환자 (5명)
     recent_patients_query = db.query(HospitalPatient).filter(
-        HospitalPatient.organization_id == org_id
+        *org_filter
     ).order_by(HospitalPatient.created_at.desc()).limit(5).all()
 
     recent_patients = []
@@ -160,8 +163,10 @@ async def get_doctor_stats(
     today = date.today()
     month_start = today.replace(day=1)
 
+    org_filter = [OrganizationMember.organization_id == org_id] if org_id else []
+
     doctors = db.query(OrganizationMember).filter(
-        OrganizationMember.organization_id == org_id,
+        *org_filter,
         OrganizationMember.role == "doctor",
         OrganizationMember.is_active == True
     ).all()
@@ -171,15 +176,16 @@ async def get_doctor_stats(
         doc_user = db.query(User).filter(User.id == doc.user_id).first()
 
         # 담당 환자 수
+        doc_org_filter = [HospitalPatient.organization_id == doc.organization_id]
         patient_count = db.query(HospitalPatient).filter(
-            HospitalPatient.organization_id == org_id,
+            *doc_org_filter,
             HospitalPatient.assigned_doctor_id == doc.id,
             HospitalPatient.status == HospitalPatientStatus.ACTIVE
         ).count()
 
         # 담당 환자들의 이번 달 진단 수
         patient_user_ids = db.query(HospitalPatient.patient_user_id).filter(
-            HospitalPatient.organization_id == org_id,
+            *doc_org_filter,
             HospitalPatient.assigned_doctor_id == doc.id
         ).subquery()
 
@@ -219,8 +225,9 @@ async def get_allergen_stats(
         start_date = None
 
     # 병원 환자들의 user_id
+    org_filter = [HospitalPatient.organization_id == org_id] if org_id else []
     patient_user_ids = db.query(HospitalPatient.patient_user_id).filter(
-        HospitalPatient.organization_id == org_id
+        *org_filter
     ).subquery()
 
     # 진단 데이터 조회
@@ -282,6 +289,10 @@ async def get_organization_info(
     org_ctx: OrganizationContext = Depends(get_organization_context)
 ):
     """현재 조직 정보"""
+    if not org_ctx.organization_id:
+        # admin은 조직 소속이 없을 수 있음
+        return {"id": None, "name": "전체 (관리자)", "org_type": None, "member_count": 0, "role_counts": {}, "created_at": None}
+
     org = db.query(Organization).filter(
         Organization.id == org_ctx.organization_id
     ).first()
@@ -309,7 +320,7 @@ async def get_organization_info(
         "id": org.id,
         "name": org.name,
         "org_type": org.org_type,
-        "is_approved": org.is_approved,
+        "status": org.status,
         "member_count": member_count,
         "role_counts": role_counts,
         "created_at": org.created_at.isoformat()

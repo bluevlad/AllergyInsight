@@ -151,9 +151,8 @@ async def list_patients(
     org_ctx: OrganizationContext = Depends(get_organization_context)
 ):
     """병원 환자 목록 조회"""
-    base_query = db.query(HospitalPatient).filter(
-        HospitalPatient.organization_id == org_ctx.organization_id
-    )
+    org_filter = [HospitalPatient.organization_id == org_ctx.organization_id] if org_ctx.organization_id else []
+    base_query = db.query(HospitalPatient).filter(*org_filter)
 
     if status:
         base_query = base_query.filter(HospitalPatient.status == status)

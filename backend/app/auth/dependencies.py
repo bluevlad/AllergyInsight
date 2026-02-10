@@ -240,6 +240,10 @@ async def require_org_context(
     ctx: OrganizationContext = Depends(get_org_context)
 ) -> OrganizationContext:
     """Require user to be affiliated with an organization"""
+    # super_admin/admin은 조직 소속 없이도 접근 허용
+    if ctx.user.is_admin_role():
+        return ctx
+
     if not ctx.membership:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

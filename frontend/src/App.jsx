@@ -105,7 +105,8 @@ const PublicRoute = ({ children }) => {
     }
     // 없으면 역할 기반 기본 앱으로
     const defaultApp = getDefaultApp();
-    return <Navigate to={defaultApp === 'professional' ? '/pro' : '/app'} replace />;
+    const appRoutes = { admin: '/admin', professional: '/pro', consumer: '/app' };
+    return <Navigate to={appRoutes[defaultApp] || '/app'} replace />;
   }
 
   return children;
@@ -136,7 +137,8 @@ const RoleBasedRedirect = () => {
   }
 
   const defaultApp = getDefaultApp();
-  return <Navigate to={defaultApp === 'professional' ? '/pro' : '/app'} replace />;
+  const appRoutes = { admin: '/admin', professional: '/pro', consumer: '/app' };
+  return <Navigate to={appRoutes[defaultApp] || '/app'} replace />;
 };
 
 /**
