@@ -25,7 +25,7 @@ C:/GIT/Claude-Opus-bluevlad/docs/AllergyInsight/
 ├── adr/                               # 아키텍처 결정 기록
 ├── dev/                               # 아키텍처 분석, 프로세스 문서
 ├── roadmap/                           # 기능별 로드맵 (7개)
-└── wiki/                              # GitHub Wiki 원본
+└── wiki/                              # 프로젝트 Wiki 문서
 ```
 
 ### 문서 작성 규칙
