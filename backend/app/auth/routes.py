@@ -1,6 +1,7 @@
 """Authentication Routes"""
 import secrets
 import hashlib
+import logging
 from datetime import datetime
 from typing import Optional
 
@@ -9,6 +10,8 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from authlib.integrations.starlette_client import OAuth
 import bcrypt
+
+security_logger = logging.getLogger("security")
 
 from ..database.connection import get_db
 from ..database.models import User, DiagnosisKit, UserDiagnosis
@@ -159,6 +162,10 @@ async def simple_register(
     if not verify_pin(request.pin, kit.pin_hash):
         kit.pin_attempts += 1
         db.commit()
+        security_logger.warning(
+            "PIN verification failed: kit=%s attempts=%d",
+            request.serial_number, kit.pin_attempts
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid PIN"
@@ -258,11 +265,16 @@ async def simple_login(
         )
 
     if not verify_pin(request.access_pin, user.access_pin_hash):
+        security_logger.warning(
+            "Login failed: user=%s name=%s",
+            user.id, request.name
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid access PIN"
         )
 
+    security_logger.info("Login success: user=%s name=%s", user.id, request.name)
     user.last_login_at = datetime.utcnow()
     db.commit()
     db.refresh(user)
