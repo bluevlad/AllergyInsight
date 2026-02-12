@@ -64,9 +64,10 @@ app = FastAPI(
 )
 
 # CORS 설정
+_cors_origins = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:4040,http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 개발용, 프로덕션에서는 특정 도메인 지정
+    allow_origins=[o.strip() for o in _cors_origins],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
