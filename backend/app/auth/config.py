@@ -9,7 +9,7 @@ class AuthSettings(BaseSettings):
     google_client_secret: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
 
     # JWT
-    jwt_secret_key: str = os.getenv("JWT_SECRET_KEY", "your-super-secret-key-change-in-production")
+    jwt_secret_key: str = os.environ["JWT_SECRET_KEY"]  # 필수 - 환경변수 미설정 시 서버 시작 실패
     jwt_algorithm: str = os.getenv("JWT_ALGORITHM", "HS256")
     jwt_expire_minutes: int = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))  # 24 hours
 
