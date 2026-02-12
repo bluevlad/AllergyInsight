@@ -39,7 +39,14 @@ AllergyInsight - 알러지 연구 논문 검색/분석 플랫폼 (PubMed/Semanti
 
 | 항목 | 기술 |
 |------|------|
-| Framework | React |
+| Language | JavaScript (JSX) |
+| Framework | React 18 |
+| Build Tool | Vite 5 |
+| Router | React Router 6 |
+| HTTP Client | Axios |
+| Chart | Recharts |
+| Testing | Jest + Testing Library |
+| Serve | Nginx (Docker) |
 
 ## Setup and Run Commands
 
@@ -51,7 +58,7 @@ venv\Scripts\activate     # Windows
 pip install -r requirements.txt
 
 # Backend 실행
-uvicorn app.main:app --reload --port 9040
+uvicorn app.api.main:app --reload --port 9040
 
 # Backend 테스트
 pytest
@@ -65,7 +72,16 @@ docker compose -f docker-compose.dev.yml up -d  # 개발
 # Frontend
 cd frontend
 npm install
-npm run dev
+npm run dev         # 개발 서버
+npm run build       # 프로덕션 빌드
+npm run test        # Jest 테스트
+
+# E2E 테스트 (e2e/)
+cd e2e
+npm install
+npm run test        # Playwright 테스트
+npm run test:ui     # UI 모드
+npm run test:report # 리포트
 ```
 
 ### Port Mapping
