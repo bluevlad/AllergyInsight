@@ -8,13 +8,17 @@ FastAPI 기반 REST API 서버입니다.
     cd C:\GIT\AllergyInsight\backend
     uvicorn app.api.main:app --reload --port 9040
 """
-from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 import asyncio
+import logging
 import os
 
 from ..services import (
@@ -56,12 +60,24 @@ from ..core.allergen.routes import router as allergen_router
 # Admin: Platform admin features
 from ..admin.routes import router as admin_router
 
+# 보안 로깅 설정
+security_logger = logging.getLogger("security")
+security_logger.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+handler.setFormatter(logging.Formatter("[%(asctime)s] SECURITY %(levelname)s: %(message)s"))
+security_logger.addHandler(handler)
+
+# Rate Limiter 설정
+limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+
 # FastAPI 앱 생성
 app = FastAPI(
     title="AllergyInsight API",
     description="SGTi-Allergy Screen PLUS 기반 알러지 진단 및 처방 권고 시스템 (Professional/Consumer 서비스 이원화)",
     version="2.0.0",
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS 설정
 _cors_origins = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:4040,http://localhost:3000").split(",")
