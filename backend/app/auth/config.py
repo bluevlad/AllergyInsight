@@ -19,6 +19,7 @@ class AuthSettings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
 
 auth_settings = AuthSettings()
