@@ -15,3 +15,6 @@ from .organization_models import (
 
 # Clinical document models
 from .clinical_models import ClinicalStatement
+
+# Analytics models (예측 분석)
+from .analytics_models import AnalyticsSnapshot, KeywordTrend, PatientActivityLog

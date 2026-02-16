@@ -5,6 +5,7 @@ from sqlalchemy import func, and_
 from datetime import datetime, timedelta
 
 from .news_routes import router as news_router
+from .analytics_routes import router as analytics_router
 from typing import Optional
 
 from .dependencies import require_super_admin
@@ -547,3 +548,4 @@ async def get_allergen_detail(
 # ============================================================================
 
 router.include_router(news_router)
+router.include_router(analytics_router)

@@ -56,6 +56,9 @@ from ..core.allergen.routes import router as allergen_router
 # Admin: Platform admin features
 from ..admin.routes import router as admin_router
 
+# Middleware: Activity logging
+from ..middleware.activity_logger import ActivityLoggerMiddleware
+
 # FastAPI 앱 생성
 app = FastAPI(
     title="AllergyInsight API",
@@ -77,6 +80,9 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=auth_settings.jwt_secret_key,
 )
+
+# Activity logging middleware (환자 행동 추적)
+app.add_middleware(ActivityLoggerMiddleware)
 
 # Include auth routers (Core)
 app.include_router(auth_router, prefix="/api")
