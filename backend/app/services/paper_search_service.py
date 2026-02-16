@@ -4,13 +4,18 @@ PubMed와 Semantic Scholar를 통합하여 검색하고,
 중복을 제거하며 PDF 다운로드 링크를 보강합니다.
 """
 import asyncio
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 from dataclasses import dataclass, field
 
+from sqlalchemy.orm import Session
+
 from .pubmed_service import PubMedService
 from .semantic_scholar_service import SemanticScholarService
 from ..models.paper import Paper, PaperSearchResult, PaperSource
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -58,6 +63,7 @@ class PaperSearchService:
         sources: Optional[list[str]] = None,
         merge_duplicates: bool = True,
         enrich_pdf_links: bool = True,
+        db: Optional[Session] = None,
     ) -> UnifiedSearchResult:
         """
         PubMed와 Semantic Scholar에서 동시에 검색
@@ -68,6 +74,7 @@ class PaperSearchService:
             sources: 검색할 소스 목록 ["pubmed", "semantic_scholar"]
             merge_duplicates: DOI 기반 중복 제거
             enrich_pdf_links: Semantic Scholar에서 PDF 링크 보강
+            db: DB 세션 (전달 시 검색 결과를 자동 저장)
 
         Returns:
             UnifiedSearchResult: 통합 검색 결과
@@ -131,7 +138,7 @@ class PaperSearchService:
         # PDF 다운로드 가능 수 계산
         downloadable = sum(1 for p in all_papers if p.pdf_url)
 
-        return UnifiedSearchResult(
+        result = UnifiedSearchResult(
             papers=all_papers,
             pubmed_count=pubmed_count,
             semantic_scholar_count=ss_count,
@@ -141,11 +148,23 @@ class PaperSearchService:
             search_time_ms=(time.time() - start_time) * 1000,
         )
 
+        # DB 자동 저장
+        if db is not None:
+            try:
+                from .paper_persistence_service import PaperPersistenceService
+                persistence = PaperPersistenceService()
+                persistence.save_search_results(result, db)
+            except Exception as e:
+                logger.warning(f"검색 결과 DB 저장 실패: {e}")
+
+        return result
+
     def search_allergy(
         self,
         allergen: str,
         include_cross_reactivity: bool = True,
         max_results_per_source: int = 20,
+        db: Optional[Session] = None,
     ) -> UnifiedSearchResult:
         """
         알러지 특화 통합 검색
@@ -154,6 +173,7 @@ class PaperSearchService:
             allergen: 알러지 항원
             include_cross_reactivity: 교차 반응 포함 여부
             max_results_per_source: 소스당 최대 결과 수
+            db: DB 세션 (전달 시 검색 결과를 자동 저장)
 
         Returns:
             UnifiedSearchResult: 검색 결과
@@ -200,7 +220,7 @@ class PaperSearchService:
 
         downloadable = sum(1 for p in all_papers if p.pdf_url)
 
-        return UnifiedSearchResult(
+        result = UnifiedSearchResult(
             papers=all_papers,
             pubmed_count=pubmed_count,
             semantic_scholar_count=ss_count,
@@ -209,6 +229,17 @@ class PaperSearchService:
             query=f"{allergen} allergy" + (" cross-reactivity" if include_cross_reactivity else ""),
             search_time_ms=(time.time() - start_time) * 1000,
         )
+
+        # DB 자동 저장
+        if db is not None:
+            try:
+                from .paper_persistence_service import PaperPersistenceService
+                persistence = PaperPersistenceService()
+                persistence.save_search_results(result, db, allergen_code=allergen)
+            except Exception as e:
+                logger.warning(f"검색 결과 DB 저장 실패: {e}")
+
+        return result
 
     def _merge_duplicates(self, papers: list[Paper]) -> list[Paper]:
         """

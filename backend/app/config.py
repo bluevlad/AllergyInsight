@@ -38,6 +38,9 @@ class Settings:
     DEFAULT_MAX_RESULTS: int = 20
     SEARCH_TIMEOUT: int = 30  # 초
 
+    # 검색 결과 자동 저장
+    AUTO_SAVE_SEARCH: bool = True
+
     @classmethod
     def from_env(cls) -> "Settings":
         """환경 변수에서 설정 로드"""
@@ -49,6 +52,7 @@ class Settings:
             DOWNLOAD_DIR=os.getenv("DOWNLOAD_DIR", "./downloads/papers"),
             DEFAULT_MAX_RESULTS=int(os.getenv("DEFAULT_MAX_RESULTS", "20")),
             SEARCH_TIMEOUT=int(os.getenv("SEARCH_TIMEOUT", "30")),
+            AUTO_SAVE_SEARCH=os.getenv("AUTO_SAVE_SEARCH", "true").lower() == "true",
         )
 
 

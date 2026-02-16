@@ -216,6 +216,12 @@ class PaperResponse(BaseModel):
     created_at: datetime
     allergen_links: List[PaperAllergenLinkResponse] = []
 
+    # Phase 1: 검색 결과 영속화 필드
+    source: Optional[str] = None
+    source_id: Optional[str] = None
+    citation_count: Optional[int] = None
+    keywords: Optional[List[str]] = None
+
     class Config:
         from_attributes = True
 

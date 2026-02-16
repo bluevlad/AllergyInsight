@@ -37,8 +37,9 @@ from ..auth.routes import router as auth_router
 from ..auth.diagnosis_routes import router as diagnosis_router
 from ..auth.paper_routes import router as paper_router
 from ..auth.config import auth_settings
-from ..database.connection import engine, init_db
+from ..database.connection import engine, init_db, get_db, SessionLocal
 from ..database.seed_users import seed_users
+from ..config import settings
 
 # Phase 1: Organization imports
 from ..organization.routes import router as organization_router
@@ -262,16 +263,27 @@ async def search_papers(request: SearchRequest):
     알러지 논문 검색
 
     PubMed와 Semantic Scholar에서 논문을 검색합니다.
+    검색 결과는 자동으로 DB에 저장됩니다 (AUTO_SAVE_SEARCH 설정).
     """
     global _collection_stats
 
     service = get_search_service()
 
-    result = service.search_allergy(
-        allergen=request.allergen,
-        include_cross_reactivity=request.include_cross_reactivity,
-        max_results_per_source=request.max_results // 2,
-    )
+    # DB 세션 획득 (자동 저장 활성화 시)
+    db = None
+    if settings.AUTO_SAVE_SEARCH:
+        db = SessionLocal()
+
+    try:
+        result = service.search_allergy(
+            allergen=request.allergen,
+            include_cross_reactivity=request.include_cross_reactivity,
+            max_results_per_source=request.max_results // 2,
+            db=db,
+        )
+    finally:
+        if db is not None:
+            db.close()
 
     # 통계 업데이트
     _collection_stats["total_searches"] += 1
@@ -300,6 +312,44 @@ async def search_papers(request: SearchRequest):
         "search_time_ms": round(result.search_time_ms, 2),
         "papers": [p.to_dict() for p in result.papers],
     }
+
+
+@app.get("/api/search/history")
+async def get_search_history(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """
+    검색 이력 조회 (DB 기반)
+
+    DB에 저장된 검색 이력을 최신순으로 반환합니다.
+    """
+    from ..services.paper_persistence_service import PaperPersistenceService
+
+    db = SessionLocal()
+    try:
+        persistence = PaperPersistenceService()
+        history = persistence.get_search_history(db, limit=limit, offset=offset)
+
+        return {
+            "success": True,
+            "total": len(history),
+            "history": [
+                {
+                    "id": h.id,
+                    "query": h.query,
+                    "allergen_code": h.allergen_code,
+                    "source": h.source,
+                    "result_count": h.result_count,
+                    "new_papers_saved": h.new_papers_saved,
+                    "search_time_ms": round(h.search_time_ms, 2) if h.search_time_ms else None,
+                    "created_at": h.created_at.isoformat() if h.created_at else None,
+                }
+                for h in history
+            ],
+        }
+    finally:
+        db.close()
 
 
 @app.get("/api/search/{allergen}")

@@ -1,6 +1,6 @@
 """Database Models"""
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, ForeignKey, JSON, Index, Text
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Date, ForeignKey, JSON, Index, Text
 from sqlalchemy.orm import relationship
 from .connection import Base
 
@@ -167,6 +167,14 @@ class Paper(Base):
     is_guideline = Column(Boolean, default=False)
     guideline_org = Column(String(50), nullable=True)  # 'EAACI', 'AAAAI', 'WAO'
 
+    # Phase 1: 검색 결과 영속화를 위한 추가 컬럼
+    source = Column(String(30), nullable=True)  # 'pubmed', 'semantic_scholar', 'manual_upload'
+    source_id = Column(String(100), nullable=True)  # PubMed ID 또는 Semantic Scholar Paper ID
+    semantic_scholar_id = Column(String(100), nullable=True)  # S2 전용 ID
+    citation_count = Column(Integer, nullable=True)
+    keywords = Column(JSON, nullable=True)  # JSONB: ["keyword1", "keyword2"]
+    last_synced_at = Column(DateTime, nullable=True)  # 마지막 동기화 시점
+
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
@@ -180,6 +188,8 @@ class Paper(Base):
     __table_args__ = (
         Index('idx_papers_year', 'year'),
         Index('idx_papers_type', 'paper_type'),
+        Index('idx_papers_source', 'source'),
+        Index('idx_papers_source_id', 'source_id'),
     )
 
 
@@ -219,4 +229,34 @@ class PaperAllergenLink(Base):
         Index('idx_paper_allergen_links_allergen', 'allergen_code'),
         Index('idx_paper_allergen_links_type', 'link_type'),
         Index('idx_paper_allergen_links_allergen_type', 'allergen_code', 'link_type'),
+    )
+
+
+class SearchHistory(Base):
+    """검색 이력 - API 검색 요청 기록"""
+    __tablename__ = "search_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # 검색 정보
+    query = Column(String(500), nullable=False)
+    allergen_code = Column(String(30), nullable=True)  # 알러젠 특화 검색인 경우
+    source = Column(String(30), nullable=True)  # 'pubmed', 'semantic_scholar', 'both'
+
+    # 결과 통계
+    result_count = Column(Integer, default=0)
+    new_papers_saved = Column(Integer, default=0)
+    search_time_ms = Column(Float, nullable=True)
+
+    # 사용자 (로그인한 경우)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Indexes
+    __table_args__ = (
+        Index('idx_search_history_query', 'query'),
+        Index('idx_search_history_allergen', 'allergen_code'),
+        Index('idx_search_history_created', 'created_at'),
     )
