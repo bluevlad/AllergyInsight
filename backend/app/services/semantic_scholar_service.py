@@ -6,10 +6,15 @@ Semantic Scholar는 AI2(Allen Institute for AI)에서 운영하는 학술 논문
 API 문서: https://api.semanticscholar.org/api-docs/
 """
 import time
+import logging
 from typing import Optional
 from datetime import datetime
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+logger = logging.getLogger(__name__)
 
 from ..models.paper import Paper, PaperSearchResult, PaperSource
 
@@ -47,6 +52,15 @@ class SemanticScholarService:
         if api_key:
             headers["x-api-key"] = api_key
         self.session.headers.update(headers)
+        # 재시도 전략: 429/500/502/503/504 시 지수 백오프
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
 
     def search(
         self,
@@ -95,6 +109,7 @@ class SemanticScholarService:
             response.raise_for_status()
             data = response.json()
         except requests.RequestException as e:
+            logger.warning(f"Semantic Scholar search failed: {query} - {e}")
             return PaperSearchResult(
                 papers=[],
                 total_count=0,

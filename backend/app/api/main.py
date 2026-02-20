@@ -15,8 +15,9 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Any
 from datetime import datetime
+from functools import lru_cache
 import asyncio
 import logging
 import os
@@ -112,12 +113,32 @@ app.include_router(allergen_router, prefix="/api")      # /api/allergens/*
 # Include admin router (super_admin only)
 app.include_router(admin_router, prefix="/api/admin", tags=["Admin"])  # /api/admin/*
 
-# 전역 서비스 인스턴스
-_search_service: Optional[PaperSearchService] = None
-_qa_engine: Optional[QAEngine] = None
-_batch_processor: Optional[BatchProcessor] = None
-_prescription_engine: Optional[PrescriptionEngine] = None
-_diagnosis_repository: Optional[DiagnosisRepository] = None
+# 서비스 인스턴스 (lru_cache DI 패턴)
+@lru_cache(maxsize=1)
+def get_search_service() -> PaperSearchService:
+    return PaperSearchService()
+
+
+@lru_cache(maxsize=1)
+def get_qa_engine() -> QAEngine:
+    return QAEngine()
+
+
+@lru_cache(maxsize=1)
+def get_batch_processor() -> BatchProcessor:
+    return BatchProcessor()
+
+
+@lru_cache(maxsize=1)
+def get_prescription_engine() -> PrescriptionEngine:
+    return PrescriptionEngine()
+
+
+@lru_cache(maxsize=1)
+def get_diagnosis_repository() -> DiagnosisRepository:
+    return DiagnosisRepository()
+
+
 _collection_stats: dict = {
     "total_searches": 0,
     "total_papers_found": 0,
@@ -128,39 +149,16 @@ _collection_stats: dict = {
 }
 
 
-def get_search_service() -> PaperSearchService:
-    global _search_service
-    if _search_service is None:
-        _search_service = PaperSearchService()
-    return _search_service
+# =====================
+# 표준 응답 모델
+# =====================
 
-
-def get_qa_engine() -> QAEngine:
-    global _qa_engine
-    if _qa_engine is None:
-        _qa_engine = QAEngine()
-    return _qa_engine
-
-
-def get_batch_processor() -> BatchProcessor:
-    global _batch_processor
-    if _batch_processor is None:
-        _batch_processor = BatchProcessor()
-    return _batch_processor
-
-
-def get_prescription_engine() -> PrescriptionEngine:
-    global _prescription_engine
-    if _prescription_engine is None:
-        _prescription_engine = PrescriptionEngine()
-    return _prescription_engine
-
-
-def get_diagnosis_repository() -> DiagnosisRepository:
-    global _diagnosis_repository
-    if _diagnosis_repository is None:
-        _diagnosis_repository = DiagnosisRepository()
-    return _diagnosis_repository
+class APIResponse(BaseModel):
+    """표준 API 응답 형식"""
+    success: bool
+    data: Optional[Any] = None
+    error: Optional[str] = None
+    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
 
 
 # =====================
@@ -648,7 +646,10 @@ async def get_diagnosis(diagnosis_id: str):
 
 
 @app.get("/api/diagnosis")
-async def list_diagnoses(limit: int = 50, offset: int = 0):
+async def list_diagnoses(
+    limit: int = Query(default=50, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+):
     """진단 결과 목록 조회"""
     repo = get_diagnosis_repository()
     diagnoses = repo.list_diagnoses(limit=limit, offset=offset)
@@ -763,7 +764,10 @@ async def get_prescription_by_diagnosis(diagnosis_id: str):
 
 
 @app.get("/api/prescription")
-async def list_prescriptions(limit: int = 50, offset: int = 0):
+async def list_prescriptions(
+    limit: int = Query(default=50, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+):
     """처방 권고 목록 조회"""
     repo = get_diagnosis_repository()
     prescriptions = repo.list_prescriptions(limit=limit, offset=offset)
@@ -789,14 +793,18 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """앱 종료 시 리소스 정리"""
-    global _search_service, _qa_engine, _batch_processor
-
-    if _search_service:
-        _search_service.close()
-    if _qa_engine:
-        _qa_engine.close()
-    if _batch_processor:
-        _batch_processor.close()
+    for getter in [get_search_service, get_qa_engine, get_batch_processor]:
+        try:
+            instance = getter()
+            if hasattr(instance, "close"):
+                instance.close()
+        except Exception:
+            pass
+    get_search_service.cache_clear()
+    get_qa_engine.cache_clear()
+    get_batch_processor.cache_clear()
+    get_prescription_engine.cache_clear()
+    get_diagnosis_repository.cache_clear()
 
 
 if __name__ == "__main__":

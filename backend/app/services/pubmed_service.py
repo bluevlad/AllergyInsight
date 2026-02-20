@@ -6,11 +6,16 @@ E-utilities API를 통해 무료로 논문 검색 및 메타데이터를 가져�
 API 문서: https://www.ncbi.nlm.nih.gov/books/NBK25497/
 """
 import time
+import logging
 import xml.etree.ElementTree as ET
 from typing import Optional
 from datetime import datetime
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+logger = logging.getLogger(__name__)
 
 from ..models.paper import Paper, PaperSearchResult, PaperSource
 
@@ -32,6 +37,15 @@ class PubMedService:
         self.session.headers.update({
             "User-Agent": "AllergyInsight/1.0 (Research Tool)"
         })
+        # 재시도 전략: 429/500/502/503/504 시 지수 백오프
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
 
     def _build_params(self, **kwargs) -> dict:
         """기본 파라미터 구성"""
@@ -81,13 +95,23 @@ class PubMedService:
             search_params["maxdate"] = max_date
             search_params["datetype"] = "pdat"  # publication date
 
-        search_response = self.session.get(
-            f"{self.BASE_URL}/esearch.fcgi",
-            params=search_params,
-            timeout=30,
-        )
-        search_response.raise_for_status()
-        search_data = search_response.json()
+        try:
+            search_response = self.session.get(
+                f"{self.BASE_URL}/esearch.fcgi",
+                params=search_params,
+                timeout=30,
+            )
+            search_response.raise_for_status()
+            search_data = search_response.json()
+        except requests.RequestException as e:
+            logger.warning(f"PubMed search failed: {query} - {e}")
+            return PaperSearchResult(
+                papers=[],
+                total_count=0,
+                query=query,
+                source=PaperSource.PUBMED,
+                search_time_ms=(time.time() - start_time) * 1000,
+            )
 
         result = search_data.get("esearchresult", {})
         id_list = result.get("idlist", [])
@@ -130,14 +154,17 @@ class PubMedService:
             rettype="abstract",
         )
 
-        fetch_response = self.session.get(
-            f"{self.BASE_URL}/efetch.fcgi",
-            params=fetch_params,
-            timeout=60,
-        )
-        fetch_response.raise_for_status()
-
-        return self._parse_pubmed_xml(fetch_response.text)
+        try:
+            fetch_response = self.session.get(
+                f"{self.BASE_URL}/efetch.fcgi",
+                params=fetch_params,
+                timeout=60,
+            )
+            fetch_response.raise_for_status()
+            return self._parse_pubmed_xml(fetch_response.text)
+        except requests.RequestException as e:
+            logger.warning(f"PubMed fetch failed for {len(pmids)} papers: {e}")
+            return []
 
     def _parse_pubmed_xml(self, xml_content: str) -> list[Paper]:
         """
