@@ -7,7 +7,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ...database.connection import get_db
 from ...database.models import User, UserDiagnosis, DiagnosisKit
@@ -120,7 +120,7 @@ async def register_kit(
         user_id=user.id,
         kit_id=kit.id,
         results=kit.results,
-        diagnosis_date=kit.test_date or datetime.utcnow(),
+        diagnosis_date=kit.test_date or datetime.now(timezone.utc),
         prescription=None,  # 별도 처리 필요
     )
     db.add(diagnosis)
@@ -128,7 +128,7 @@ async def register_kit(
     # 키트 상태 업데이트
     kit.is_registered = True
     kit.registered_user_id = user.id
-    kit.registered_at = datetime.utcnow()
+    kit.registered_at = datetime.now(timezone.utc)
     kit.pin_attempts = 0
 
     db.commit()

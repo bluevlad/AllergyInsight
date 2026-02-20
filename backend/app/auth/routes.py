@@ -1,9 +1,7 @@
 """Authentication Routes"""
 import secrets
-import hashlib
 import logging
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import RedirectResponse
@@ -13,15 +11,16 @@ import bcrypt
 
 security_logger = logging.getLogger("security")
 
+from ..core.pii_masking import mask_name
 from ..database.connection import get_db
 from ..database.models import User, DiagnosisKit, UserDiagnosis
 from .config import auth_settings
 from .jwt_handler import create_access_token
-from .dependencies import require_auth, get_current_user
+from .dependencies import require_auth
 from .schemas import (
-    UserResponse, UserWithToken, Token,
+    UserResponse, UserWithToken,
     SimpleRegisterRequest, SimpleRegisterResponse, SimpleLoginRequest,
-    KitRegisterRequest, UserDiagnosisResponse, UserDiagnosisSummary
+    KitRegisterRequest, UserDiagnosisResponse,
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -102,7 +101,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
                 )
                 db.add(user)
 
-        user.last_login_at = datetime.utcnow()
+        user.last_login_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(user)
 
@@ -205,7 +204,7 @@ async def simple_register(
     # Register kit to user
     kit.is_registered = True
     kit.registered_user_id = user.id
-    kit.registered_at = datetime.utcnow()
+    kit.registered_at = datetime.now(timezone.utc)
     kit.pin_attempts = 0
 
     # Create user diagnosis record
@@ -217,7 +216,7 @@ async def simple_register(
     )
     db.add(diagnosis)
 
-    user.last_login_at = datetime.utcnow()
+    user.last_login_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(user)
 
@@ -267,15 +266,15 @@ async def simple_login(
     if not verify_pin(request.access_pin, user.access_pin_hash):
         security_logger.warning(
             "Login failed: user=%s name=%s",
-            user.id, request.name
+            user.id, mask_name(request.name)
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid access PIN"
         )
 
-    security_logger.info("Login success: user=%s name=%s", user.id, request.name)
-    user.last_login_at = datetime.utcnow()
+    security_logger.info("Login success: user=%s name=%s", user.id, mask_name(request.name))
+    user.last_login_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(user)
 
@@ -349,7 +348,7 @@ async def register_kit(
     # Register kit
     kit.is_registered = True
     kit.registered_user_id = user.id
-    kit.registered_at = datetime.utcnow()
+    kit.registered_at = datetime.now(timezone.utc)
     kit.pin_attempts = 0
 
     # Create diagnosis record

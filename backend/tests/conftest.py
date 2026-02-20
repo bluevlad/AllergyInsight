@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
 from typing import Generator
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 from sqlalchemy import create_engine
@@ -101,7 +101,7 @@ def test_user(test_db: Session) -> User:
         auth_type="simple",
         access_pin_hash=bcrypt.hashpw("123456".encode(), bcrypt.gensalt()).decode(),
         role="user",
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
     test_db.add(user)
     test_db.commit()
@@ -124,7 +124,7 @@ def admin_user(test_db: Session) -> User:
         auth_type="simple",
         access_pin_hash=bcrypt.hashpw("654321".encode(), bcrypt.gensalt()).decode(),
         role="admin",
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
     test_db.add(user)
     test_db.commit()
@@ -147,7 +147,7 @@ def doctor_user(test_db: Session) -> User:
         auth_type="simple",
         access_pin_hash=bcrypt.hashpw("111111".encode(), bcrypt.gensalt()).decode(),
         role="doctor",
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
     test_db.add(user)
     test_db.commit()
@@ -238,7 +238,7 @@ def test_kit(test_db: Session) -> DiagnosisKit:
             "wheat": 0,
             "shrimp": 3,
         },
-        diagnosis_date=datetime.utcnow(),
+        diagnosis_date=datetime.now(timezone.utc),
         is_registered=False,
         pin_attempts=0,
     )
@@ -267,10 +267,10 @@ def registered_kit(test_db: Session, test_user: User) -> DiagnosisKit:
             "wheat": 1,
             "shrimp": 4,
         },
-        diagnosis_date=datetime.utcnow(),
+        diagnosis_date=datetime.now(timezone.utc),
         is_registered=True,
         registered_user_id=test_user.id,
-        registered_at=datetime.utcnow(),
+        registered_at=datetime.now(timezone.utc),
         pin_attempts=0,
     )
     test_db.add(kit)
@@ -295,7 +295,7 @@ def test_diagnosis(test_db: Session, test_user: User, registered_kit: DiagnosisK
         kit_id=registered_kit.id,
         results=registered_kit.results,
         diagnosis_date=registered_kit.diagnosis_date,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
     test_db.add(diagnosis)
     test_db.commit()

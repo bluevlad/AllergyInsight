@@ -4,7 +4,7 @@
 기존 hospital/routes.py의 기능을 Professional 서비스로 통합합니다.
 """
 from typing import Optional, List
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
@@ -387,7 +387,7 @@ async def update_patient(
     if data.status is not None:
         hp.status = data.status
 
-    hp.updated_at = datetime.utcnow()
+    hp.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(hp)
 
