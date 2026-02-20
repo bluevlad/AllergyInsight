@@ -12,11 +12,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# 비root 사용자 생성
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
+
 # 애플리케이션 코드 복사
 COPY . .
 
-# 다운로드 디렉토리 생성
-RUN mkdir -p downloads/papers
+# 다운로드 디렉토리 생성 및 권한 설정
+RUN mkdir -p downloads/papers && chown -R appuser:appuser /app
+
+# 비root 사용자로 전환
+USER appuser
 
 # 포트 노출
 EXPOSE 9040

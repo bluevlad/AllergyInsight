@@ -2,6 +2,7 @@
 from datetime import datetime
 from sqlalchemy.orm import Session
 import bcrypt
+import os
 
 from .connection import SessionLocal
 from .models import User
@@ -65,7 +66,12 @@ TEST_USERS = [
 
 
 def seed_users(db: Session = None):
-    """Seed test users into database"""
+    """Seed test users into database (development/local only)"""
+    env = os.getenv("ENVIRONMENT", os.getenv("APP_ENV", "development")).lower()
+    if env in ("production", "prod"):
+        print("Skipping seed_users() in production environment")
+        return
+
     if db is None:
         db = SessionLocal()
         close_db = True

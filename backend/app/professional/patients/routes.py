@@ -20,6 +20,7 @@ from ...core.auth import (
     require_professional,
     OrganizationContext, get_organization_context
 )
+from sqlalchemy.orm import joinedload
 
 router = APIRouter(prefix="/patients", tags=["Professional - Patients"])
 
@@ -85,36 +86,59 @@ class PatientListResponse(BaseModel):
 def build_patient_response(
     hp: HospitalPatient,
     db: Session,
-    include_stats: bool = False
+    include_stats: bool = False,
+    users_map: dict = None,
+    doctors_map: dict = None,
+    diag_stats_map: dict = None,
 ) -> PatientResponse:
-    """HospitalPatient를 PatientResponse로 변환"""
-    patient_user = db.query(User).filter(User.id == hp.patient_user_id).first()
+    """HospitalPatient를 PatientResponse로 변환
+
+    Args:
+        users_map: {user_id: User} 사전 로딩된 사용자 맵
+        doctors_map: {doctor_member_id: doctor_name} 사전 로딩된 의사 맵
+        diag_stats_map: {user_id: (count, last_date)} 사전 로딩된 진단 통계 맵
+    """
+    # 사전 로딩된 맵 사용, 없으면 개별 쿼리 (단건 조회 시)
+    if users_map is not None:
+        patient_user = users_map.get(hp.patient_user_id)
+    else:
+        patient_user = db.query(User).filter(User.id == hp.patient_user_id).first()
 
     # 담당 의사 정보
     doctor_name = None
     if hp.assigned_doctor_id:
-        doctor_member = db.query(OrganizationMember).filter(
-            OrganizationMember.id == hp.assigned_doctor_id
-        ).first()
-        if doctor_member:
-            doctor_user = db.query(User).filter(User.id == doctor_member.user_id).first()
-            if doctor_user:
-                doctor_name = doctor_user.name
+        if doctors_map is not None:
+            doctor_name = doctors_map.get(hp.assigned_doctor_id)
+        else:
+            doctor_member = db.query(OrganizationMember).filter(
+                OrganizationMember.id == hp.assigned_doctor_id
+            ).first()
+            if doctor_member:
+                doctor_user = db.query(User).filter(User.id == doctor_member.user_id).first()
+                if doctor_user:
+                    doctor_name = doctor_user.name
 
     # 진단 통계
     diagnosis_count = None
     last_diagnosis_date = None
     if include_stats and patient_user:
-        diagnosis_count = db.query(UserDiagnosis).filter(
-            UserDiagnosis.user_id == patient_user.id
-        ).count()
+        if diag_stats_map is not None:
+            stats = diag_stats_map.get(patient_user.id)
+            if stats:
+                diagnosis_count, last_diagnosis_date = stats
+            else:
+                diagnosis_count = 0
+        else:
+            diagnosis_count = db.query(UserDiagnosis).filter(
+                UserDiagnosis.user_id == patient_user.id
+            ).count()
 
-        last_diagnosis = db.query(UserDiagnosis).filter(
-            UserDiagnosis.user_id == patient_user.id
-        ).order_by(UserDiagnosis.created_at.desc()).first()
+            last_diagnosis = db.query(UserDiagnosis).filter(
+                UserDiagnosis.user_id == patient_user.id
+            ).order_by(UserDiagnosis.created_at.desc()).first()
 
-        if last_diagnosis:
-            last_diagnosis_date = last_diagnosis.created_at.date()
+            if last_diagnosis:
+                last_diagnosis_date = last_diagnosis.created_at.date()
 
     return PatientResponse(
         id=hp.id,
@@ -176,7 +200,47 @@ async def list_patients(
         HospitalPatient.created_at.desc()
     ).offset((page - 1) * page_size).limit(page_size).all()
 
-    items = [build_patient_response(p, db, include_stats=True) for p in patients]
+    # 배치 로딩: N+1 방지
+    patient_user_ids = [p.patient_user_id for p in patients]
+    doctor_member_ids = [p.assigned_doctor_id for p in patients if p.assigned_doctor_id]
+
+    # 사용자 맵
+    users_map = {}
+    if patient_user_ids:
+        users = db.query(User).filter(User.id.in_(patient_user_ids)).all()
+        users_map = {u.id: u for u in users}
+
+    # 의사 이름 맵
+    doctors_map = {}
+    if doctor_member_ids:
+        members = db.query(OrganizationMember).filter(
+            OrganizationMember.id.in_(doctor_member_ids)
+        ).all()
+        member_user_ids = [m.user_id for m in members]
+        if member_user_ids:
+            doc_users = db.query(User).filter(User.id.in_(member_user_ids)).all()
+            doc_user_map = {u.id: u.name for u in doc_users}
+            doctors_map = {m.id: doc_user_map.get(m.user_id) for m in members}
+
+    # 진단 통계 맵 (count + last_date)
+    diag_stats_map = {}
+    if patient_user_ids:
+        diag_counts = db.query(
+            UserDiagnosis.user_id,
+            func.count(UserDiagnosis.id),
+            func.max(UserDiagnosis.created_at)
+        ).filter(
+            UserDiagnosis.user_id.in_(patient_user_ids)
+        ).group_by(UserDiagnosis.user_id).all()
+        for uid, cnt, last_dt in diag_counts:
+            diag_stats_map[uid] = (cnt, last_dt.date() if last_dt else None)
+
+    items = [
+        build_patient_response(
+            p, db, include_stats=True,
+            users_map=users_map, doctors_map=doctors_map, diag_stats_map=diag_stats_map
+        ) for p in patients
+    ]
 
     return PatientListResponse(
         items=items,
