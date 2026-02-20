@@ -1,5 +1,5 @@
 """Organization Routes - Phase 1"""
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
@@ -230,7 +230,7 @@ async def update_organization(
             else:
                 setattr(org, field, value)
 
-    org.updated_at = datetime.utcnow()
+    org.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(org)
 
@@ -249,7 +249,7 @@ async def delete_organization(
         raise HTTPException(status_code=404, detail="Organization not found")
 
     org.status = OrganizationStatus.SUSPENDED.value
-    org.updated_at = datetime.utcnow()
+    org.updated_at = datetime.now(timezone.utc)
     db.commit()
 
 
@@ -394,7 +394,7 @@ async def update_organization_member(
             setattr(member, field, value)
 
     if data.is_active == False:
-        member.left_at = datetime.utcnow()
+        member.left_at = datetime.now(timezone.utc)
 
     db.commit()
     db.refresh(member)
@@ -429,7 +429,7 @@ async def remove_organization_member(
         raise HTTPException(status_code=404, detail="Member not found")
 
     member.is_active = False
-    member.left_at = datetime.utcnow()
+    member.left_at = datetime.now(timezone.utc)
     db.commit()
 
 
@@ -528,7 +528,7 @@ async def approve_organization(
         raise HTTPException(status_code=400, detail="Organization is not pending approval")
 
     org.status = OrganizationStatus.ACTIVE.value
-    org.updated_at = datetime.utcnow()
+    org.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(org)
 

@@ -5,7 +5,7 @@
 - GRADE 기반 근거 수준 표시
 - 논문 인용 포함
 """
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -367,7 +367,7 @@ async def get_clinical_report(
 
     # 응답 생성
     return ClinicalReportResponse(
-        report_generated_at=datetime.utcnow(),
+        report_generated_at=datetime.now(timezone.utc),
         report_version="1.0",
         patient=PatientInfoSchema(
             patient_id=user.id,

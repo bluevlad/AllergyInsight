@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from .news_routes import router as news_router
 from typing import Optional
@@ -35,7 +35,7 @@ async def get_dashboard(
     db: Session = Depends(get_db)
 ):
     """관리자 대시보드 데이터"""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     week_ago = now - timedelta(days=7)
 
     # 사용자 통계
@@ -281,7 +281,7 @@ async def get_user_stats(
     db: Session = Depends(get_db)
 ):
     """사용자 통계 요약"""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     # 역할별 통계
     role_stats = db.query(User.role, func.count(User.id)).group_by(User.role).all()

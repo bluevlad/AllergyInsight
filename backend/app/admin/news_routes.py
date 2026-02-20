@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from .dependencies import require_super_admin
@@ -314,7 +314,7 @@ async def get_news_stats(
     by_source = {source: count for source, count in source_counts}
 
     # 최근 7일
-    week_ago = datetime.utcnow() - timedelta(days=7)
+    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
     recent = db.query(func.count(CompetitorNews.id)).filter(
         CompetitorNews.created_at >= week_ago
     ).scalar() or 0
