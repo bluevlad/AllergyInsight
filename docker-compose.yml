@@ -8,7 +8,7 @@ services:
       - "9040:9040"
     environment:
       # Database (using shared postgresql container)
-      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:?DB_PASSWORD is required}@postgresql:5432/allergyinsight
+      - DATABASE_URL=postgresql://allergyinsight_svc:${DB_PASSWORD:?DB_PASSWORD is required}@postgresql:5432/allergyinsight
       # Google OAuth
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
