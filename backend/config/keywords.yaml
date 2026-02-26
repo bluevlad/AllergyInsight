@@ -1,0 +1,81 @@
+# AllergyInsight 뉴스 수집 키워드 설정
+# HealthPulse 카테고리별 검색 키워드 + 기존 DEFAULT_COMPETITORS 키워드 통합
+
+# 디지털 헬스케어 뉴스 키워드 (HealthPulse 이식)
+categories:
+  regulatory:
+    name: "규제/인허가"
+    keywords:
+      - "체외진단 허가"
+      - "IVD 인허가"
+      - "식약처 체외진단"
+      - "FDA IVD approval"
+      - "CE marking IVD"
+      - "알러지 진단 규제"
+
+  market:
+    name: "시장/산업"
+    keywords:
+      - "체외진단 시장"
+      - "IVD market"
+      - "알러지 진단 시장"
+      - "allergy diagnostics market"
+      - "디지털 헬스케어 알러지"
+      - "POC 진단"
+
+  technology:
+    name: "기술/R&D"
+    keywords:
+      - "알러지 진단 기술"
+      - "allergy testing technology"
+      - "면역크로마토그래피"
+      - "multiplex allergy"
+      - "component resolved diagnostics"
+      - "molecular allergy diagnostics"
+
+  competitor:
+    name: "경쟁사"
+    keywords:
+      # 자사
+      - "수젠텍"
+      - "Sugentech"
+      - "SGTi"
+      # 해외
+      - "Phadia"
+      - "ImmunoCap"
+      - "Thermo Fisher 알러지"
+      - "Siemens 알러지"
+      - "Atellica"
+      - "Hycor"
+      - "NOVEOS"
+      - "ALEX2"
+      - "MADx"
+      # 국내
+      - "LG화학 체외진단"
+      - "녹십자MS 체외진단"
+      - "녹십자MS 알러지"
+      - "바디텍메드 진단"
+
+  product:
+    name: "제품/서비스"
+    keywords:
+      - "알러지 검사 키트"
+      - "allergy test kit"
+      - "POC allergy test"
+      - "rapid allergy testing"
+      - "알러지 스크리닝"
+
+# 뉴스 소스별 검색 설정
+sources:
+  naver:
+    enabled: true
+    max_results_per_keyword: 10
+  google:
+    enabled: true
+    max_results_per_keyword: 10
+
+# 수집 설정
+collection:
+  max_articles_per_run: 200
+  dedup_window_days: 30
+  min_relevance_keywords: []

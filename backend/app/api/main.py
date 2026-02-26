@@ -63,6 +63,9 @@ from ..core.allergen.routes import router as allergen_router
 # Admin: Platform admin features
 from ..admin.routes import router as admin_router
 
+# Public: Subscription (no auth required)
+from .subscription_routes import router as subscription_router
+
 # 보안 로깅 설정
 security_logger = logging.getLogger("security")
 security_logger.setLevel(logging.INFO)
@@ -114,6 +117,9 @@ app.include_router(allergen_router, prefix="/api")      # /api/allergens/*
 
 # Include admin router (super_admin only)
 app.include_router(admin_router, prefix="/api/admin", tags=["Admin"])  # /api/admin/*
+
+# Include subscription router (public, no auth required)
+app.include_router(subscription_router, prefix="/api", tags=["Subscription"])  # /api/subscribe/*
 
 # 서비스 인스턴스 (lru_cache DI 패턴)
 @lru_cache(maxsize=1)
@@ -796,10 +802,26 @@ async def startup_event():
     init_db()
     seed_users()  # 테스트 사용자 시딩
 
+    # 스케줄러 초기화 (ENABLE_SCHEDULER=true일 때만)
+    if os.getenv("ENABLE_SCHEDULER", "false").lower() == "true":
+        from ..scheduler.scheduler_service import get_scheduler_service
+        scheduler = get_scheduler_service()
+        scheduler.start()
+        logging.getLogger(__name__).info("뉴스 스케줄러 시작됨")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """앱 종료 시 리소스 정리"""
+    # 스케줄러 종료
+    if os.getenv("ENABLE_SCHEDULER", "false").lower() == "true":
+        try:
+            from ..scheduler.scheduler_service import get_scheduler_service
+            scheduler = get_scheduler_service()
+            scheduler.stop()
+        except Exception:
+            pass
+
     for getter in [get_search_service, get_qa_engine, get_batch_processor]:
         try:
             instance = getter()

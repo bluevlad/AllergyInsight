@@ -11,6 +11,9 @@ from .news_schemas import (
     CompanyItem, CompanyListResponse,
     CollectRequest, CollectResponse,
     NewsStatsResponse,
+    AnalyzeRequest, AnalyzeResponse, ArticleAnalysisDetail,
+    SchedulerStatusResponse, SchedulerTriggerRequest, SchedulerConfigRequest,
+    NewsletterSendRequest, NewsletterSendResponse, NewsletterStatsResponse,
 )
 from ..database.connection import get_db
 from ..database.models import User
@@ -90,6 +93,9 @@ async def get_news_list(
             is_read=news.is_read,
             is_important=news.is_important,
             created_at=news.created_at,
+            summary=news.summary,
+            importance_score=news.importance_score,
+            is_processed=news.is_processed,
         ))
 
     return NewsListResponse(
@@ -327,3 +333,203 @@ async def get_news_stats(
         by_source=by_source,
         recent_7days=recent,
     )
+
+
+# ============================================================================
+# AI 분석
+# ============================================================================
+
+@router.post("/news/analyze", response_model=AnalyzeResponse)
+async def analyze_news(
+    request: AnalyzeRequest,
+    current_user: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """미분석 기사 AI 처리"""
+    from ..services.news_pipeline_service import NewsPipelineService
+
+    pipeline = NewsPipelineService()
+    try:
+        analyzed = pipeline.process_unanalyzed_articles(db, limit=request.limit)
+        return AnalyzeResponse(
+            analyzed=analyzed,
+            message=f"{analyzed}건의 기사가 분석되었습니다.",
+        )
+    finally:
+        pipeline.close()
+
+
+@router.get("/news/{news_id}/analysis", response_model=ArticleAnalysisDetail)
+async def get_article_analysis(
+    news_id: int,
+    current_user: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """기사 분석 상세 조회"""
+    news = db.query(CompetitorNews).filter(CompetitorNews.id == news_id).first()
+    if not news:
+        raise HTTPException(status_code=404, detail="뉴스를 찾을 수 없습니다.")
+
+    return ArticleAnalysisDetail(
+        id=news.id,
+        title=news.title,
+        summary=news.summary,
+        importance_score=news.importance_score,
+        category=news.category,
+        is_processed=news.is_processed,
+        processed_at=news.processed_at,
+    )
+
+
+@router.post("/news/{news_id}/reanalyze", response_model=ArticleAnalysisDetail)
+async def reanalyze_article(
+    news_id: int,
+    current_user: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """기사 재분석"""
+    from ..services.news_pipeline_service import NewsPipelineService
+
+    pipeline = NewsPipelineService()
+    try:
+        result = pipeline.reanalyze_article(db, news_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="뉴스를 찾을 수 없습니다.")
+
+        news = db.query(CompetitorNews).filter(CompetitorNews.id == news_id).first()
+        return ArticleAnalysisDetail(
+            id=news.id,
+            title=news.title,
+            summary=news.summary,
+            importance_score=news.importance_score,
+            category=news.category,
+            is_processed=news.is_processed,
+            processed_at=news.processed_at,
+        )
+    finally:
+        pipeline.close()
+
+
+# ============================================================================
+# 스케줄러 관리
+# ============================================================================
+
+@router.get("/scheduler/status", response_model=SchedulerStatusResponse)
+async def get_scheduler_status(
+    current_user: User = Depends(require_super_admin),
+):
+    """스케줄러 상태 조회"""
+    from ..scheduler.scheduler_service import get_scheduler_service
+
+    scheduler = get_scheduler_service()
+    status = scheduler.get_job_status()
+    return SchedulerStatusResponse(**status)
+
+
+@router.post("/scheduler/trigger")
+async def trigger_scheduler(
+    request: SchedulerTriggerRequest,
+    current_user: User = Depends(require_super_admin),
+):
+    """스케줄러 즉시 실행"""
+    from ..scheduler.scheduler_service import get_scheduler_service
+
+    scheduler = get_scheduler_service()
+
+    if request.job_type == "crawl":
+        scheduler.run_crawl_once()
+        return {"message": "뉴스 수집이 실행되었습니다."}
+    elif request.job_type == "send":
+        scheduler.run_send_once()
+        return {"message": "뉴스레터 발송이 실행되었습니다."}
+    elif request.job_type == "all":
+        scheduler.run_crawl_once()
+        scheduler.run_send_once()
+        return {"message": "뉴스 수집 및 발송이 실행되었습니다."}
+    else:
+        raise HTTPException(status_code=400, detail="유효하지 않은 job_type입니다. (crawl, send, all)")
+
+
+@router.put("/scheduler/config")
+async def update_scheduler_config(
+    request: SchedulerConfigRequest,
+    current_user: User = Depends(require_super_admin),
+):
+    """스케줄러 설정 변경"""
+    from ..scheduler.scheduler_service import get_scheduler_service
+
+    scheduler = get_scheduler_service()
+    if not scheduler.is_running:
+        raise HTTPException(status_code=400, detail="스케줄러가 실행 중이 아닙니다.")
+
+    scheduler.update_config(
+        crawl_hour=request.crawl_hour,
+        crawl_minute=request.crawl_minute,
+        send_hour=request.send_hour,
+        send_minute=request.send_minute,
+    )
+    return {"message": "스케줄러 설정이 변경되었습니다."}
+
+
+# ============================================================================
+# 뉴스레터
+# ============================================================================
+
+@router.get("/newsletter/preview")
+async def preview_newsletter(
+    days: int = Query(1, ge=1, le=7),
+    current_user: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """뉴스레터 미리보기"""
+    from ..services.newsletter_service import NewsletterService
+    from fastapi.responses import HTMLResponse
+
+    service = NewsletterService()
+    html = service.preview_newsletter(db, days=days)
+    return HTMLResponse(content=html)
+
+
+@router.post("/newsletter/send", response_model=NewsletterSendResponse)
+async def send_newsletter(
+    request: NewsletterSendRequest,
+    current_user: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """뉴스레터 발송"""
+    from ..services.newsletter_service import NewsletterService
+
+    service = NewsletterService()
+    result = service.send_newsletter(
+        db=db,
+        recipients=request.recipients,
+        days=request.days,
+        subject=request.subject,
+    )
+    return NewsletterSendResponse(**result)
+
+
+@router.get("/newsletter/history")
+async def get_newsletter_history(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """뉴스레터 발송 이력"""
+    from ..services.newsletter_service import NewsletterService
+
+    service = NewsletterService()
+    return service.get_send_history(db, page=page, page_size=page_size)
+
+
+@router.get("/newsletter/stats", response_model=NewsletterStatsResponse)
+async def get_newsletter_stats(
+    current_user: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """뉴스레터 발송 통계"""
+    from ..services.newsletter_service import NewsletterService
+
+    service = NewsletterService()
+    return NewsletterStatsResponse(**service.get_send_stats(db))
