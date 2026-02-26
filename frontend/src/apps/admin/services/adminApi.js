@@ -67,6 +67,33 @@ export const adminApi = {
     toggleRead: (id) => apiClient.put(`/admin/news/${id}/read`),
     toggleImportant: (id) => apiClient.put(`/admin/news/${id}/important`),
     stats: () => apiClient.get('/admin/news/stats'),
+    analyze: (data = {}) => apiClient.post('/admin/news/analyze', data),
+    getAnalysis: (id) => apiClient.get(`/admin/news/${id}/analysis`),
+    reanalyze: (id) => apiClient.post(`/admin/news/${id}/reanalyze`),
+    schedulerStatus: () => apiClient.get('/admin/scheduler/status'),
+    triggerScheduler: (data) => apiClient.post('/admin/scheduler/trigger', data),
+    updateSchedulerConfig: (data) => apiClient.put('/admin/scheduler/config', data),
+  },
+
+  // ============================================================================
+  // Newsletter
+  // ============================================================================
+  newsletter: {
+    preview: (params = {}) => apiClient.get('/admin/newsletter/preview', { params, responseType: 'text', transformResponse: [(data) => data] }),
+    send: (data) => apiClient.post('/admin/newsletter/send', data),
+    history: (params = {}) => apiClient.get('/admin/newsletter/history', { params }),
+    stats: () => apiClient.get('/admin/newsletter/stats'),
+  },
+
+  // ============================================================================
+  // Subscribers
+  // ============================================================================
+  subscribers: {
+    list: (params = {}) => apiClient.get('/admin/subscribers', { params }),
+    get: (id) => apiClient.get(`/admin/subscribers/${id}`),
+    update: (id, data) => apiClient.put(`/admin/subscribers/${id}`, data),
+    delete: (id) => apiClient.delete(`/admin/subscribers/${id}`),
+    stats: () => apiClient.get('/admin/subscribers/stats'),
   },
 };
 

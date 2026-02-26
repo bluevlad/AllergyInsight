@@ -874,13 +874,34 @@ const NewsCard = ({ item, onToggleRead, onToggleImportant }) => {
     item.is_important && 'important',
   ].filter(Boolean).join(' ');
 
+  const getImportanceBadge = (score) => {
+    if (score == null) return null;
+    if (score >= 0.7) return { label: '높음', color: '#e74c3c', bg: '#fef2f2' };
+    if (score >= 0.4) return { label: '보통', color: '#ca8a04', bg: '#fef9c3' };
+    return { label: '낮음', color: '#16a34a', bg: '#f0fdf4' };
+  };
+
+  const importanceBadge = getImportanceBadge(item.importance_score);
+
   return (
     <div className={cardClass}>
       <div className="news-header">
         <a href={item.url} target="_blank" rel="noopener noreferrer" className="news-title">
           {item.title}
         </a>
-        <div style={{ display: 'flex', gap: '0.3rem' }}>
+        <div style={{ display: 'flex', gap: '0.3rem', flexShrink: 0 }}>
+          {importanceBadge && (
+            <span style={{
+              padding: '0.2rem 0.5rem',
+              borderRadius: '4px',
+              fontSize: '0.7rem',
+              fontWeight: 600,
+              background: importanceBadge.bg,
+              color: importanceBadge.color,
+            }}>
+              {importanceBadge.label}
+            </span>
+          )}
           <span className={`badge source-${item.source}`}>
             {item.source === 'naver' ? '네이버' : '구글'}
           </span>
@@ -889,15 +910,25 @@ const NewsCard = ({ item, onToggleRead, onToggleImportant }) => {
           )}
         </div>
       </div>
-      {item.description && (
+      {item.summary ? (
+        <p className="news-desc" style={{ color: '#444', fontStyle: 'normal' }}>{item.summary}</p>
+      ) : item.description ? (
         <p className="news-desc">{item.description}</p>
-      )}
+      ) : null}
       <div className="news-meta">
         {item.published_at && (
           <span>{new Date(item.published_at).toLocaleDateString('ko-KR')}</span>
         )}
+        {item.category && item.category !== 'general' && (
+          <span style={{ padding: '0.1rem 0.4rem', background: '#f0f0f0', borderRadius: '3px', fontSize: '0.75rem' }}>
+            {item.category}
+          </span>
+        )}
         {item.search_keyword && (
           <span className="keyword">#{item.search_keyword}</span>
+        )}
+        {item.is_processed && (
+          <span style={{ fontSize: '0.75rem', color: '#27ae60' }}>AI</span>
         )}
         <div className="news-actions">
           <button

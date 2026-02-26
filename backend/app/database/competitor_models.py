@@ -1,6 +1,6 @@
 """경쟁사 뉴스 DB 모델"""
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON, Index
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, ForeignKey, JSON, Index
 from sqlalchemy.orm import relationship
 from .connection import Base
 
@@ -46,6 +46,14 @@ class CompetitorNews(Base):
     is_important = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # AI 분석 컬럼 (Phase 2)
+    summary = Column(Text, nullable=True)
+    importance_score = Column(Float, nullable=True)
+    content_hash = Column(String(64), nullable=True)
+    is_duplicate = Column(Boolean, default=False)
+    is_processed = Column(Boolean, default=False)
+    processed_at = Column(DateTime, nullable=True)
+
     # Relationships
     company = relationship("CompetitorCompany", back_populates="news_articles")
 
@@ -54,4 +62,7 @@ class CompetitorNews(Base):
         Index('idx_competitor_news_source', 'source'),
         Index('idx_competitor_news_published', 'published_at'),
         Index('idx_competitor_news_url', 'url'),
+        Index('idx_competitor_news_hash', 'content_hash'),
+        Index('idx_competitor_news_processed', 'is_processed'),
+        Index('idx_competitor_news_importance', 'importance_score'),
     )

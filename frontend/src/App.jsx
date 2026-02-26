@@ -18,6 +18,12 @@ import AdminApp from './apps/admin/AdminApp';
 import LoginPage from './pages/LoginPage';
 import AuthCallback from './pages/AuthCallback';
 
+// Public Subscription Pages
+import SubscribePage from './pages/subscribe/SubscribePage';
+import VerifyPage from './pages/subscribe/VerifyPage';
+import ManagePage from './pages/subscribe/ManagePage';
+import UnsubscribePage from './pages/subscribe/UnsubscribePage';
+
 /**
  * Protected Route Component
  * - professionalOnly: 의료진만 접근 가능
@@ -154,6 +160,12 @@ const AppRouter = () => {
         </PublicRoute>
       } />
       <Route path="/auth/callback" element={<AuthCallback />} />
+
+      {/* Public Subscription Routes (no auth required) */}
+      <Route path="/subscribe" element={<SubscribePage />} />
+      <Route path="/subscribe/verify" element={<VerifyPage />} />
+      <Route path="/subscribe/manage" element={<ManagePage />} />
+      <Route path="/subscribe/unsubscribe" element={<UnsubscribePage />} />
 
       {/* Admin App (/admin/*) - Super Admin Only */}
       <Route path="/admin/*" element={

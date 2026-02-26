@@ -49,5 +49,7 @@ def init_db():
     """Initialize database tables"""
     from . import models  # Import models to register them
     from . import competitor_models  # 경쟁사 뉴스 모델
+    from . import newsletter_models  # 뉴스레터 발송 이력
+    from . import subscriber_models  # 구독자 모델
     from ..services.diagnosis_repository import StoredDiagnosisModel, StoredPrescriptionModel  # noqa: F401
     Base.metadata.create_all(bind=engine)
