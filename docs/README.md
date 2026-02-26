@@ -53,7 +53,7 @@ AllergyInsight/
 │   ├── PHYSICIAN_DOCUMENT_SYSTEM.md
 │   └── QA_SYSTEM_ENHANCEMENT.md
 │
-└── wiki/                              # GitHub Wiki 동기화용
+└── wiki/                              # 프로젝트 Wiki 문서
     ├── Home.md
     ├── 1.-Project-Overview.md
     ├── 2.-Architecture.md
@@ -73,9 +73,8 @@ AllergyInsight/
 | API 문서 | 이 저장소 `docs/api/` | API 변경 이력, 데이터 소스 |
 | 기획/전략 | 문서 저장소 | 프로젝트 기획서, WBS, 로드맵 |
 | 아키텍처 | 문서 저장소 `adr/` | 설계 결정 기록, 아키텍처 분석 |
-| Wiki | 문서 저장소 `wiki/` | GitHub Wiki 동기화용 공개 문서 |
+| Wiki | 문서 저장소 `wiki/` | 프로젝트 공개 문서 (아키텍처, API, 가이드) |
 
 ## 관련 링크
 
-- [GitHub Wiki](https://github.com/bluevlad/AllergyInsight/wiki)
 - [프로젝트 README](../README.md)

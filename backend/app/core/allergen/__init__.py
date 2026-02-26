@@ -6,6 +6,16 @@
 2. allergen_prescription_db: 상세 처방 정보 (16종)
 """
 
+# SGTi-Allergy Screen PLUS 기본 16종 한글 이름 매핑 (공통 참조용)
+ALLERGEN_NAMES_KR: dict[str, str] = {
+    "peanut": "땅콩", "milk": "우유", "egg": "계란",
+    "wheat": "밀", "soy": "대두", "fish": "생선",
+    "shellfish": "갑각류", "tree_nuts": "견과류", "sesame": "참깨",
+    "dust_mite": "집먼지진드기", "pollen": "꽃가루",
+    "mold": "곰팡이", "pet_dander": "반려동물",
+    "cockroach": "바퀴벌레", "latex": "라텍스", "bee_venom": "벌독",
+}
+
 # 상세 처방 정보 (기존)
 from ...data.allergen_prescription_db import (
     # 알러젠 데이터
@@ -44,6 +54,8 @@ from ...data.allergen_master import (
 )
 
 __all__ = [
+    # 공통 한글 이름 매핑
+    "ALLERGEN_NAMES_KR",
     # 상세 처방 데이터 (36종)
     "FOOD_ALLERGENS",
     "INHALANT_ALLERGENS",

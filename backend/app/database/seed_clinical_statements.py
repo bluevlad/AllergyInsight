@@ -1,5 +1,5 @@
 """Seed clinical statements and guideline papers"""
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from .connection import SessionLocal
@@ -282,7 +282,7 @@ def seed_clinical_data(db: Session = None):
                 guideline_org=paper_data.get("guideline_org"),
                 url=paper_data.get("url"),
                 is_verified=True,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
             )
             db.add(paper)
             db.flush()
@@ -317,7 +317,7 @@ def seed_clinical_data(db: Session = None):
                 paper_id=paper_id,
                 source_location=stmt_data.get("source_location"),
                 is_active=True,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
             )
             db.add(stmt)
             statements_created += 1

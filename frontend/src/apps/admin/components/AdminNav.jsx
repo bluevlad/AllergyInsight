@@ -15,6 +15,8 @@ const AdminNav = () => {
     { to: '/admin/papers', label: '논문 관리', icon: '📄' },
     { to: '/admin/organizations', label: '조직 관리', icon: '🏥' },
     { to: '/admin/news', label: '경쟁사 뉴스', icon: '📰' },
+    { to: '/admin/newsletter', label: '뉴스레터', icon: '📧' },
+    { to: '/admin/subscribers', label: '구독자', icon: '👤' },
   ];
 
   return (

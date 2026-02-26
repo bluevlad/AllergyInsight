@@ -1,7 +1,8 @@
 """Seed test users for development/testing"""
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 import bcrypt
+import os
 
 from .connection import SessionLocal
 from .models import User
@@ -65,7 +66,12 @@ TEST_USERS = [
 
 
 def seed_users(db: Session = None):
-    """Seed test users into database"""
+    """Seed test users into database (development/local only)"""
+    env = os.getenv("ENVIRONMENT", os.getenv("APP_ENV", "development")).lower()
+    if env in ("production", "prod"):
+        print("Skipping seed_users() in production environment")
+        return
+
     if db is None:
         db = SessionLocal()
         close_db = True
@@ -100,7 +106,7 @@ def seed_users(db: Session = None):
                 access_pin_hash=access_pin_hash,
                 role=user_data["role"],
                 is_active=True,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
             )
             db.add(user)
             added += 1
@@ -211,7 +217,7 @@ def seed_hospital_patients(db: Session, organization: Organization):
             existing_hp.assigned_doctor_id = doctor_member.id
             existing_hp.status = HospitalPatientStatus.ACTIVE
             existing_hp.consent_signed = True
-            existing_hp.consent_date = datetime.utcnow()
+            existing_hp.consent_date = datetime.now(timezone.utc)
             db.commit()
             print(f"Updated HospitalPatient: {patient_user.name} -> assigned to {doctor_user.name} (OrganizationMember.id={doctor_member.id})")
         else:
@@ -225,7 +231,7 @@ def seed_hospital_patients(db: Session, organization: Organization):
         patient_number="P-2024-0001",
         assigned_doctor_id=doctor_member.id,
         consent_signed=True,
-        consent_date=datetime.utcnow(),
+        consent_date=datetime.now(timezone.utc),
         status=HospitalPatientStatus.ACTIVE
     )
     db.add(hp)

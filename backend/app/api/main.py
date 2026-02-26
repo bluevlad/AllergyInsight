@@ -8,13 +8,18 @@ FastAPI 기반 REST API 서버입니다.
     cd C:\GIT\AllergyInsight\backend
     uvicorn app.api.main:app --reload --port 9040
 """
-from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Any
 from datetime import datetime
+from functools import lru_cache
 import asyncio
+import logging
 import os
 
 from ..services import (
@@ -40,6 +45,8 @@ from ..auth.config import auth_settings
 from ..database.connection import engine, init_db, get_db, SessionLocal
 from ..database.seed_users import seed_users
 from ..config import settings
+from ..database.models import User
+from ..core.auth import require_auth
 
 # Phase 1: Organization imports
 from ..organization.routes import router as organization_router
@@ -60,17 +67,33 @@ from ..admin.routes import router as admin_router
 # Middleware: Activity logging
 from ..middleware.activity_logger import ActivityLoggerMiddleware
 
+# Public: Subscription (no auth required)
+from .subscription_routes import router as subscription_router
+
+# 보안 로깅 설정
+security_logger = logging.getLogger("security")
+security_logger.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+handler.setFormatter(logging.Formatter("[%(asctime)s] SECURITY %(levelname)s: %(message)s"))
+security_logger.addHandler(handler)
+
+# Rate Limiter 설정
+limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+
 # FastAPI 앱 생성
 app = FastAPI(
     title="AllergyInsight API",
     description="SGTi-Allergy Screen PLUS 기반 알러지 진단 및 처방 권고 시스템 (Professional/Consumer 서비스 이원화)",
     version="2.0.0",
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS 설정
+_cors_origins = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:4040,http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 개발용, 프로덕션에서는 특정 도메인 지정
+    allow_origins=[o.strip() for o in _cors_origins],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -102,12 +125,35 @@ app.include_router(allergen_router, prefix="/api")      # /api/allergens/*
 # Include admin router (super_admin only)
 app.include_router(admin_router, prefix="/api/admin", tags=["Admin"])  # /api/admin/*
 
-# 전역 서비스 인스턴스
-_search_service: Optional[PaperSearchService] = None
-_qa_engine: Optional[QAEngine] = None
-_batch_processor: Optional[BatchProcessor] = None
-_prescription_engine: Optional[PrescriptionEngine] = None
-_diagnosis_repository: Optional[DiagnosisRepository] = None
+# Include subscription router (public, no auth required)
+app.include_router(subscription_router, prefix="/api", tags=["Subscription"])  # /api/subscribe/*
+
+# 서비스 인스턴스 (lru_cache DI 패턴)
+@lru_cache(maxsize=1)
+def get_search_service() -> PaperSearchService:
+    return PaperSearchService()
+
+
+@lru_cache(maxsize=1)
+def get_qa_engine() -> QAEngine:
+    return QAEngine()
+
+
+@lru_cache(maxsize=1)
+def get_batch_processor() -> BatchProcessor:
+    return BatchProcessor()
+
+
+@lru_cache(maxsize=1)
+def get_prescription_engine() -> PrescriptionEngine:
+    return PrescriptionEngine()
+
+
+@lru_cache(maxsize=1)
+def get_diagnosis_repository() -> DiagnosisRepository:
+    return DiagnosisRepository()
+
+
 _collection_stats: dict = {
     "total_searches": 0,
     "total_papers_found": 0,
@@ -116,41 +162,19 @@ _collection_stats: dict = {
     "last_search_time": None,
     "search_history": [],
 }
+_stats_lock = asyncio.Lock()
 
 
-def get_search_service() -> PaperSearchService:
-    global _search_service
-    if _search_service is None:
-        _search_service = PaperSearchService()
-    return _search_service
+# =====================
+# 표준 응답 모델
+# =====================
 
-
-def get_qa_engine() -> QAEngine:
-    global _qa_engine
-    if _qa_engine is None:
-        _qa_engine = QAEngine()
-    return _qa_engine
-
-
-def get_batch_processor() -> BatchProcessor:
-    global _batch_processor
-    if _batch_processor is None:
-        _batch_processor = BatchProcessor()
-    return _batch_processor
-
-
-def get_prescription_engine() -> PrescriptionEngine:
-    global _prescription_engine
-    if _prescription_engine is None:
-        _prescription_engine = PrescriptionEngine()
-    return _prescription_engine
-
-
-def get_diagnosis_repository() -> DiagnosisRepository:
-    global _diagnosis_repository
-    if _diagnosis_repository is None:
-        _diagnosis_repository = DiagnosisRepository()
-    return _diagnosis_repository
+class APIResponse(BaseModel):
+    """표준 API 응답 형식"""
+    success: bool
+    data: Optional[Any] = None
+    error: Optional[str] = None
+    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
 
 
 # =====================
@@ -258,15 +282,14 @@ async def health_check():
 # =====================
 
 @app.post("/api/search")
-async def search_papers(request: SearchRequest):
+@limiter.limit("30/minute")
+async def search_papers(request: SearchRequest, http_request: Request):
     """
     알러지 논문 검색
 
     PubMed와 Semantic Scholar에서 논문을 검색합니다.
     검색 결과는 자동으로 DB에 저장됩니다 (AUTO_SAVE_SEARCH 설정).
     """
-    global _collection_stats
-
     service = get_search_service()
 
     # DB 세션 획득 (자동 저장 활성화 시)
@@ -285,22 +308,21 @@ async def search_papers(request: SearchRequest):
         if db is not None:
             db.close()
 
-    # 통계 업데이트
-    _collection_stats["total_searches"] += 1
-    _collection_stats["total_papers_found"] += result.total_unique
-    _collection_stats["last_search_time"] = datetime.now().isoformat()
+    # 통계 업데이트 (thread-safe)
+    async with _stats_lock:
+        _collection_stats["total_searches"] += 1
+        _collection_stats["total_papers_found"] += result.total_unique
+        _collection_stats["last_search_time"] = datetime.now().isoformat()
 
-    if request.allergen not in _collection_stats["allergens_searched"]:
-        _collection_stats["allergens_searched"].append(request.allergen)
+        if request.allergen not in _collection_stats["allergens_searched"]:
+            _collection_stats["allergens_searched"].append(request.allergen)
 
-    # 검색 이력 추가
-    _collection_stats["search_history"].append({
-        "allergen": request.allergen,
-        "papers_found": result.total_unique,
-        "timestamp": datetime.now().isoformat(),
-    })
-    # 최근 50개만 유지
-    _collection_stats["search_history"] = _collection_stats["search_history"][-50:]
+        _collection_stats["search_history"].append({
+            "allergen": request.allergen,
+            "papers_found": result.total_unique,
+            "timestamp": datetime.now().isoformat(),
+        })
+        _collection_stats["search_history"] = _collection_stats["search_history"][-50:]
 
     return {
         "success": True,
@@ -378,8 +400,6 @@ async def ask_question(request: QuestionRequest):
 
     질문에 대해 논문을 기반으로 답변하고 출처를 제공합니다.
     """
-    global _collection_stats
-
     engine = get_qa_engine()
 
     response = engine.ask(
@@ -388,8 +408,9 @@ async def ask_question(request: QuestionRequest):
         max_citations=request.max_citations,
     )
 
-    # 통계 업데이트
-    _collection_stats["total_questions"] += 1
+    # 통계 업데이트 (thread-safe)
+    async with _stats_lock:
+        _collection_stats["total_questions"] += 1
 
     return {
         "success": True,
@@ -498,23 +519,25 @@ async def get_stats():
 
     전체 수집 현황 및 통계를 반환합니다.
     """
-    global _collection_stats
-
     processor = get_batch_processor()
     cache_stats = processor.cache.get_stats()
 
-    return {
-        "success": True,
-        "stats": {
+    async with _stats_lock:
+        stats_snapshot = {
             "total_searches": _collection_stats["total_searches"],
             "total_papers_found": _collection_stats["total_papers_found"],
             "total_questions": _collection_stats["total_questions"],
             "unique_allergens": len(_collection_stats["allergens_searched"]),
-            "allergens_searched": _collection_stats["allergens_searched"],
+            "allergens_searched": list(_collection_stats["allergens_searched"]),
             "last_search_time": _collection_stats["last_search_time"],
-        },
+        }
+        recent = list(_collection_stats["search_history"][-10:])
+
+    return {
+        "success": True,
+        "stats": stats_snapshot,
         "cache": cache_stats,
-        "recent_searches": _collection_stats["search_history"][-10:],
+        "recent_searches": recent,
     }
 
 
@@ -525,46 +548,47 @@ async def get_summary():
 
     대시보드용 간단한 요약 정보를 반환합니다.
     """
-    global _collection_stats
-
     processor = get_batch_processor()
     cache_stats = processor.cache.get_stats()
 
-    # 최근 검색 항원별 논문 수
-    allergen_stats = {}
-    for search in _collection_stats["search_history"]:
-        allergen = search["allergen"]
-        if allergen not in allergen_stats:
-            allergen_stats[allergen] = {"searches": 0, "papers": 0}
-        allergen_stats[allergen]["searches"] += 1
-        allergen_stats[allergen]["papers"] += search["papers_found"]
+    async with _stats_lock:
+        allergen_stats = {}
+        for search in _collection_stats["search_history"]:
+            allergen = search["allergen"]
+            if allergen not in allergen_stats:
+                allergen_stats[allergen] = {"searches": 0, "papers": 0}
+            allergen_stats[allergen]["searches"] += 1
+            allergen_stats[allergen]["papers"] += search["papers_found"]
 
-    return {
-        "overview": {
+        overview = {
             "total_searches": _collection_stats["total_searches"],
             "total_papers": _collection_stats["total_papers_found"],
             "total_questions": _collection_stats["total_questions"],
             "unique_allergens": len(_collection_stats["allergens_searched"]),
             "cache_entries": cache_stats["valid_entries"],
-        },
+        }
+        last_activity = _collection_stats["last_search_time"]
+
+    return {
+        "overview": overview,
         "by_allergen": allergen_stats,
-        "last_activity": _collection_stats["last_search_time"],
+        "last_activity": last_activity,
     }
 
 
 @app.delete("/api/stats/reset")
-async def reset_stats():
-    """통계 초기화"""
-    global _collection_stats
-
-    _collection_stats = {
-        "total_searches": 0,
-        "total_papers_found": 0,
-        "total_questions": 0,
-        "allergens_searched": [],
-        "last_search_time": None,
-        "search_history": [],
-    }
+@limiter.limit("3/minute")
+async def reset_stats(request: Request, user: User = Depends(require_auth)):
+    """통계 초기화 (인증 필요)"""
+    async with _stats_lock:
+        _collection_stats.update({
+            "total_searches": 0,
+            "total_papers_found": 0,
+            "total_questions": 0,
+            "allergens_searched": [],
+            "last_search_time": None,
+            "search_history": [],
+        })
 
     return {"success": True, "message": "통계가 초기화되었습니다."}
 
@@ -640,9 +664,10 @@ async def get_grade_info():
 # =====================
 
 @app.post("/api/diagnosis")
-async def create_diagnosis(request: DiagnosisRequest):
+@limiter.limit("10/minute")
+async def create_diagnosis(request: DiagnosisRequest, http_request: Request, user: User = Depends(require_auth)):
     """
-    진단 결과 저장
+    진단 결과 저장 (인증 필요)
 
     SGTi-Allergy Screen PLUS 검사 결과를 저장합니다.
     """
@@ -672,8 +697,8 @@ async def create_diagnosis(request: DiagnosisRequest):
 
 
 @app.get("/api/diagnosis/{diagnosis_id}")
-async def get_diagnosis(diagnosis_id: str):
-    """진단 결과 조회"""
+async def get_diagnosis(diagnosis_id: str, user: User = Depends(require_auth)):
+    """진단 결과 조회 (인증 필요)"""
     repo = get_diagnosis_repository()
     diagnosis = repo.get_diagnosis(diagnosis_id)
 
@@ -687,8 +712,12 @@ async def get_diagnosis(diagnosis_id: str):
 
 
 @app.get("/api/diagnosis")
-async def list_diagnoses(limit: int = 50, offset: int = 0):
-    """진단 결과 목록 조회"""
+async def list_diagnoses(
+    limit: int = Query(default=50, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    user: User = Depends(require_auth),
+):
+    """진단 결과 목록 조회 (인증 필요)"""
     repo = get_diagnosis_repository()
     diagnoses = repo.list_diagnoses(limit=limit, offset=offset)
 
@@ -700,8 +729,8 @@ async def list_diagnoses(limit: int = 50, offset: int = 0):
 
 
 @app.delete("/api/diagnosis/{diagnosis_id}")
-async def delete_diagnosis(diagnosis_id: str):
-    """진단 결과 삭제"""
+async def delete_diagnosis(diagnosis_id: str, user: User = Depends(require_auth)):
+    """진단 결과 삭제 (인증 필요)"""
     repo = get_diagnosis_repository()
     deleted = repo.delete_diagnosis(diagnosis_id)
 
@@ -719,9 +748,10 @@ async def delete_diagnosis(diagnosis_id: str):
 # =====================
 
 @app.post("/api/prescription/generate")
-async def generate_prescription(request: PrescriptionRequest):
+@limiter.limit("10/minute")
+async def generate_prescription(request: PrescriptionRequest, http_request: Request, user: User = Depends(require_auth)):
     """
-    처방 권고 생성
+    처방 권고 생성 (인증 필요)
 
     진단 결과를 기반으로 음식 섭취 제한 및 처방 권고를 생성합니다.
     """
@@ -772,8 +802,8 @@ async def generate_prescription(request: PrescriptionRequest):
 
 
 @app.get("/api/prescription/{prescription_id}")
-async def get_prescription(prescription_id: str):
-    """처방 권고 조회"""
+async def get_prescription(prescription_id: str, user: User = Depends(require_auth)):
+    """처방 권고 조회 (인증 필요)"""
     repo = get_diagnosis_repository()
     prescription = repo.get_prescription(prescription_id)
 
@@ -787,8 +817,8 @@ async def get_prescription(prescription_id: str):
 
 
 @app.get("/api/prescription/by-diagnosis/{diagnosis_id}")
-async def get_prescription_by_diagnosis(diagnosis_id: str):
-    """진단 ID로 처방 권고 조회"""
+async def get_prescription_by_diagnosis(diagnosis_id: str, user: User = Depends(require_auth)):
+    """진단 ID로 처방 권고 조회 (인증 필요)"""
     repo = get_diagnosis_repository()
     prescription = repo.get_prescription_by_diagnosis(diagnosis_id)
 
@@ -802,8 +832,12 @@ async def get_prescription_by_diagnosis(diagnosis_id: str):
 
 
 @app.get("/api/prescription")
-async def list_prescriptions(limit: int = 50, offset: int = 0):
-    """처방 권고 목록 조회"""
+async def list_prescriptions(
+    limit: int = Query(default=50, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    user: User = Depends(require_auth),
+):
+    """처방 권고 목록 조회 (인증 필요)"""
     repo = get_diagnosis_repository()
     prescriptions = repo.list_prescriptions(limit=limit, offset=offset)
 
@@ -824,18 +858,38 @@ async def startup_event():
     init_db()
     seed_users()  # 테스트 사용자 시딩
 
+    # 스케줄러 초기화 (ENABLE_SCHEDULER=true일 때만)
+    if os.getenv("ENABLE_SCHEDULER", "false").lower() == "true":
+        from ..scheduler.scheduler_service import get_scheduler_service
+        scheduler = get_scheduler_service()
+        scheduler.start()
+        logging.getLogger(__name__).info("뉴스 스케줄러 시작됨")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """앱 종료 시 리소스 정리"""
-    global _search_service, _qa_engine, _batch_processor
+    # 스케줄러 종료
+    if os.getenv("ENABLE_SCHEDULER", "false").lower() == "true":
+        try:
+            from ..scheduler.scheduler_service import get_scheduler_service
+            scheduler = get_scheduler_service()
+            scheduler.stop()
+        except Exception:
+            pass
 
-    if _search_service:
-        _search_service.close()
-    if _qa_engine:
-        _qa_engine.close()
-    if _batch_processor:
-        _batch_processor.close()
+    for getter in [get_search_service, get_qa_engine, get_batch_processor]:
+        try:
+            instance = getter()
+            if hasattr(instance, "close"):
+                instance.close()
+        except Exception:
+            pass
+    get_search_service.cache_clear()
+    get_qa_engine.cache_clear()
+    get_batch_processor.cache_clear()
+    get_prescription_engine.cache_clear()
+    get_diagnosis_repository.cache_clear()
 
 
 if __name__ == "__main__":

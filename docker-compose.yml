@@ -27,6 +27,20 @@ services:
       - DOWNLOAD_DIR=/app/downloads/papers
       - DEFAULT_MAX_RESULTS=20
       - SEARCH_TIMEOUT=30
+      # Scheduler
+      - ENABLE_SCHEDULER=${ENABLE_SCHEDULER:-false}
+      - CRAWL_HOUR=${CRAWL_HOUR:-7}
+      - CRAWL_MINUTE=${CRAWL_MINUTE:-0}
+      - SEND_HOUR=${SEND_HOUR:-8}
+      - SEND_MINUTE=${SEND_MINUTE:-0}
+      # AI (Ollama)
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://172.30.1.72:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
+      # Email
+      - GMAIL_ADDRESS=${GMAIL_ADDRESS:-}
+      - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD:-}
+      # Subscription
+      - SUBSCRIPTION_BASE_URL=${SUBSCRIPTION_BASE_URL:-http://localhost:4040/subscribe}
     volumes:
       - backend_downloads:/app/downloads
     networks:
@@ -39,6 +53,31 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: allergyinsight-scheduler
+    command: ["python", "-m", "app.scheduler.cli"]
+    environment:
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:?DB_PASSWORD is required}@postgresql:5432/allergyinsight
+      - ENABLE_SCHEDULER=true
+      - CRAWL_HOUR=${CRAWL_HOUR:-7}
+      - CRAWL_MINUTE=${CRAWL_MINUTE:-0}
+      - SEND_HOUR=${SEND_HOUR:-8}
+      - SEND_MINUTE=${SEND_MINUTE:-0}
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://172.30.1.72:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
+      - GMAIL_ADDRESS=${GMAIL_ADDRESS:-}
+      - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD:-}
+      - SUBSCRIPTION_BASE_URL=${SUBSCRIPTION_BASE_URL:-http://localhost:4040/subscribe}
+    depends_on:
+      - backend
+    networks:
+      - database-network
+      - allergyinsight-network
+    restart: unless-stopped
 
   frontend:
     build:

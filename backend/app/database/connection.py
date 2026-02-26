@@ -2,19 +2,41 @@
 import logging
 import os
 from sqlalchemy import create_engine, text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 logger = logging.getLogger(__name__)
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:allergyinsight2024@localhost:5432/allergyinsight"
-)
+# .env 파일 지원 (로컬 개발 환경)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
-engine = create_engine(DATABASE_URL)
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL 환경변수가 설정되지 않았습니다.")
+
+# Connection pooling 설정
+_pool_kwargs = {}
+if DATABASE_URL.startswith("postgresql"):
+    _pool_kwargs = {
+        "pool_size": int(os.environ.get("DB_POOL_SIZE", "20")),
+        "max_overflow": int(os.environ.get("DB_MAX_OVERFLOW", "40")),
+        "pool_pre_ping": True,
+        "pool_recycle": 1800,
+    }
+elif DATABASE_URL.startswith("sqlite"):
+    _pool_kwargs = {
+        "pool_pre_ping": True,
+    }
+
+engine = create_engine(DATABASE_URL, **_pool_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+
+
+class Base(DeclarativeBase):
+    pass
 
 
 def get_db():
@@ -33,6 +55,9 @@ def init_db():
     from . import analytics_models  # 예측 분석 모델
     from . import clinical_models  # 임상 문서 모델
     from . import organization_models  # 조직 모델
+    from . import newsletter_models  # 뉴스레터 발송 이력
+    from . import subscriber_models  # 구독자 모델
+    from ..services.diagnosis_repository import StoredDiagnosisModel, StoredPrescriptionModel  # noqa: F401
     Base.metadata.create_all(bind=engine)
     run_migrations()
 

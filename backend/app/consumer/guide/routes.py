@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from ...database.connection import get_db
 from ...database.models import User
 from ...core.auth import require_consumer
-from ...core.allergen import ALLERGEN_PRESCRIPTION_DB, get_allergen_info
+from ...core.allergen import ALLERGEN_PRESCRIPTION_DB, get_allergen_info, ALLERGEN_NAMES_KR
 
 router = APIRouter(prefix="/guide", tags=["Consumer - Guide"])
 
@@ -64,18 +64,12 @@ async def get_food_guide(
     if not codes:
         codes = ["peanut", "milk", "egg", "wheat", "soy", "fish", "shellfish", "tree_nuts", "sesame"]
 
-    allergen_names = {
-        "peanut": "땅콩", "milk": "우유", "egg": "계란",
-        "wheat": "밀", "soy": "대두", "fish": "생선",
-        "shellfish": "갑각류", "tree_nuts": "견과류", "sesame": "참깨",
-    }
-
     for code in codes:
         info = get_allergen_info(code)
         if not info or info.get("category") != "food":
             continue
 
-        name = allergen_names.get(code, code)
+        name = ALLERGEN_NAMES_KR.get(code, code)
 
         if info.get("avoid_foods"):
             avoid_foods.append({
@@ -124,24 +118,15 @@ async def get_symptoms_guide(
         "severe": [],
     }
 
-    allergen_names = {
-        "peanut": "땅콩", "milk": "우유", "egg": "계란",
-        "wheat": "밀", "soy": "대두", "fish": "생선",
-        "shellfish": "갑각류", "tree_nuts": "견과류", "sesame": "참깨",
-        "dust_mite": "집먼지진드기", "pollen": "꽃가루",
-        "mold": "곰팡이", "pet_dander": "반려동물",
-        "cockroach": "바퀴벌레", "latex": "라텍스", "bee_venom": "벌독"
-    }
-
     if not codes:
-        codes = list(allergen_names.keys())
+        codes = list(ALLERGEN_NAMES_KR.keys())
 
     for code in codes:
         info = get_allergen_info(code)
         if not info:
             continue
 
-        name = allergen_names.get(code, code)
+        name = ALLERGEN_NAMES_KR.get(code, code)
 
         for grade_range, data in info.get("symptoms_by_grade", {}).items():
             severity = data.get("severity", "mild")
@@ -173,23 +158,19 @@ async def get_lifestyle_tips(
 
     tips = []
 
-    allergen_names = {
-        "dust_mite": "집먼지진드기", "pollen": "꽃가루",
-        "mold": "곰팡이", "pet_dander": "반려동물",
-        "cockroach": "바퀴벌레",
-    }
+    _inhalant_codes = ["dust_mite", "pollen", "mold", "pet_dander", "cockroach"]
 
     # 흡입 알러젠이 없으면 모든 흡입 알러젠 팁 제공
-    inhalant_codes = [c for c in codes if c in allergen_names]
+    inhalant_codes = [c for c in codes if c in _inhalant_codes]
     if not inhalant_codes:
-        inhalant_codes = list(allergen_names.keys())
+        inhalant_codes = _inhalant_codes
 
     for code in inhalant_codes:
         info = get_allergen_info(code)
         if not info or info.get("category") != "inhalant":
             continue
 
-        name = allergen_names.get(code, code)
+        name = ALLERGEN_NAMES_KR.get(code, code)
 
         if info.get("management_tips"):
             tips.append({
@@ -249,16 +230,10 @@ async def get_cross_reactivity_info(
     if not info:
         return {"cross_reactivity": [], "message": "알러젠 정보를 찾을 수 없습니다"}
 
-    allergen_names = {
-        "peanut": "땅콩", "milk": "우유", "egg": "계란",
-        "wheat": "밀", "soy": "대두", "fish": "생선",
-        "shellfish": "갑각류", "tree_nuts": "견과류", "sesame": "참깨",
-    }
-
     cross_reactions = []
     for cross in info.get("cross_reactivity", []):
         cross_reactions.append({
-            "from_allergen": allergen_names.get(allergen_code, allergen_code),
+            "from_allergen": ALLERGEN_NAMES_KR.get(allergen_code, allergen_code),
             "to_allergen": cross.get("allergen_kr", ""),
             "to_allergen_en": cross.get("allergen", ""),
             "probability": cross.get("probability", ""),
@@ -268,6 +243,6 @@ async def get_cross_reactivity_info(
 
     return {
         "allergen_code": allergen_code,
-        "allergen_name": allergen_names.get(allergen_code, allergen_code),
+        "allergen_name": ALLERGEN_NAMES_KR.get(allergen_code, allergen_code),
         "cross_reactivity": cross_reactions,
     }

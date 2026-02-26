@@ -1,5 +1,5 @@
 """Seed test diagnosis data for development/testing"""
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from dataclasses import asdict
 from sqlalchemy.orm import Session
 import bcrypt
@@ -96,8 +96,8 @@ def seed_diagnosis_data(db: Session = None):
                 diagnosis_date=TEST_DIAGNOSIS_KIT["diagnosis_date"],
                 is_registered=True,
                 registered_user_id=user.id,
-                registered_at=datetime.utcnow(),
-                created_at=datetime.utcnow(),
+                registered_at=datetime.now(timezone.utc),
+                created_at=datetime.now(timezone.utc),
             )
             db.add(kit)
             db.flush()
@@ -134,7 +134,7 @@ def seed_diagnosis_data(db: Session = None):
                 results=TEST_DIAGNOSIS_KIT["results"],
                 diagnosis_date=TEST_DIAGNOSIS_KIT["diagnosis_date"],
                 prescription=serialize_prescription(prescription),
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
             )
             db.add(diagnosis)
             print(f"Created user diagnosis for {user.name}")

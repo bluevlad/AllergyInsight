@@ -1,5 +1,5 @@
 """Hospital Routes - Phase 2: 병원-환자 관리 API"""
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -282,7 +282,7 @@ async def update_hospital_patient(
     if data.status is not None:
         hp.status = data.status
 
-    hp.updated_at = datetime.utcnow()
+    hp.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(hp)
 
@@ -320,9 +320,9 @@ async def sign_patient_consent(
         )
 
     hp.consent_signed = True
-    hp.consent_date = datetime.utcnow()
+    hp.consent_date = datetime.now(timezone.utc)
     hp.status = HospitalPatientStatus.ACTIVE
-    hp.updated_at = datetime.utcnow()
+    hp.updated_at = datetime.now(timezone.utc)
 
     db.commit()
     db.refresh(hp)

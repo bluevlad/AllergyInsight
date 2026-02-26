@@ -2,10 +2,11 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from .news_routes import router as news_router
 from .analytics_routes import router as analytics_router
+from .subscriber_routes import router as subscriber_router
 from typing import Optional
 
 from .dependencies import require_super_admin
@@ -36,7 +37,7 @@ async def get_dashboard(
     db: Session = Depends(get_db)
 ):
     """관리자 대시보드 데이터"""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     week_ago = now - timedelta(days=7)
 
     # 사용자 통계
@@ -282,7 +283,7 @@ async def get_user_stats(
     db: Session = Depends(get_db)
 ):
     """사용자 통계 요약"""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     # 역할별 통계
     role_stats = db.query(User.role, func.count(User.id)).group_by(User.role).all()
@@ -549,3 +550,4 @@ async def get_allergen_detail(
 
 router.include_router(news_router)
 router.include_router(analytics_router)
+router.include_router(subscriber_router)

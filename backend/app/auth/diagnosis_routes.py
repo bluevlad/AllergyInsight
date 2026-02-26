@@ -11,6 +11,7 @@ from ..data.allergen_prescription_db import (
     get_allergen_info as get_allergen_prescription,
     EMERGENCY_GUIDELINES
 )
+from ..core.allergen import ALLERGEN_NAMES_KR
 
 router = APIRouter(prefix="/diagnosis", tags=["Diagnosis"])
 
@@ -192,18 +193,8 @@ def get_risk_levels(results: dict) -> tuple:
     high_risk = []
     moderate_risk = []
 
-    # Allergen Korean names mapping
-    allergen_names = {
-        "peanut": "땅콩", "milk": "우유", "egg": "계란",
-        "wheat": "밀", "soy": "대두", "fish": "생선",
-        "shellfish": "갑각류", "tree_nuts": "견과류", "sesame": "참깨",
-        "dust_mite": "집먼지진드기", "pollen": "꽃가루",
-        "mold": "곰팡이", "pet_dander": "반려동물",
-        "cockroach": "바퀴벌레", "latex": "라텍스", "bee_venom": "벌독"
-    }
-
     for allergen, grade in results.items():
-        name = allergen_names.get(allergen, allergen)
+        name = ALLERGEN_NAMES_KR.get(allergen, allergen)
         if grade >= 4:
             high_risk.append(name)
         elif grade >= 2:
@@ -347,15 +338,6 @@ async def get_patient_guide(
         "management_tips": [],
     }
 
-    allergen_names = {
-        "peanut": "땅콩", "milk": "우유", "egg": "계란",
-        "wheat": "밀", "soy": "대두", "fish": "생선",
-        "shellfish": "갑각류", "tree_nuts": "견과류", "sesame": "참깨",
-        "dust_mite": "집먼지진드기", "pollen": "꽃가루",
-        "mold": "곰팡이", "pet_dander": "반려동물",
-        "cockroach": "바퀴벌레", "latex": "라텍스", "bee_venom": "벌독"
-    }
-
     for allergen_code, grade in results.items():
         if grade == 0:
             continue
@@ -364,7 +346,7 @@ async def get_patient_guide(
         if not allergen_info:
             continue
 
-        allergen_name = allergen_names.get(allergen_code, allergen_code)
+        allergen_name = ALLERGEN_NAMES_KR.get(allergen_code, allergen_code)
 
         # Determine severity grade range
         if grade >= 5:

@@ -1,14 +1,54 @@
 """진단 결과 저장소
 
 진단 결과 및 처방 권고를 저장하고 관리합니다.
-현재는 메모리 기반으로 구현되어 있으며,
-추후 데이터베이스 연동이 필요합니다.
+SQLAlchemy 기반 데이터베이스 저장소입니다.
 """
 import uuid
 from datetime import datetime
 from typing import Optional
 from dataclasses import dataclass, field
 
+from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey, Index
+from sqlalchemy.orm import Session
+
+from ..database.connection import Base, SessionLocal
+
+
+# =====================
+# DB 모델
+# =====================
+
+class StoredDiagnosisModel(Base):
+    """진단 결과 DB 모델"""
+    __tablename__ = "stored_diagnoses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    diagnosis_id = Column(String(36), unique=True, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    diagnosis_date = Column(DateTime, nullable=True)
+    patient_info = Column(JSON, default=dict)
+    diagnosis_results = Column(JSON, nullable=False)
+    prescription_id = Column(String(36), nullable=True)
+
+    __table_args__ = (
+        Index('idx_stored_diagnoses_created', 'created_at'),
+    )
+
+
+class StoredPrescriptionModel(Base):
+    """처방 권고 DB 모델"""
+    __tablename__ = "stored_prescriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    prescription_id = Column(String(36), unique=True, nullable=False, index=True)
+    diagnosis_id = Column(String(36), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    prescription_data = Column(JSON, nullable=False)
+
+
+# =====================
+# 데이터 클래스 (API 응답용 - 기존 호환)
+# =====================
 
 @dataclass
 class StoredDiagnosis:
@@ -16,9 +56,9 @@ class StoredDiagnosis:
     diagnosis_id: str
     created_at: datetime
     diagnosis_date: Optional[datetime]
-    patient_info: dict  # 향후 확장용 (익명화된 정보)
-    diagnosis_results: list[dict]  # [{"allergen": "peanut", "grade": 5}, ...]
-    prescription_id: Optional[str] = None  # 연결된 처방 ID
+    patient_info: dict
+    diagnosis_results: list[dict]
+    prescription_id: Optional[str] = None
 
     def to_dict(self) -> dict:
         return {
@@ -37,7 +77,7 @@ class StoredPrescription:
     prescription_id: str
     diagnosis_id: str
     created_at: datetime
-    prescription_data: dict  # AllergyPrescription.to_dict()
+    prescription_data: dict
 
     def to_dict(self) -> dict:
         return {
@@ -48,16 +88,32 @@ class StoredPrescription:
         }
 
 
+def _model_to_diagnosis(m: StoredDiagnosisModel) -> StoredDiagnosis:
+    return StoredDiagnosis(
+        diagnosis_id=m.diagnosis_id,
+        created_at=m.created_at,
+        diagnosis_date=m.diagnosis_date,
+        patient_info=m.patient_info or {},
+        diagnosis_results=m.diagnosis_results or [],
+        prescription_id=m.prescription_id,
+    )
+
+
+def _model_to_prescription(m: StoredPrescriptionModel) -> StoredPrescription:
+    return StoredPrescription(
+        prescription_id=m.prescription_id,
+        diagnosis_id=m.diagnosis_id,
+        created_at=m.created_at,
+        prescription_data=m.prescription_data or {},
+    )
+
+
 class DiagnosisRepository:
     """
     진단 결과 저장소
 
-    메모리 기반 저장소로, 서버 재시작 시 데이터가 초기화됩니다.
+    SQLAlchemy 기반 데이터베이스 저장소입니다.
     """
-
-    def __init__(self):
-        self._diagnoses: dict[str, StoredDiagnosis] = {}
-        self._prescriptions: dict[str, StoredPrescription] = {}
 
     # =====================
     # 진단 결과 관리
@@ -69,33 +125,31 @@ class DiagnosisRepository:
         diagnosis_date: Optional[datetime] = None,
         patient_info: Optional[dict] = None,
     ) -> StoredDiagnosis:
-        """
-        진단 결과 저장
-
-        Args:
-            diagnosis_results: [{"allergen": "peanut", "grade": 5}, ...]
-            diagnosis_date: 검사 날짜
-            patient_info: 환자 정보 (선택)
-
-        Returns:
-            StoredDiagnosis: 저장된 진단 정보
-        """
         diagnosis_id = str(uuid.uuid4())
-
-        diagnosis = StoredDiagnosis(
-            diagnosis_id=diagnosis_id,
-            created_at=datetime.now(),
-            diagnosis_date=diagnosis_date,
-            patient_info=patient_info or {},
-            diagnosis_results=diagnosis_results,
-        )
-
-        self._diagnoses[diagnosis_id] = diagnosis
-        return diagnosis
+        db = SessionLocal()
+        try:
+            model = StoredDiagnosisModel(
+                diagnosis_id=diagnosis_id,
+                diagnosis_date=diagnosis_date,
+                patient_info=patient_info or {},
+                diagnosis_results=diagnosis_results,
+            )
+            db.add(model)
+            db.commit()
+            db.refresh(model)
+            return _model_to_diagnosis(model)
+        finally:
+            db.close()
 
     def get_diagnosis(self, diagnosis_id: str) -> Optional[StoredDiagnosis]:
-        """진단 결과 조회"""
-        return self._diagnoses.get(diagnosis_id)
+        db = SessionLocal()
+        try:
+            model = db.query(StoredDiagnosisModel).filter(
+                StoredDiagnosisModel.diagnosis_id == diagnosis_id
+            ).first()
+            return _model_to_diagnosis(model) if model else None
+        finally:
+            db.close()
 
     def update_diagnosis(
         self,
@@ -104,43 +158,57 @@ class DiagnosisRepository:
         diagnosis_date: Optional[datetime] = None,
         patient_info: Optional[dict] = None,
     ) -> Optional[StoredDiagnosis]:
-        """진단 결과 수정"""
-        diagnosis = self._diagnoses.get(diagnosis_id)
-        if not diagnosis:
-            return None
-
-        if diagnosis_results is not None:
-            diagnosis.diagnosis_results = diagnosis_results
-        if diagnosis_date is not None:
-            diagnosis.diagnosis_date = diagnosis_date
-        if patient_info is not None:
-            diagnosis.patient_info = patient_info
-
-        return diagnosis
+        db = SessionLocal()
+        try:
+            model = db.query(StoredDiagnosisModel).filter(
+                StoredDiagnosisModel.diagnosis_id == diagnosis_id
+            ).first()
+            if not model:
+                return None
+            if diagnosis_results is not None:
+                model.diagnosis_results = diagnosis_results
+            if diagnosis_date is not None:
+                model.diagnosis_date = diagnosis_date
+            if patient_info is not None:
+                model.patient_info = patient_info
+            db.commit()
+            db.refresh(model)
+            return _model_to_diagnosis(model)
+        finally:
+            db.close()
 
     def delete_diagnosis(self, diagnosis_id: str) -> bool:
-        """진단 결과 삭제"""
-        if diagnosis_id in self._diagnoses:
+        db = SessionLocal()
+        try:
+            model = db.query(StoredDiagnosisModel).filter(
+                StoredDiagnosisModel.diagnosis_id == diagnosis_id
+            ).first()
+            if not model:
+                return False
             # 연결된 처방도 삭제
-            diagnosis = self._diagnoses[diagnosis_id]
-            if diagnosis.prescription_id:
-                self.delete_prescription(diagnosis.prescription_id)
-            del self._diagnoses[diagnosis_id]
+            if model.prescription_id:
+                db.query(StoredPrescriptionModel).filter(
+                    StoredPrescriptionModel.prescription_id == model.prescription_id
+                ).delete()
+            db.delete(model)
+            db.commit()
             return True
-        return False
+        finally:
+            db.close()
 
     def list_diagnoses(
         self,
         limit: int = 50,
         offset: int = 0,
     ) -> list[StoredDiagnosis]:
-        """진단 결과 목록 조회"""
-        all_diagnoses = sorted(
-            self._diagnoses.values(),
-            key=lambda d: d.created_at,
-            reverse=True,
-        )
-        return all_diagnoses[offset:offset + limit]
+        db = SessionLocal()
+        try:
+            models = db.query(StoredDiagnosisModel).order_by(
+                StoredDiagnosisModel.created_at.desc()
+            ).offset(offset).limit(limit).all()
+            return [_model_to_diagnosis(m) for m in models]
+        finally:
+            db.close()
 
     # =====================
     # 처방 권고 관리
@@ -151,82 +219,107 @@ class DiagnosisRepository:
         diagnosis_id: str,
         prescription_data: dict,
     ) -> Optional[StoredPrescription]:
-        """
-        처방 권고 저장
+        db = SessionLocal()
+        try:
+            diag = db.query(StoredDiagnosisModel).filter(
+                StoredDiagnosisModel.diagnosis_id == diagnosis_id
+            ).first()
+            if not diag:
+                return None
 
-        Args:
-            diagnosis_id: 연결된 진단 ID
-            prescription_data: AllergyPrescription.to_dict() 결과
+            prescription_id = prescription_data.get("prescription_id", str(uuid.uuid4()))
 
-        Returns:
-            StoredPrescription: 저장된 처방 정보
-        """
-        diagnosis = self._diagnoses.get(diagnosis_id)
-        if not diagnosis:
-            return None
+            model = StoredPrescriptionModel(
+                prescription_id=prescription_id,
+                diagnosis_id=diagnosis_id,
+                prescription_data=prescription_data,
+            )
+            db.add(model)
 
-        prescription_id = prescription_data.get("prescription_id", str(uuid.uuid4()))
-
-        prescription = StoredPrescription(
-            prescription_id=prescription_id,
-            diagnosis_id=diagnosis_id,
-            created_at=datetime.now(),
-            prescription_data=prescription_data,
-        )
-
-        self._prescriptions[prescription_id] = prescription
-
-        # 진단에 처방 ID 연결
-        diagnosis.prescription_id = prescription_id
-
-        return prescription
+            # 진단에 처방 ID 연결
+            diag.prescription_id = prescription_id
+            db.commit()
+            db.refresh(model)
+            return _model_to_prescription(model)
+        finally:
+            db.close()
 
     def get_prescription(self, prescription_id: str) -> Optional[StoredPrescription]:
-        """처방 권고 조회"""
-        return self._prescriptions.get(prescription_id)
+        db = SessionLocal()
+        try:
+            model = db.query(StoredPrescriptionModel).filter(
+                StoredPrescriptionModel.prescription_id == prescription_id
+            ).first()
+            return _model_to_prescription(model) if model else None
+        finally:
+            db.close()
 
     def get_prescription_by_diagnosis(self, diagnosis_id: str) -> Optional[StoredPrescription]:
-        """진단 ID로 처방 권고 조회"""
-        diagnosis = self._diagnoses.get(diagnosis_id)
-        if diagnosis and diagnosis.prescription_id:
-            return self._prescriptions.get(diagnosis.prescription_id)
-        return None
+        db = SessionLocal()
+        try:
+            diag = db.query(StoredDiagnosisModel).filter(
+                StoredDiagnosisModel.diagnosis_id == diagnosis_id
+            ).first()
+            if not diag or not diag.prescription_id:
+                return None
+            model = db.query(StoredPrescriptionModel).filter(
+                StoredPrescriptionModel.prescription_id == diag.prescription_id
+            ).first()
+            return _model_to_prescription(model) if model else None
+        finally:
+            db.close()
 
     def delete_prescription(self, prescription_id: str) -> bool:
-        """처방 권고 삭제"""
-        if prescription_id in self._prescriptions:
-            del self._prescriptions[prescription_id]
-            return True
-        return False
+        db = SessionLocal()
+        try:
+            deleted = db.query(StoredPrescriptionModel).filter(
+                StoredPrescriptionModel.prescription_id == prescription_id
+            ).delete()
+            db.commit()
+            return deleted > 0
+        finally:
+            db.close()
 
     def list_prescriptions(
         self,
         limit: int = 50,
         offset: int = 0,
     ) -> list[StoredPrescription]:
-        """처방 권고 목록 조회"""
-        all_prescriptions = sorted(
-            self._prescriptions.values(),
-            key=lambda p: p.created_at,
-            reverse=True,
-        )
-        return all_prescriptions[offset:offset + limit]
+        db = SessionLocal()
+        try:
+            models = db.query(StoredPrescriptionModel).order_by(
+                StoredPrescriptionModel.created_at.desc()
+            ).offset(offset).limit(limit).all()
+            return [_model_to_prescription(m) for m in models]
+        finally:
+            db.close()
 
     # =====================
     # 통계
     # =====================
 
     def get_stats(self) -> dict:
-        """저장소 통계"""
-        return {
-            "total_diagnoses": len(self._diagnoses),
-            "total_prescriptions": len(self._prescriptions),
-            "diagnoses_with_prescription": sum(
-                1 for d in self._diagnoses.values() if d.prescription_id
-            ),
-        }
+        db = SessionLocal()
+        try:
+            total_diag = db.query(StoredDiagnosisModel).count()
+            total_presc = db.query(StoredPrescriptionModel).count()
+            with_presc = db.query(StoredDiagnosisModel).filter(
+                StoredDiagnosisModel.prescription_id.isnot(None)
+            ).count()
+            return {
+                "total_diagnoses": total_diag,
+                "total_prescriptions": total_presc,
+                "diagnoses_with_prescription": with_presc,
+            }
+        finally:
+            db.close()
 
     def clear_all(self):
         """모든 데이터 삭제"""
-        self._diagnoses.clear()
-        self._prescriptions.clear()
+        db = SessionLocal()
+        try:
+            db.query(StoredPrescriptionModel).delete()
+            db.query(StoredDiagnosisModel).delete()
+            db.commit()
+        finally:
+            db.close()

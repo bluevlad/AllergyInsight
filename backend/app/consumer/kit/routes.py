@@ -2,14 +2,19 @@
 
 알러지 검사 키트 등록 기능을 제공합니다.
 """
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ...database.connection import get_db
 from ...database.models import User, UserDiagnosis, DiagnosisKit
 from ...core.auth import require_consumer
+from ...auth.routes import verify_pin
+
+security_logger = logging.getLogger("security")
 
 router = APIRouter(prefix="/kit", tags=["Consumer - Kit"])
 
@@ -57,10 +62,27 @@ async def register_kit(
             detail="키트 시리얼 번호를 찾을 수 없습니다"
         )
 
-    # PIN 검증
-    if kit.pin != request.pin:
+    # PIN 시도 횟수 초과 확인
+    if kit.pin_attempts >= 5:
+        security_logger.warning(
+            "PIN brute-force blocked: kit=%s attempts=%d",
+            request.serial_number, kit.pin_attempts
+        )
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="PIN 입력 횟수를 초과했습니다. 고객센터에 문의해 주세요."
+        )
+
+    # PIN 검증 (bcrypt 해시 비교)
+    if not verify_pin(request.pin, kit.pin_hash):
+        kit.pin_attempts += 1
+        db.commit()
+        security_logger.warning(
+            "PIN verification failed: kit=%s attempts=%d",
+            request.serial_number, kit.pin_attempts
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="PIN이 일치하지 않습니다"
         )
 
@@ -98,7 +120,7 @@ async def register_kit(
         user_id=user.id,
         kit_id=kit.id,
         results=kit.results,
-        diagnosis_date=kit.test_date or datetime.utcnow(),
+        diagnosis_date=kit.test_date or datetime.now(timezone.utc),
         prescription=None,  # 별도 처리 필요
     )
     db.add(diagnosis)
@@ -106,7 +128,8 @@ async def register_kit(
     # 키트 상태 업데이트
     kit.is_registered = True
     kit.registered_user_id = user.id
-    kit.registered_at = datetime.utcnow()
+    kit.registered_at = datetime.now(timezone.utc)
+    kit.pin_attempts = 0
 
     db.commit()
     db.refresh(diagnosis)

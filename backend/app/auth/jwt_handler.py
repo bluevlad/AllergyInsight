@@ -1,7 +1,7 @@
 """JWT Token Handler"""
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
-from jose import JWTError, jwt
+import jwt
 from .config import auth_settings
 
 
@@ -10,17 +10,29 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     to_encode = data.copy()
 
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=auth_settings.jwt_expire_minutes)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=auth_settings.jwt_expire_minutes)
 
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "type": "access"})
     encoded_jwt = jwt.encode(
         to_encode,
         auth_settings.jwt_secret_key,
         algorithm=auth_settings.jwt_algorithm
     )
     return encoded_jwt
+
+
+def create_refresh_token(data: dict) -> str:
+    """Create JWT refresh token (longer expiry)"""
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + timedelta(days=7)
+    to_encode.update({"exp": expire, "type": "refresh"})
+    return jwt.encode(
+        to_encode,
+        auth_settings.jwt_secret_key,
+        algorithm=auth_settings.jwt_algorithm
+    )
 
 
 def verify_token(token: str) -> Optional[dict]:
@@ -32,7 +44,7 @@ def verify_token(token: str) -> Optional[dict]:
             algorithms=[auth_settings.jwt_algorithm]
         )
         return payload
-    except JWTError:
+    except (jwt.InvalidTokenError, jwt.ExpiredSignatureError):
         return None
 
 
@@ -45,5 +57,5 @@ def decode_token(token: str) -> dict:
             algorithms=[auth_settings.jwt_algorithm],
             options={"verify_exp": False}
         )
-    except JWTError:
+    except jwt.InvalidTokenError:
         return {}
