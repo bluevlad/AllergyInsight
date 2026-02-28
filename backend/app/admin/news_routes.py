@@ -52,7 +52,7 @@ async def get_news_list(
     db: Session = Depends(get_db),
 ):
     """수집된 뉴스 목록 조회 (페이지네이션, 필터링)"""
-    query = db.query(CompetitorNews).join(CompetitorCompany)
+    query = db.query(CompetitorNews).join(CompetitorCompany, isouter=True)
 
     # 필터 적용
     if company:
@@ -309,7 +309,7 @@ async def get_news_stats(
     company_counts = db.query(
         CompetitorCompany.code,
         func.count(CompetitorNews.id),
-    ).join(CompetitorNews).group_by(CompetitorCompany.code).all()
+    ).join(CompetitorNews, isouter=True).group_by(CompetitorCompany.code).all()
     by_company = {code: count for code, count in company_counts}
 
     # 소스별 건수
@@ -419,11 +419,21 @@ async def get_scheduler_status(
     current_user: User = Depends(require_super_admin),
 ):
     """스케줄러 상태 조회"""
-    from ..scheduler.scheduler_service import get_scheduler_service
+    from ..api.main import get_scheduler_service
 
     scheduler = get_scheduler_service()
-    status = scheduler.get_job_status()
-    return SchedulerStatusResponse(**status)
+    if scheduler is None:
+        return SchedulerStatusResponse(is_running=False, jobs=[])
+
+    status = scheduler.get_status()
+    jobs = scheduler.get_jobs()
+    return SchedulerStatusResponse(
+        is_running=status["running"],
+        jobs=[
+            {"id": j["id"], "name": j["name"], "next_run": j["next_run_time"], "trigger": "cron"}
+            for j in jobs
+        ],
+    )
 
 
 @router.post("/scheduler/trigger")
@@ -432,19 +442,21 @@ async def trigger_scheduler(
     current_user: User = Depends(require_super_admin),
 ):
     """스케줄러 즉시 실행"""
-    from ..scheduler.scheduler_service import get_scheduler_service
+    from ..api.main import get_scheduler_service
 
     scheduler = get_scheduler_service()
+    if scheduler is None:
+        raise HTTPException(status_code=503, detail="스케줄러가 비활성화되어 있습니다.")
 
     if request.job_type == "crawl":
-        scheduler.run_crawl_once()
+        scheduler.trigger_job("news_pipeline")
         return {"message": "뉴스 수집이 실행되었습니다."}
     elif request.job_type == "send":
-        scheduler.run_send_once()
+        scheduler.trigger_job("newsletter_send")
         return {"message": "뉴스레터 발송이 실행되었습니다."}
     elif request.job_type == "all":
-        scheduler.run_crawl_once()
-        scheduler.run_send_once()
+        scheduler.trigger_job("news_pipeline")
+        scheduler.trigger_job("newsletter_send")
         return {"message": "뉴스 수집 및 발송이 실행되었습니다."}
     else:
         raise HTTPException(status_code=400, detail="유효하지 않은 job_type입니다. (crawl, send, all)")
@@ -455,20 +467,14 @@ async def update_scheduler_config(
     request: SchedulerConfigRequest,
     current_user: User = Depends(require_super_admin),
 ):
-    """스케줄러 설정 변경"""
-    from ..scheduler.scheduler_service import get_scheduler_service
+    """스케줄러 설정 변경 (통합 스케줄러에서는 환경변수 기반으로 동작)"""
+    from ..api.main import get_scheduler_service
 
     scheduler = get_scheduler_service()
-    if not scheduler.is_running:
-        raise HTTPException(status_code=400, detail="스케줄러가 실행 중이 아닙니다.")
+    if scheduler is None:
+        raise HTTPException(status_code=503, detail="스케줄러가 비활성화되어 있습니다.")
 
-    scheduler.update_config(
-        crawl_hour=request.crawl_hour,
-        crawl_minute=request.crawl_minute,
-        send_hour=request.send_hour,
-        send_minute=request.send_minute,
-    )
-    return {"message": "스케줄러 설정이 변경되었습니다."}
+    return {"message": "스케줄러 설정은 환경변수(CRAWL_HOUR, CRAWL_MINUTE, SEND_HOUR, SEND_MINUTE)로 관리됩니다. 컨테이너 재시작이 필요합니다."}
 
 
 # ============================================================================
