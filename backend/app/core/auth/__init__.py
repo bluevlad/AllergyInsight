@@ -4,7 +4,6 @@
 """
 
 # Re-export from original auth module
-from ...auth.routes import router as auth_router
 from ...auth.dependencies import (
     get_current_user,
     require_auth,
@@ -40,9 +39,6 @@ from .dependencies import (
 )
 
 __all__ = [
-    # Router
-    "auth_router",
-
     # Original dependencies
     "get_current_user",
     "require_auth",
