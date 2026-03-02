@@ -61,7 +61,7 @@ services:
     container_name: allergyinsight-scheduler
     command: ["python", "-m", "app.scheduler.cli"]
     environment:
-      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:?DB_PASSWORD is required}@postgresql:5432/allergyinsight
+      - DATABASE_URL=postgresql://allergyinsight_svc:${DB_PASSWORD:?DB_PASSWORD is required}@postgresql:5432/allergyinsight
       - ENABLE_SCHEDULER=true
       - CRAWL_HOUR=${CRAWL_HOUR:-7}
       - CRAWL_MINUTE=${CRAWL_MINUTE:-0}
