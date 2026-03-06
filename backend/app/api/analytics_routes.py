@@ -12,11 +12,13 @@ from ..database.connection import get_db
 from ..database.models import User, UserDiagnosis, Paper
 from ..services.analytics_service import AnalyticsService
 from ..services.keyword_trend_service import KeywordTrendService
+from ..services.insight_report_service import InsightReportService
 
 router = APIRouter()
 
 _analytics_service = AnalyticsService()
 _keyword_trend_service = KeywordTrendService()
+_insight_service = InsightReportService()
 
 
 @router.get("/overview")
@@ -64,3 +66,31 @@ def get_platform_summary(db: Session = Depends(get_db)):
         "total_diagnoses": total_diagnoses,
         "total_papers": total_papers,
     }
+
+
+# --- Allergen Insight Reports ---
+
+@router.get("/insights")
+def get_insight_reports(
+    allergen: str | None = Query(default=None),
+    limit: int = Query(default=12, ge=1, le=60),
+    db: Session = Depends(get_db),
+):
+    """Allergen insight reports list, optionally filtered by allergen code."""
+    return _insight_service.get_reports(db, allergen_code=allergen, limit=limit)
+
+
+@router.get("/insights/allergens")
+def get_insight_allergens(db: Session = Depends(get_db)):
+    """Available allergens with insight reports."""
+    return _insight_service.get_available_allergens(db)
+
+
+@router.get("/insights/{report_id}")
+def get_insight_detail(report_id: int, db: Session = Depends(get_db)):
+    """Allergen insight report detail."""
+    report = _insight_service.get_report_detail(db, report_id)
+    if not report:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Report not found")
+    return report
