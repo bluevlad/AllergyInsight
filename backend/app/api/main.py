@@ -70,6 +70,9 @@ from ..middleware.activity_logger import ActivityLoggerMiddleware
 # Public: Subscription (no auth required)
 from .subscription_routes import router as subscription_router
 
+# Public: Analytics (no auth required, read-only aggregates)
+from .analytics_routes import router as public_analytics_router
+
 # 보안 로깅 설정
 security_logger = logging.getLogger("security")
 security_logger.setLevel(logging.INFO)
@@ -127,6 +130,9 @@ app.include_router(admin_router, prefix="/api/admin", tags=["Admin"])  # /api/ad
 
 # Include subscription router (public, no auth required)
 app.include_router(subscription_router, prefix="/api", tags=["Subscription"])  # /api/subscribe/*
+
+# Include public analytics router (no auth required, read-only)
+app.include_router(public_analytics_router, prefix="/api/public/analytics", tags=["Public Analytics"])
 
 # 서비스 인스턴스 (lru_cache DI 패턴)
 @lru_cache(maxsize=1)
