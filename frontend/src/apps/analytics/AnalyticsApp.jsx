@@ -10,6 +10,8 @@ import AnalyticsNav from './components/AnalyticsNav';
 import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import AllergenTrendPage from './pages/AllergenTrendPage';
 import KeywordTrendPage from './pages/KeywordTrendPage';
+import InsightListPage from './pages/InsightListPage';
+import InsightDetailPage from './pages/InsightDetailPage';
 
 const AnalyticsApp = () => {
   return (
@@ -28,6 +30,8 @@ const AnalyticsApp = () => {
           <Route path="/dashboard" element={<AnalyticsDashboard />} />
           <Route path="/allergen-trends" element={<AllergenTrendPage />} />
           <Route path="/keyword-trends" element={<KeywordTrendPage />} />
+          <Route path="/insights" element={<InsightListPage />} />
+          <Route path="/insights/:reportId" element={<InsightDetailPage />} />
           <Route path="*" element={<Navigate to="/analytics" replace />} />
         </Routes>
       </main>

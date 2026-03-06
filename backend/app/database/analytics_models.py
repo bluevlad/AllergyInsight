@@ -4,6 +4,8 @@ Quick Win 3가지를 위한 테이블 정의:
 1. AnalyticsSnapshot - 월별 알러젠 양성률 집계
 2. KeywordTrend - 뉴스/논문 키워드 트렌드
 3. PatientActivityLog - 환자 행동 로그
+4. AllergenInsightReport - AI 기반 알러젠별 인사이트 리포트
+5. NewsAllergenLink - 뉴스-알러젠 자동 태깅
 """
 from datetime import datetime
 from sqlalchemy import (
@@ -81,4 +83,47 @@ class PatientActivityLog(Base):
         Index('idx_activity_log_resource', 'resource_type'),
         Index('idx_activity_log_created', 'created_at'),
         Index('idx_activity_log_user_action', 'user_id', 'action_type'),
+    )
+
+
+class NewsAllergenLink(Base):
+    """뉴스-알러젠 자동 태깅 (수집 뉴스에 대한 알러젠 코드 매핑)"""
+    __tablename__ = "news_allergen_links"
+
+    id = Column(Integer, primary_key=True, index=True)
+    news_id = Column(Integer, ForeignKey("competitor_news.id", ondelete="CASCADE"), nullable=False)
+    allergen_code = Column(String(30), nullable=False)  # 'peanut', 'milk', 'egg' 등
+    content_category = Column(String(30), nullable=True)  # 'treatment', 'epidemiology', 'diagnosis_method', 'regulation', 'research'
+    relevance_score = Column(Float, nullable=True)  # 0.0~1.0
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index('idx_news_allergen_news', 'news_id'),
+        Index('idx_news_allergen_code', 'allergen_code'),
+        Index('idx_news_allergen_category', 'content_category'),
+        Index('idx_news_allergen_unique', 'news_id', 'allergen_code', unique=True),
+    )
+
+
+class AllergenInsightReport(Base):
+    """AI 기반 알러젠별 인사이트 리포트"""
+    __tablename__ = "allergen_insight_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    allergen_code = Column(String(30), nullable=False)  # 'peanut', 'milk', 'egg' 등
+    period_date = Column(Date, nullable=False)  # 분석 기간 (월 첫째날)
+    period_type = Column(String(20), nullable=False, default="monthly")  # 'monthly', 'quarterly'
+    title = Column(String(200), nullable=False)  # 리포트 제목
+    content = Column(Text, nullable=False)  # AI 생성 마크다운 본문
+    source_paper_ids = Column(JSON, nullable=True)  # 참고 논문 ID 목록
+    source_news_ids = Column(JSON, nullable=True)  # 참고 뉴스 ID 목록
+    key_findings = Column(JSON, nullable=True)  # 핵심 발견 요약 ["finding1", "finding2"]
+    treatment_score = Column(Integer, nullable=True)  # 치료 발전도 지표 (0-100)
+    source_count = Column(Integer, nullable=True, default=0)  # 분석에 사용된 소스 수
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index('idx_insight_allergen', 'allergen_code'),
+        Index('idx_insight_period', 'period_date'),
+        Index('idx_insight_unique', 'allergen_code', 'period_date', 'period_type', unique=True),
     )

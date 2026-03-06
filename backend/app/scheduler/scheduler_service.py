@@ -43,12 +43,13 @@ class NewsSchedulerService:
 
         self.add_crawl_job(crawl_hour, crawl_minute)
         self.add_send_job(send_hour, send_minute)
+        self.add_insight_job()
 
         self._scheduler.start()
         self._running = True
         logger.info(
             f"스케줄러 시작: 수집={crawl_hour:02d}:{crawl_minute:02d}, "
-            f"발송={send_hour:02d}:{send_minute:02d}"
+            f"발송={send_hour:02d}:{send_minute:02d}, 인사이트=매월 1일 03:00"
         )
 
     def stop(self):
@@ -92,6 +93,27 @@ class NewsSchedulerService:
             replace_existing=True,
         )
         logger.info(f"뉴스레터 발송 작업 등록: {hour:02d}:{minute:02d}")
+
+    def add_insight_job(self):
+        """인사이트 리포트 생성 작업 추가 (매월 1일 03:00)"""
+        from .jobs import tag_and_generate_insights
+
+        if self._scheduler.get_job("insight_report"):
+            self._scheduler.remove_job("insight_report")
+
+        self._scheduler.add_job(
+            tag_and_generate_insights,
+            trigger=CronTrigger(day=1, hour=3, minute=0),
+            id="insight_report",
+            name="인사이트 리포트 생성",
+            replace_existing=True,
+        )
+        logger.info("인사이트 리포트 작업 등록: 매월 1일 03:00")
+
+    def run_insight_once(self):
+        """인사이트 리포트 즉시 실행"""
+        from .jobs import tag_and_generate_insights
+        tag_and_generate_insights()
 
     def run_crawl_once(self):
         """뉴스 수집 즉시 실행"""

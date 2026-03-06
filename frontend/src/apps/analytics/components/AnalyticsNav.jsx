@@ -12,6 +12,7 @@ const AnalyticsNav = () => {
     { to: '/analytics/dashboard', label: 'Dashboard' },
     { to: '/analytics/allergen-trends', label: '알러젠 트렌드' },
     { to: '/analytics/keyword-trends', label: '키워드 트렌드' },
+    { to: '/analytics/insights', label: '연구 인사이트' },
   ];
 
   return (
