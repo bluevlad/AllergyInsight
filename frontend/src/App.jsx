@@ -167,12 +167,8 @@ const AppRouter = () => {
       <Route path="/subscribe/manage" element={<ManagePage />} />
       <Route path="/subscribe/unsubscribe" element={<UnsubscribePage />} />
 
-      {/* Admin App (/admin/*) - Super Admin Only */}
-      <Route path="/admin/*" element={
-        <ProtectedRoute superAdminOnly>
-          <AdminApp />
-        </ProtectedRoute>
-      } />
+      {/* Admin App (/admin/*) - 자체 관리자 로그인 폼 포함 */}
+      <Route path="/admin/*" element={<AdminApp />} />
 
       {/* Professional App (/pro/*) */}
       <Route path="/pro/*" element={

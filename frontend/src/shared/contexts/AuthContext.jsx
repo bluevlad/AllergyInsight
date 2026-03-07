@@ -85,6 +85,19 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Admin login (name + PIN only)
+  const loginAdmin = async (data) => {
+    try {
+      const response = await authApi.loginAdmin(data);
+      localStorage.setItem('access_token', response.access_token);
+      setUser(response.user);
+      return { success: true, user: response.user };
+    } catch (error) {
+      console.error('Admin login failed:', error);
+      throw error;
+    }
+  };
+
   // Register kit (for logged-in users)
   const registerKit = async (serialNumber, pin) => {
     try {
@@ -150,6 +163,7 @@ export const AuthProvider = ({ children }) => {
     loginWithGoogle,
     registerSimple,
     loginSimple,
+    loginAdmin,
     registerKit,
     handleOAuthCallback,
     logout,

@@ -11,7 +11,6 @@ import bcrypt
 
 security_logger = logging.getLogger("security")
 
-from ..core.pii_masking import mask_name
 from ..database.connection import get_db
 from ..database.models import User, DiagnosisKit, UserDiagnosis
 from .config import auth_settings
@@ -20,6 +19,7 @@ from .dependencies import require_auth
 from .schemas import (
     UserResponse, UserWithToken,
     SimpleRegisterRequest, SimpleRegisterResponse, SimpleLoginRequest,
+    AdminLoginRequest,
     KitRegisterRequest, UserDiagnosisResponse,
 )
 
@@ -264,6 +264,7 @@ async def simple_login(
         )
 
     if not verify_pin(request.access_pin, user.access_pin_hash):
+        from ..core.pii_masking import mask_name
         security_logger.warning(
             "Login failed: user=%s name=%s",
             user.id, mask_name(request.name)
@@ -273,7 +274,62 @@ async def simple_login(
             detail="Invalid access PIN"
         )
 
+    from ..core.pii_masking import mask_name
     security_logger.info("Login success: user=%s name=%s", user.id, mask_name(request.name))
+    user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(user)
+
+    access_token = create_access_token(
+        data={"sub": str(user.id), "auth_type": "simple"}
+    )
+
+    return UserWithToken(
+        user=UserResponse.model_validate(user),
+        access_token=access_token
+    )
+
+
+# ============================================================================
+# Admin Login (name + PIN only)
+# ============================================================================
+
+@router.post("/admin/login", response_model=UserWithToken)
+async def admin_login(
+    request: AdminLoginRequest,
+    db: Session = Depends(get_db)
+):
+    """Login for admin users with name + access PIN only"""
+    user = db.query(User).filter(
+        User.name == request.name,
+        User.role.in_(['super_admin', 'admin'])
+    ).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="관리자 계정을 찾을 수 없습니다."
+        )
+
+    if not user.access_pin_hash:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="접속 PIN이 설정되지 않았습니다."
+        )
+
+    if not verify_pin(request.access_pin, user.access_pin_hash):
+        from ..core.pii_masking import mask_name
+        security_logger.warning(
+            "Admin login failed: user=%s name=%s",
+            user.id, mask_name(request.name)
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="접속 PIN이 올바르지 않습니다."
+        )
+
+    from ..core.pii_masking import mask_name
+    security_logger.info("Admin login success: user=%s name=%s", user.id, mask_name(request.name))
     user.last_login_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(user)
