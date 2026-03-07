@@ -86,6 +86,19 @@ export const adminApi = {
   },
 
   // ============================================================================
+  // Analytics
+  // ============================================================================
+  analytics: {
+    overview: () => apiClient.get('/admin/analytics/overview'),
+    trend: (allergenCode, params = {}) => apiClient.get(`/admin/analytics/trend/${allergenCode}`, { params }),
+    aggregate: (params = {}) => apiClient.post('/admin/analytics/aggregate', null, { params }),
+    keywordsOverview: () => apiClient.get('/admin/analytics/keywords/overview'),
+    keywordsTrend: (params = {}) => apiClient.get('/admin/analytics/keywords/trend', { params }),
+    keywordsExtract: (params = {}) => apiClient.post('/admin/analytics/keywords/extract', null, { params }),
+    activityStats: (params = {}) => apiClient.get('/admin/analytics/activity/stats', { params }),
+  },
+
+  // ============================================================================
   // Subscribers
   // ============================================================================
   subscribers: {
