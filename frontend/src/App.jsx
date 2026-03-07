@@ -13,9 +13,11 @@ import { AuthProvider, useAuth } from './shared/contexts/AuthContext';
 import ProApp from './apps/professional/ProApp';
 import ConsumerApp from './apps/consumer/ConsumerApp';
 import AdminApp from './apps/admin/AdminApp';
+import AnalyticsApp from './apps/analytics/AnalyticsApp';
 
 // Public Pages
 import LoginPage from './pages/LoginPage';
+import AdminLoginPage from './apps/admin/pages/AdminLoginPage';
 import AuthCallback from './pages/AuthCallback';
 
 // Public Subscription Pages
@@ -65,8 +67,9 @@ const ProtectedRoute = ({ children, professionalOnly = false, superAdminOnly = f
   }
 
   if (!isAuthenticated) {
-    // 로그인 후 원래 페이지로 리다이렉트하기 위해 현재 위치 저장
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    // 관리자 페이지 접근 시 관리자 로그인으로 리다이렉트
+    const loginPath = location.pathname.startsWith('/admin') ? '/admin/login' : '/login';
+    return <Navigate to={loginPath} state={{ from: location }} replace />;
   }
 
   if (superAdminOnly && !isSuperAdmin) {
@@ -119,10 +122,11 @@ const PublicRoute = ({ children }) => {
 };
 
 /**
- * Role Based Redirect
- * - 로그인 상태와 역할에 따라 적절한 앱으로 리다이렉트
+ * Role Based Redirect / Gateway Landing
+ * - 로그인 상태: 역할에 따라 적절한 앱으로 리다이렉트
+ * - 비로그인 상태: 4-서비스 게이트웨이 표시
  */
-const RoleBasedRedirect = () => {
+const GatewayLanding = () => {
   const { isAuthenticated, getDefaultApp, loading } = useAuth();
 
   if (loading) {
@@ -138,14 +142,113 @@ const RoleBasedRedirect = () => {
     );
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+  if (isAuthenticated) {
+    const defaultApp = getDefaultApp();
+    const appRoutes = { admin: '/admin', professional: '/pro', consumer: '/app' };
+    return <Navigate to={appRoutes[defaultApp] || '/app'} replace />;
   }
 
-  const defaultApp = getDefaultApp();
-  const appRoutes = { admin: '/admin', professional: '/pro', consumer: '/app' };
-  return <Navigate to={appRoutes[defaultApp] || '/app'} replace />;
+  // 비로그인 사용자용 게이트웨이
+  return (
+    <div style={{ minHeight: '100vh', background: '#f5f6fa' }}>
+      <div style={{
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        padding: '3rem 1rem',
+        textAlign: 'center',
+        color: 'white',
+      }}>
+        <h1 style={{ margin: 0, fontSize: '2rem' }}>AllergyInsight</h1>
+        <p style={{ margin: '0.5rem 0 0', opacity: 0.9, fontSize: '1rem' }}>
+          알러지 연구 논문 검색/분석 플랫폼
+        </p>
+      </div>
+
+      <div style={{
+        maxWidth: '900px',
+        margin: '2rem auto',
+        padding: '0 1rem',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '1.5rem',
+      }}>
+        <GatewayCard
+          title="뉴스레터"
+          description="알러지 관련 최신 뉴스와 연구 동향을 구독하세요"
+          href="/subscribe"
+          color="#e67e22"
+          icon="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+        />
+        <GatewayCard
+          title="사용자"
+          description="검사 결과 조회 및 맞춤 건강 가이드"
+          href="/login"
+          color="#3498db"
+          icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+        />
+        <GatewayCard
+          title="관리자"
+          description="플랫폼 관리 및 운영 시스템"
+          href="/admin/login"
+          color="#9b59b6"
+          icon="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+        />
+        <GatewayCard
+          title="분석/통계"
+          description="알러젠 트렌드 및 키워드 분석 대시보드"
+          href="/analytics"
+          color="#1abc9c"
+          icon="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+        />
+      </div>
+
+      <footer style={{ textAlign: 'center', padding: '2rem 1rem', color: '#999', fontSize: '0.85rem' }}>
+        AllergyInsight Platform v2.0.0
+      </footer>
+    </div>
+  );
 };
+
+const GatewayCard = ({ title, description, href, color, icon }) => (
+  <a
+    href={href}
+    style={{
+      display: 'block',
+      background: 'white',
+      borderRadius: '12px',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+      padding: '1.5rem',
+      textDecoration: 'none',
+      color: 'inherit',
+      transition: 'transform 0.2s, box-shadow 0.2s',
+      borderTop: `4px solid ${color}`,
+    }}
+    onMouseEnter={e => {
+      e.currentTarget.style.transform = 'translateY(-4px)';
+      e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.15)';
+    }}
+    onMouseLeave={e => {
+      e.currentTarget.style.transform = 'translateY(0)';
+      e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+    }}
+  >
+    <div style={{
+      width: '48px',
+      height: '48px',
+      borderRadius: '12px',
+      background: color,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: '1rem',
+    }}>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d={icon} />
+      </svg>
+    </div>
+    <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.1rem', color: '#333' }}>{title}</h3>
+    <p style={{ margin: 0, fontSize: '0.85rem', color: '#777', lineHeight: 1.5 }}>{description}</p>
+  </a>
+);
 
 /**
  * Main Router
@@ -160,6 +263,10 @@ const AppRouter = () => {
         </PublicRoute>
       } />
       <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/admin/login" element={<AdminLoginPage />} />
+
+      {/* Public Analytics Routes (no auth required) */}
+      <Route path="/analytics/*" element={<AnalyticsApp />} />
 
       {/* Public Subscription Routes (no auth required) */}
       <Route path="/subscribe" element={<SubscribePage />} />
@@ -184,8 +291,8 @@ const AppRouter = () => {
         </ProtectedRoute>
       } />
 
-      {/* Default Route - Role based redirect */}
-      <Route path="/" element={<RoleBasedRedirect />} />
+      {/* Default Route - Gateway or role-based redirect */}
+      <Route path="/" element={<GatewayLanding />} />
 
       {/* Legacy Routes Redirect */}
       <Route path="/hospital/*" element={<Navigate to="/pro" replace />} />

@@ -6,9 +6,6 @@
 """
 
 from .auth import (
-    # Router
-    auth_router,
-
     # Original dependencies
     require_auth,
     require_admin,
@@ -45,9 +42,6 @@ from .allergen import (
 )
 
 __all__ = [
-    # Router
-    "auth_router",
-
     # Auth dependencies
     "require_auth",
     "require_admin",

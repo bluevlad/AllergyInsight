@@ -58,6 +58,37 @@ def process_articles():
         db.close()
 
 
+def tag_and_generate_insights():
+    """뉴스 알러젠 태깅 + 월별 인사이트 리포트 생성
+
+    매월 1회 실행: 미태깅 뉴스 태깅 후 전월 인사이트 리포트를 생성합니다.
+    """
+    logger.info(f"[{datetime.now().isoformat()}] 인사이트 리포트 생성 시작")
+    db = SessionLocal()
+    try:
+        from ..services.insight_report_service import InsightReportService
+
+        service = InsightReportService()
+
+        # 1단계: 미태깅 뉴스 알러젠 태깅
+        tagged = service.tag_untagged_news(db, limit=200)
+        logger.info(f"뉴스 알러젠 태깅: {tagged}건")
+
+        # 2단계: 전월 인사이트 리포트 생성
+        now = datetime.now()
+        if now.month == 1:
+            target_year, target_month = now.year - 1, 12
+        else:
+            target_year, target_month = now.year, now.month - 1
+
+        reports = service.generate_monthly_report(db, target_year, target_month)
+        logger.info(f"인사이트 리포트 생성 완료: {len(reports)}건")
+    except Exception as e:
+        logger.error(f"인사이트 리포트 생성 실패: {e}", exc_info=True)
+    finally:
+        db.close()
+
+
 def generate_and_send_reports():
     """뉴스레터 생성 및 발송
 
