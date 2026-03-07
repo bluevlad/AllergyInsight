@@ -19,6 +19,7 @@ import OrganizationsPage from './pages/OrganizationsPage';
 import CompetitorNewsPage from './pages/CompetitorNewsPage';
 import NewsletterPage from './pages/NewsletterPage';
 import SubscribersPage from './pages/SubscribersPage';
+import AnalyticsPage from './pages/AnalyticsPage';
 
 const AdminApp = () => {
   const { user, loading, isSuperAdmin } = useAuth();
@@ -68,6 +69,9 @@ const AdminApp = () => {
 
           {/* Newsletter */}
           <Route path="/newsletter" element={<NewsletterPage />} />
+
+          {/* Analytics */}
+          <Route path="/analytics" element={<AnalyticsPage />} />
 
           {/* Subscribers */}
           <Route path="/subscribers" element={<SubscribersPage />} />
