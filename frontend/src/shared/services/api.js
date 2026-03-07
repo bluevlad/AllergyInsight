@@ -32,6 +32,12 @@ export const authApi = {
     access_pin: data.accessPin,
   }),
 
+  // 관리자 로그인 (이름 + PIN)
+  loginAdmin: (data) => apiClient.post('/auth/admin/login', {
+    name: data.name,
+    access_pin: data.accessPin,
+  }),
+
   // 키트 등록 (로그인 사용자)
   registerKit: (serialNumber, pin) => apiClient.post('/auth/register-kit', {
     serial_number: serialNumber,
