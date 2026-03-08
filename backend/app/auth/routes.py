@@ -101,6 +101,23 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
                 )
                 db.add(user)
 
+        # Super admin role assignment via SUPER_ADMIN_EMAILS env var
+        if auth_settings.is_super_admin(email):
+            if user.role != 'super_admin':
+                security_logger.info(
+                    "Super admin role assigned via Google OAuth: email=%s user_id=%s previous_role=%s",
+                    email, user.id, user.role
+                )
+                user.role = 'super_admin'
+        else:
+            # If user was super_admin but email removed from SUPER_ADMIN_EMAILS, downgrade
+            if user.role == 'super_admin':
+                security_logger.warning(
+                    "Super admin role revoked (email removed from SUPER_ADMIN_EMAILS): email=%s user_id=%s",
+                    email, user.id
+                )
+                user.role = 'user'
+
         user.last_login_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(user)

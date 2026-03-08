@@ -1,5 +1,6 @@
 """Authentication Configuration"""
 import os
+from typing import List
 from pydantic_settings import BaseSettings
 
 
@@ -16,6 +17,21 @@ class AuthSettings(BaseSettings):
     # URLs
     frontend_url: str = os.getenv("FRONTEND_URL", "http://localhost:4040")
     backend_url: str = os.getenv("BACKEND_URL", "http://localhost:9040")
+
+    # Super Admin
+    super_admin_emails: str = os.getenv("SUPER_ADMIN_EMAILS", "")
+
+    def get_super_admin_emails(self) -> List[str]:
+        """Parse comma-separated super admin emails into a list."""
+        if not self.super_admin_emails.strip():
+            return []
+        return [email.strip().lower() for email in self.super_admin_emails.split(",") if email.strip()]
+
+    def is_super_admin(self, email: str) -> bool:
+        """Check if the given email is a super admin."""
+        if not email:
+            return False
+        return email.strip().lower() in self.get_super_admin_emails()
 
     class Config:
         env_file = ".env"
