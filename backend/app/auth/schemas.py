@@ -65,6 +65,12 @@ class SimpleLoginRequest(BaseModel):
     access_pin: str
 
 
+class AdminLoginRequest(BaseModel):
+    """Admin login with name + PIN only"""
+    name: str
+    access_pin: str
+
+
 # ============================================================================
 # Diagnosis Kit Schemas
 # ============================================================================

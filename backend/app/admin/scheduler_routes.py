@@ -13,7 +13,7 @@ router = APIRouter(prefix="/scheduler", tags=["Scheduler Admin"])
 
 def _get_scheduler():
     """현재 스케줄러 서비스 인스턴스 반환"""
-    from ..api.main import get_scheduler_service
+    from ..services.scheduler_service import get_scheduler_service
     service = get_scheduler_service()
     if service is None:
         raise HTTPException(status_code=503, detail="스케줄러가 비활성화되어 있습니다.")

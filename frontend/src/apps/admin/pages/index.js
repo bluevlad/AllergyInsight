@@ -6,3 +6,4 @@ export { default as UsersPage } from './UsersPage';
 export { default as AllergensPage } from './AllergensPage';
 export { default as PapersPage } from './PapersPage';
 export { default as OrganizationsPage } from './OrganizationsPage';
+export { default as AnalyticsPage } from './AnalyticsPage';
