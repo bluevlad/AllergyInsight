@@ -354,7 +354,9 @@ async def get_papers(
             journal=paper.journal,
             year=paper.year,
             is_guideline=paper.is_guideline or False,
-            evidence_level=paper.evidence_level
+            evidence_level=paper.evidence_level,
+            source=paper.source,
+            created_at=paper.created_at
         )
         for paper in papers
     ]

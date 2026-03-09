@@ -155,6 +155,7 @@ class PaperListItem(BaseModel):
     is_guideline: bool = False
     evidence_level: Optional[str] = None
     source: Optional[str] = None
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
