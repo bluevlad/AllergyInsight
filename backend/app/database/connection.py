@@ -103,6 +103,12 @@ def run_migrations():
     ]
 
     with engine.begin() as conn:
+        # users 테이블 마이그레이션: password_hash 컬럼 추가
+        if _table_exists(conn, "users"):
+            if not _column_exists(conn, "users", "password_hash"):
+                conn.execute(text("ALTER TABLE users ADD COLUMN password_hash VARCHAR(255)"))
+                logger.info("Migration: users.password_hash 컬럼 추가")
+
         # papers 테이블 마이그레이션
         if _table_exists(conn, "papers"):
             for col_name, col_def in papers_new_columns:
