@@ -125,6 +125,9 @@ const PapersPage = () => {
                   {paper.year && (
                     <span className="year">{paper.year}</span>
                   )}
+                  {paper.created_at && (
+                    <span className="collected">수집: {formatDateTime(paper.created_at)}</span>
+                  )}
                 </div>
                 <div className="paper-actions">
                   <button
@@ -295,6 +298,15 @@ const PapersPage = () => {
           content: '📅';
         }
 
+        .collected {
+          color: #999;
+          font-size: 0.8rem;
+        }
+
+        .collected::before {
+          content: '🕐';
+        }
+
         .paper-actions {
           display: flex;
           justify-content: flex-end;
@@ -344,6 +356,12 @@ const PapersPage = () => {
       `}</style>
     </div>
   );
+};
+
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('ko-KR') + ' ' + d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 };
 
 const getSourceName = (source) => {
