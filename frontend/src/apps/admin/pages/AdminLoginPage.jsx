@@ -10,13 +10,13 @@ import { useAuth } from '../../../shared/contexts/AuthContext';
 
 const AdminLoginPage = () => {
   const navigate = useNavigate();
-  const { loginWithGoogle, loginSimple, user, isSuperAdmin, isAdmin } = useAuth();
+  const { loginWithGoogle, loginEmail, user, isSuperAdmin, isAdmin } = useAuth();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
-    name: '',
-    accessPin: '',
+    email: '',
+    password: '',
   });
 
   // If already logged in, check role
@@ -73,9 +73,9 @@ const AdminLoginPage = () => {
     setError('');
 
     try {
-      const result = await loginSimple({
-        name: formData.name,
-        accessPin: formData.accessPin,
+      const result = await loginEmail({
+        email: formData.email,
+        password: formData.password,
       });
 
       const role = result.user?.role;
@@ -118,29 +118,28 @@ const AdminLoginPage = () => {
           <span>또는</span>
         </div>
 
-        {/* Name + Access PIN form */}
+        {/* Email + Password form */}
         <form onSubmit={handleLogin}>
           <div className="admin-form-group">
-            <label>이름</label>
+            <label>이메일</label>
             <input
-              type="text"
-              name="name"
-              value={formData.name}
+              type="email"
+              name="email"
+              value={formData.email}
               onChange={handleChange}
-              placeholder="관리자 이름"
+              placeholder="admin@email.com"
               required
             />
           </div>
 
           <div className="admin-form-group">
-            <label>접속 PIN</label>
+            <label>비밀번호</label>
             <input
               type="password"
-              name="accessPin"
-              value={formData.accessPin}
+              name="password"
+              value={formData.password}
               onChange={handleChange}
-              placeholder="6자리 접속 PIN"
-              maxLength={6}
+              placeholder="비밀번호"
               required
             />
           </div>
