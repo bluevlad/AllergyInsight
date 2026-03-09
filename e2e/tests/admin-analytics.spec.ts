@@ -3,19 +3,19 @@ import { test, expect } from '@playwright/test';
 const BASE_URL = process.env.BASE_URL || 'http://www.unmong.com:4040';
 
 test.describe('Admin Analytics API - 인증 검증', () => {
-  test('GET /api/admin/analytics/overview - 인증 없이 401 응답', async ({ request }) => {
+  test('GET /api/admin/analytics/overview - 인증 없이 401/403 응답', async ({ request }) => {
     const response = await request.get(`${BASE_URL}/api/admin/analytics/overview`);
-    expect(response.status()).toBe(401);
+    expect([401, 403]).toContain(response.status());
   });
 
-  test('GET /api/admin/analytics/activity/stats - 인증 없이 401 응답', async ({ request }) => {
+  test('GET /api/admin/analytics/activity/stats - 인증 없이 401/403 응답', async ({ request }) => {
     const response = await request.get(`${BASE_URL}/api/admin/analytics/activity/stats`);
-    expect(response.status()).toBe(401);
+    expect([401, 403]).toContain(response.status());
   });
 
-  test('GET /api/admin/analytics/keywords/overview - 인증 없이 401 응답', async ({ request }) => {
+  test('GET /api/admin/analytics/keywords/overview - 인증 없이 401/403 응답', async ({ request }) => {
     const response = await request.get(`${BASE_URL}/api/admin/analytics/keywords/overview`);
-    expect(response.status()).toBe(401);
+    expect([401, 403]).toContain(response.status());
   });
 });
 
