@@ -14,15 +14,16 @@ logger = logging.getLogger(__name__)
 
 
 class NewsSchedulerService:
-    """뉴스 수집/발송 스케줄러"""
+    """통합 스케줄러 (뉴스 + 논문 수집)"""
 
     def __init__(self):
         self._scheduler = BackgroundScheduler(
             job_defaults={
                 "coalesce": True,
                 "max_instances": 1,
-                "misfire_grace_time": 300,
-            }
+                "misfire_grace_time": 3600,
+            },
+            timezone="Asia/Seoul",
         )
         self._running = False
 
@@ -41,6 +42,8 @@ class NewsSchedulerService:
         send_hour = int(os.getenv("SEND_HOUR", "8"))
         send_minute = int(os.getenv("SEND_MINUTE", "0"))
 
+        self.add_paper_search_job()
+        self.add_korean_translation_job()
         self.add_crawl_job(crawl_hour, crawl_minute)
         self.add_send_job(send_hour, send_minute)
         self.add_insight_job()
@@ -48,7 +51,8 @@ class NewsSchedulerService:
         self._scheduler.start()
         self._running = True
         logger.info(
-            f"스케줄러 시작: 수집={crawl_hour:02d}:{crawl_minute:02d}, "
+            f"스케줄러 시작: 논문=02:00, 번역=04:00, "
+            f"뉴스={crawl_hour:02d}:{crawl_minute:02d}, "
             f"발송={send_hour:02d}:{send_minute:02d}, 인사이트=매월 1일 03:00"
         )
 
@@ -60,6 +64,38 @@ class NewsSchedulerService:
         self._scheduler.shutdown(wait=False)
         self._running = False
         logger.info("스케줄러 종료")
+
+    def add_paper_search_job(self, hour: int = 2, minute: int = 0):
+        """논문 검색 작업 추가 (매일 02:00 KST)"""
+        from ..services.scheduler_jobs import job_daily_paper_search
+
+        if self._scheduler.get_job("daily_paper_search"):
+            self._scheduler.remove_job("daily_paper_search")
+
+        self._scheduler.add_job(
+            job_daily_paper_search,
+            trigger=CronTrigger(hour=hour, minute=minute),
+            id="daily_paper_search",
+            name="일일 논문 검색",
+            replace_existing=True,
+        )
+        logger.info(f"논문 검색 작업 등록: {hour:02d}:{minute:02d}")
+
+    def add_korean_translation_job(self, hour: int = 4, minute: int = 0):
+        """한국어 번역 작업 추가 (매일 04:00 KST)"""
+        from ..services.scheduler_jobs import job_korean_translation
+
+        if self._scheduler.get_job("korean_translation"):
+            self._scheduler.remove_job("korean_translation")
+
+        self._scheduler.add_job(
+            job_korean_translation,
+            trigger=CronTrigger(hour=hour, minute=minute),
+            id="korean_translation",
+            name="한국어 번역",
+            replace_existing=True,
+        )
+        logger.info(f"한국어 번역 작업 등록: {hour:02d}:{minute:02d}")
 
     def add_crawl_job(self, hour: int = 7, minute: int = 0):
         """뉴스 수집 작업 추가"""
@@ -109,6 +145,16 @@ class NewsSchedulerService:
             replace_existing=True,
         )
         logger.info("인사이트 리포트 작업 등록: 매월 1일 03:00")
+
+    def run_paper_search_once(self):
+        """논문 검색 즉시 실행"""
+        from ..services.scheduler_jobs import job_daily_paper_search
+        job_daily_paper_search("manual")
+
+    def run_korean_translation_once(self):
+        """한국어 번역 즉시 실행"""
+        from ..services.scheduler_jobs import job_korean_translation
+        job_korean_translation("manual")
 
     def run_insight_once(self):
         """인사이트 리포트 즉시 실행"""

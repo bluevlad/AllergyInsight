@@ -67,6 +67,12 @@ services:
       - CRAWL_MINUTE=${CRAWL_MINUTE:-0}
       - SEND_HOUR=${SEND_HOUR:-8}
       - SEND_MINUTE=${SEND_MINUTE:-0}
+      # Paper search APIs
+      - PUBMED_API_KEY=${PUBMED_API_KEY:-}
+      - PUBMED_EMAIL=${PUBMED_EMAIL:-}
+      - SEMANTIC_SCHOLAR_API_KEY=${SEMANTIC_SCHOLAR_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # AI (Ollama)
       - OLLAMA_HOST=${OLLAMA_HOST:-http://172.30.1.72:11434}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
       - GMAIL_ADDRESS=${GMAIL_ADDRESS:-}
