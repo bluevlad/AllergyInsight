@@ -1,90 +1,96 @@
 /**
  * Analytics Navigation Component
- *
- * 공개 Analytics 앱의 네비게이션 바입니다.
- * 인증 불필요 - 로그인 링크만 제공합니다.
  */
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 
 const AnalyticsNav = () => {
   const navItems = [
-    { to: '/analytics/dashboard', label: 'Dashboard' },
-    { to: '/analytics/allergen-trends', label: '알러젠 트렌드' },
-    { to: '/analytics/keyword-trends', label: '키워드 트렌드' },
-    { to: '/analytics/insights', label: '연구 인사이트' },
+    { to: '/analytics/dashboard', label: '대시보드', icon: '📊' },
+    { to: '/analytics/allergen-trends', label: '알러젠 트렌드', icon: '🧬' },
+    { to: '/analytics/keyword-trends', label: '키워드 트렌드', icon: '🔍' },
+    { to: '/analytics/insights', label: '연구 인사이트', icon: '💡' },
   ];
 
   return (
-    <nav style={styles.nav}>
-      <div style={styles.navLinks}>
+    <nav className="an-nav">
+      <div className="an-nav-links">
         {navItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
-            style={({ isActive }) => ({
-              ...styles.navLink,
-              ...(isActive ? styles.navLinkActive : {}),
-            })}
+            className={({ isActive }) => `an-nav-link ${isActive ? 'active' : ''}`}
           >
-            {item.label}
+            <span className="an-nav-icon">{item.icon}</span>
+            <span className="an-nav-label">{item.label}</span>
           </NavLink>
         ))}
       </div>
 
-      <div style={styles.navRight}>
-        <NavLink to="/login" style={styles.loginLink}>
+      <div className="an-nav-right">
+        <NavLink to="/login" className="an-login-link">
           로그인
         </NavLink>
       </div>
+
+      <style>{`
+        .an-nav {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 1rem;
+        }
+        .an-nav-links {
+          display: flex;
+          gap: 0.25rem;
+          flex-wrap: wrap;
+        }
+        .an-nav-link {
+          display: flex;
+          align-items: center;
+          gap: 0.375rem;
+          padding: 0.5rem 1rem;
+          border-radius: 8px;
+          text-decoration: none;
+          color: rgba(255, 255, 255, 0.8);
+          font-size: 0.875rem;
+          transition: all 0.2s;
+        }
+        .an-nav-link:hover {
+          background: rgba(255, 255, 255, 0.15);
+          color: white;
+        }
+        .an-nav-link.active {
+          background: rgba(255, 255, 255, 0.25);
+          color: white;
+          font-weight: 600;
+        }
+        .an-nav-icon { font-size: 1rem; }
+        .an-nav-right {
+          display: flex;
+          align-items: center;
+        }
+        .an-login-link {
+          padding: 0.5rem 1rem;
+          background: rgba(255, 255, 255, 0.2);
+          color: white;
+          border: 1px solid rgba(255, 255, 255, 0.35);
+          border-radius: 8px;
+          text-decoration: none;
+          font-size: 0.85rem;
+          transition: all 0.2s;
+        }
+        .an-login-link:hover {
+          background: rgba(255, 255, 255, 0.3);
+        }
+        @media (max-width: 768px) {
+          .an-nav-label { display: none; }
+          .an-nav-icon { font-size: 1.2rem; }
+        }
+      `}</style>
     </nav>
   );
-};
-
-const styles = {
-  nav: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: '1rem',
-  },
-  navLinks: {
-    display: 'flex',
-    gap: '0.5rem',
-    flexWrap: 'wrap',
-  },
-  navLink: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.25rem',
-    padding: '0.5rem 1rem',
-    borderRadius: '6px',
-    textDecoration: 'none',
-    color: 'rgba(255, 255, 255, 0.85)',
-    transition: 'all 0.2s',
-    fontSize: '0.9rem',
-  },
-  navLinkActive: {
-    background: 'rgba(255, 255, 255, 0.25)',
-    color: 'white',
-    fontWeight: 600,
-  },
-  navRight: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '1rem',
-  },
-  loginLink: {
-    padding: '0.5rem 1rem',
-    background: 'rgba(255, 255, 255, 0.2)',
-    color: 'white',
-    border: '1px solid rgba(255, 255, 255, 0.4)',
-    borderRadius: '6px',
-    textDecoration: 'none',
-    fontSize: '0.875rem',
-    transition: 'all 0.2s',
-  },
 };
 
 export default AnalyticsNav;
