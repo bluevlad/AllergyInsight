@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from .news_routes import router as news_router
 from .analytics_routes import router as analytics_router
 from .subscriber_routes import router as subscriber_router
-from typing import Optional
+from typing import Optional, List
 
 from .dependencies import require_super_admin
 from .schemas import (
@@ -15,14 +15,14 @@ from .schemas import (
     PaperStats, OrganizationStats,
     UserListResponse, UserListItem, UserDetail,
     UserUpdateRequest, UserRoleUpdateRequest,
-    PaperListResponse, PaperListItem,
+    PaperListResponse, PaperListItem, AllergenLinkItem,
     OrganizationListResponse, OrganizationListItem
 )
 from ..database.connection import get_db
-from ..database.models import User, DiagnosisKit, UserDiagnosis, Paper
+from ..database.models import User, DiagnosisKit, UserDiagnosis, Paper, PaperAllergenLink
 from ..database.organization_models import Organization, OrganizationMember
 from ..database.clinical_models import ClinicalStatement
-from ..data.allergen_master import get_allergen_summary
+from ..data.allergen_master import get_allergen_summary, get_allergen_by_code
 
 router = APIRouter()
 
@@ -346,8 +346,25 @@ async def get_papers(
     offset = (page - 1) * page_size
     papers = query.order_by(Paper.created_at.desc()).offset(offset).limit(page_size).all()
 
-    items = [
-        PaperListItem(
+    items = []
+    for paper in papers:
+        # 알레르겐 연결 정보 조회
+        allergen_link_items = []
+        if paper.allergen_links:
+            for link in paper.allergen_links:
+                allergen_info = get_allergen_by_code(link.allergen_code)
+                allergen_link_items.append(AllergenLinkItem(
+                    allergen_code=link.allergen_code,
+                    allergen_name=allergen_info.get("name_kr") if allergen_info else link.allergen_code,
+                    link_type=link.link_type,
+                    specific_item=link.specific_item,
+                    note=link.note
+                ))
+
+        # 수집 근거 생성
+        collection_reason = _build_collection_reason(paper, allergen_link_items)
+
+        items.append(PaperListItem(
             id=paper.id,
             title=paper.title,
             authors=paper.authors,
@@ -356,10 +373,13 @@ async def get_papers(
             is_guideline=paper.is_guideline or False,
             evidence_level=paper.evidence_level,
             source=paper.source,
-            created_at=paper.created_at
-        )
-        for paper in papers
-    ]
+            created_at=paper.created_at,
+            pmid=paper.pmid,
+            doi=paper.doi,
+            url=paper.url,
+            allergen_links=allergen_link_items,
+            collection_reason=collection_reason
+        ))
 
     return PaperListResponse(
         items=items,
@@ -367,6 +387,56 @@ async def get_papers(
         page=page,
         page_size=page_size
     )
+
+
+# 수집 근거 문구 생성 헬퍼
+LINK_TYPE_NAMES = {
+    "symptom": "증상",
+    "dietary": "식이",
+    "cross_reactivity": "교차반응",
+    "substitute": "대체식품",
+    "emergency": "응급",
+    "management": "관리",
+    "general": "일반",
+}
+
+def _build_collection_reason(paper: Paper, allergen_links: List[AllergenLinkItem]) -> str:
+    """논문 수집 근거 문구를 생성한다."""
+    parts = []
+
+    # 출처
+    source_names = {
+        "pubmed": "PubMed",
+        "semantic_scholar": "Semantic Scholar",
+        "manual_upload": "직접 업로드",
+        "manual": "직접 입력",
+    }
+    source_label = source_names.get(paper.source, paper.source or "알 수 없음")
+
+    if paper.source in ("manual_upload", "manual"):
+        parts.append(f"{source_label}으로 등록된 논문")
+    else:
+        parts.append(f"{source_label} 자동 수집")
+
+    # 연결된 알레르겐
+    if allergen_links:
+        allergen_names = list(dict.fromkeys(
+            link.allergen_name or link.allergen_code for link in allergen_links
+        ))
+        link_types = list(dict.fromkeys(
+            LINK_TYPE_NAMES.get(link.link_type, link.link_type) for link in allergen_links
+        ))
+        parts.append(f"대상 알레르겐: {', '.join(allergen_names[:5])}")
+        parts.append(f"관련 유형: {', '.join(link_types)}")
+
+        # Auto-extracted 노트에서 검색 키워드 추출
+        for link in allergen_links:
+            if link.note and link.note.startswith("Auto-extracted:"):
+                keyword = link.note.replace("Auto-extracted:", "").strip()
+                parts.append(f"검색 키워드: \"{keyword}\"")
+                break
+
+    return " | ".join(parts)
 
 
 # ============================================================================

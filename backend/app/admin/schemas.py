@@ -145,6 +145,15 @@ class AllergenUpdateRequest(BaseModel):
 # 논문 관리 스키마
 # ============================================================================
 
+class AllergenLinkItem(BaseModel):
+    """논문-알레르겐 연결 항목"""
+    allergen_code: str
+    allergen_name: Optional[str] = None
+    link_type: str
+    specific_item: Optional[str] = None
+    note: Optional[str] = None
+
+
 class PaperListItem(BaseModel):
     """논문 목록 항목"""
     id: int
@@ -156,6 +165,15 @@ class PaperListItem(BaseModel):
     evidence_level: Optional[str] = None
     source: Optional[str] = None
     created_at: Optional[datetime] = None
+
+    # 원본 링크
+    pmid: Optional[str] = None
+    doi: Optional[str] = None
+    url: Optional[str] = None
+
+    # 수집 근거
+    allergen_links: List[AllergenLinkItem] = []
+    collection_reason: Optional[str] = None
 
     class Config:
         from_attributes = True
