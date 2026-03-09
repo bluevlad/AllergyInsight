@@ -21,6 +21,7 @@ from .schemas import (
     SimpleRegisterRequest, SimpleRegisterResponse, SimpleLoginRequest,
     AdminLoginRequest,
     KitRegisterRequest, UserDiagnosisResponse,
+    EmailRegisterRequest, EmailVerifyAndRegisterRequest, EmailLoginRequest,
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -353,6 +354,171 @@ async def admin_login(
 
     access_token = create_access_token(
         data={"sub": str(user.id), "auth_type": "simple"}
+    )
+
+    return UserWithToken(
+        user=UserResponse.model_validate(user),
+        access_token=access_token
+    )
+
+
+# ============================================================================
+# Email + Password Registration/Login Routes
+# ============================================================================
+
+@router.post("/email/send-code")
+async def email_send_verification(
+    request: EmailRegisterRequest,
+    db: Session = Depends(get_db)
+):
+    """Send email verification code for registration"""
+    from ..database.subscriber_models import EmailVerification
+    from ..services.email_service import get_email_service
+    from ..services.report_generator import NewsReportGenerator
+    import random
+    import string
+
+    # Check if email already registered
+    existing = db.query(User).filter(User.email == request.email).first()
+    if existing and existing.password_hash:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="이미 가입된 이메일입니다. 로그인해주세요."
+        )
+
+    # Invalidate previous unused codes
+    db.query(EmailVerification).filter(
+        EmailVerification.email == request.email,
+        EmailVerification.is_used == False,
+    ).update({"is_used": True})
+
+    # Generate and save verification code
+    from datetime import timedelta
+    code = "".join(random.choices(string.digits, k=6))
+    verification = EmailVerification(
+        email=request.email,
+        code=code,
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+    )
+    db.add(verification)
+    db.commit()
+
+    # Send email
+    email_service = get_email_service()
+    report_generator = NewsReportGenerator()
+    html = report_generator.generate_subscription_key_email(
+        verification_code=code,
+        expires_minutes=30,
+    )
+    email_service.send(
+        to=request.email,
+        subject="[AllergyInsight] 회원가입 인증 코드",
+        html_body=html,
+    )
+
+    return {"message": "인증 코드가 발송되었습니다. 이메일을 확인해주세요."}
+
+
+@router.post("/email/register", response_model=UserWithToken)
+async def email_register(
+    request: EmailVerifyAndRegisterRequest,
+    db: Session = Depends(get_db)
+):
+    """Verify code and complete registration with password"""
+    from ..database.subscriber_models import EmailVerification
+
+    # Verify code
+    verification = db.query(EmailVerification).filter(
+        EmailVerification.email == request.email,
+        EmailVerification.code == request.code,
+        EmailVerification.is_used == False,
+    ).first()
+
+    if not verification:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="유효하지 않은 인증 코드입니다."
+        )
+
+    if verification.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="인증 코드가 만료되었습니다."
+        )
+
+    verification.is_used = True
+
+    # Check existing user (e.g., Google OAuth user adding password)
+    user = db.query(User).filter(User.email == request.email).first()
+    password_hash = bcrypt.hashpw(request.password.encode(), bcrypt.gensalt()).decode()
+
+    if user:
+        user.password_hash = password_hash
+        if user.auth_type == 'google':
+            user.auth_type = 'google'  # keep google
+        else:
+            user.auth_type = 'email'
+    else:
+        user = User(
+            name=request.email.split('@')[0],
+            email=request.email,
+            auth_type='email',
+            password_hash=password_hash,
+            role='user',
+        )
+        db.add(user)
+
+    user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(user)
+
+    access_token = create_access_token(
+        data={"sub": str(user.id), "auth_type": "email"}
+    )
+
+    return UserWithToken(
+        user=UserResponse.model_validate(user),
+        access_token=access_token
+    )
+
+
+@router.post("/email/login", response_model=UserWithToken)
+async def email_login(
+    request: EmailLoginRequest,
+    db: Session = Depends(get_db)
+):
+    """Login with email + password"""
+    user = db.query(User).filter(User.email == request.email).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="이메일 또는 비밀번호가 올바르지 않습니다."
+        )
+
+    if not user.password_hash:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="비밀번호가 설정되지 않았습니다. 회원가입을 진행해주세요."
+        )
+
+    if not bcrypt.checkpw(request.password.encode(), user.password_hash.encode()):
+        security_logger.warning(
+            "Email login failed: email=%s user_id=%s",
+            request.email, user.id
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="이메일 또는 비밀번호가 올바르지 않습니다."
+        )
+
+    security_logger.info("Email login success: user=%s email=%s", user.id, request.email)
+    user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(user)
+
+    access_token = create_access_token(
+        data={"sub": str(user.id), "auth_type": "email"}
     )
 
     return UserWithToken(

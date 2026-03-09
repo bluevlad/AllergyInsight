@@ -1,5 +1,5 @@
 /**
- * Login Page - Google OAuth & Simple Registration/Login
+ * Login Page - Email + Password & Google OAuth
  */
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -7,21 +7,18 @@ import { useAuth } from '../shared/contexts/AuthContext';
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const { loginWithGoogle, registerSimple, loginSimple, accessPin, clearAccessPin, getDefaultApp } = useAuth();
+  const { loginWithGoogle, loginEmail, sendVerificationCode, registerEmail, getDefaultApp } = useAuth();
 
-  const [mode, setMode] = useState('login'); // 'login', 'register'
-  const [identifyMethod, setIdentifyMethod] = useState('phone'); // 'phone', 'birthdate'
+  const [mode, setMode] = useState('login'); // 'login', 'register', 'verify'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
-  // Form data
   const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    birthDate: '',
-    serialNumber: '',
-    pin: '',
-    accessPin: '',
+    email: '',
+    password: '',
+    passwordConfirm: '',
+    verificationCode: '',
   });
 
   const handleChange = (e) => {
@@ -34,35 +31,7 @@ const LoginPage = () => {
     loginWithGoogle();
   };
 
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-
-    try {
-      const data = {
-        name: formData.name,
-        serialNumber: formData.serialNumber,
-        pin: formData.pin,
-      };
-
-      if (identifyMethod === 'phone') {
-        data.phone = formData.phone;
-      } else {
-        data.birthDate = formData.birthDate;
-      }
-
-      await registerSimple(data);
-      // accessPin will be shown after registration
-    } catch (err) {
-      const message = err.response?.data?.detail || '등록에 실패했습니다.';
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 역할 기반 리다이렉트 결정
+  // Role-based redirect
   const PROFESSIONAL_ROLES = ['doctor', 'nurse', 'lab_tech', 'hospital_admin', 'admin', 'super_admin'];
   const ADMIN_ROLES = ['admin', 'super_admin'];
 
@@ -72,80 +41,72 @@ const LoginPage = () => {
     return '/app';
   };
 
-  const handleLogin = async (e) => {
+  // Step 1: Send verification code
+  const handleSendCode = async (e) => {
     e.preventDefault();
+    if (!formData.email) return;
+
     setLoading(true);
     setError('');
-
     try {
-      const data = {
-        name: formData.name,
-        accessPin: formData.accessPin,
-      };
-
-      if (identifyMethod === 'phone') {
-        data.phone = formData.phone;
-      } else {
-        data.birthDate = formData.birthDate;
-      }
-
-      const result = await loginSimple(data);
-      // 반환된 user 정보로 직접 리다이렉트 결정 (상태 업데이트 대기 없이)
-      navigate(getRedirectPath(result.user?.role));
+      await sendVerificationCode({ email: formData.email });
+      setMode('verify');
+      setMessage('인증 코드가 이메일로 발송되었습니다.');
     } catch (err) {
-      const message = err.response?.data?.detail || '로그인에 실패했습니다.';
-      setError(message);
+      const detail = err.response?.data?.detail || '인증 코드 발송에 실패했습니다.';
+      setError(detail);
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePinConfirm = () => {
-    clearAccessPin();
-    const defaultApp = getDefaultApp();
-    const appRoutes = { admin: '/admin', professional: '/pro', consumer: '/app' };
-    navigate(appRoutes[defaultApp] || '/app');
+  // Step 2: Verify code + set password
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    if (formData.password !== formData.passwordConfirm) {
+      setError('비밀번호가 일치하지 않습니다.');
+      return;
+    }
+    if (formData.password.length < 4) {
+      setError('비밀번호는 4자 이상이어야 합니다.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    try {
+      const result = await registerEmail({
+        email: formData.email,
+        code: formData.verificationCode,
+        password: formData.password,
+      });
+      navigate(getRedirectPath(result.user?.role));
+    } catch (err) {
+      const detail = err.response?.data?.detail || '회원가입에 실패했습니다.';
+      setError(detail);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Show access PIN after registration
-  if (accessPin) {
-    return (
-      <div className="login-container">
-        <div className="login-card pin-display">
-          <h2>등록 완료!</h2>
-          <div className="pin-box">
-            <p>아래 접속 PIN을 반드시 메모해두세요.</p>
-            <p>다음 로그인 시 필요합니다.</p>
-            <div className="access-pin">{accessPin}</div>
-          </div>
-          <button className="btn btn-primary" onClick={handlePinConfirm}>
-            확인했습니다
-          </button>
-        </div>
-
-        <style>{`
-          .pin-display {
-            text-align: center;
-          }
-          .pin-box {
-            background: #fff3cd;
-            border: 1px solid #ffc107;
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin: 1.5rem 0;
-          }
-          .access-pin {
-            font-size: 2.5rem;
-            font-weight: bold;
-            color: #d63384;
-            letter-spacing: 0.5rem;
-            margin-top: 1rem;
-            font-family: monospace;
-          }
-        `}</style>
-      </div>
-    );
-  }
+  // Login with email + password
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      const result = await loginEmail({
+        email: formData.email,
+        password: formData.password,
+      });
+      navigate(getRedirectPath(result.user?.role));
+    } catch (err) {
+      const detail = err.response?.data?.detail || '로그인에 실패했습니다.';
+      setError(detail);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="login-container">
@@ -154,190 +115,158 @@ const LoginPage = () => {
         <p className="subtitle">알러지 검사 결과 조회 서비스</p>
 
         {/* Mode Tabs */}
-        <div className="mode-tabs">
-          <button
-            className={`mode-tab ${mode === 'login' ? 'active' : ''}`}
-            onClick={() => setMode('login')}
-          >
-            로그인
-          </button>
-          <button
-            className={`mode-tab ${mode === 'register' ? 'active' : ''}`}
-            onClick={() => setMode('register')}
-          >
-            회원가입
-          </button>
-        </div>
+        {mode !== 'verify' && (
+          <div className="mode-tabs">
+            <button
+              className={`mode-tab ${mode === 'login' ? 'active' : ''}`}
+              onClick={() => { setMode('login'); setError(''); setMessage(''); }}
+            >
+              로그인
+            </button>
+            <button
+              className={`mode-tab ${mode === 'register' ? 'active' : ''}`}
+              onClick={() => { setMode('register'); setError(''); setMessage(''); }}
+            >
+              회원가입
+            </button>
+          </div>
+        )}
 
         {/* Google Login */}
-        <button className="btn btn-google" onClick={handleGoogleLogin}>
-          <svg viewBox="0 0 24 24" width="20" height="20">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-          </svg>
-          Google로 계속하기
-        </button>
-
-        <div className="divider">
-          <span>또는</span>
-        </div>
-
-        {/* Simple Registration / Login Form */}
-        <form onSubmit={mode === 'register' ? handleRegister : handleLogin}>
-          <div className="form-group">
-            <label>이름</label>
-            <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              placeholder="홍길동"
-              required
-            />
-          </div>
-
-          {/* Identify Method Toggle */}
-          <div className="identify-toggle">
-            <button
-              type="button"
-              className={`toggle-btn ${identifyMethod === 'phone' ? 'active' : ''}`}
-              onClick={() => setIdentifyMethod('phone')}
-            >
-              전화번호
+        {mode !== 'verify' && (
+          <>
+            <button className="btn btn-google" onClick={handleGoogleLogin}>
+              <svg viewBox="0 0 24 24" width="20" height="20">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              Google로 계속하기
             </button>
-            <button
-              type="button"
-              className={`toggle-btn ${identifyMethod === 'birthdate' ? 'active' : ''}`}
-              onClick={() => setIdentifyMethod('birthdate')}
-            >
-              생년월일
-            </button>
-          </div>
 
-          {identifyMethod === 'phone' ? (
+            <div className="divider">
+              <span>또는</span>
+            </div>
+          </>
+        )}
+
+        {/* Login Form */}
+        {mode === 'login' && (
+          <form onSubmit={handleLogin}>
             <div className="form-group">
-              <label>전화번호</label>
+              <label>이메일</label>
               <input
-                type="tel"
-                name="phone"
-                value={formData.phone}
+                type="email"
+                name="email"
+                value={formData.email}
                 onChange={handleChange}
-                placeholder="010-1234-5678"
+                placeholder="your@email.com"
                 required
               />
             </div>
-          ) : (
             <div className="form-group">
-              <label>생년월일</label>
-              <input
-                type="date"
-                name="birthDate"
-                value={formData.birthDate}
-                onChange={handleChange}
-                required
-              />
-            </div>
-          )}
-
-          {mode === 'register' ? (
-            <>
-              <div className="form-group">
-                <label>검사키트 시리얼번호</label>
-                <input
-                  type="text"
-                  name="serialNumber"
-                  value={formData.serialNumber}
-                  onChange={handleChange}
-                  placeholder="SGT-2024-XXXXX-XXXX"
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>검사키트 PIN</label>
-                <input
-                  type="password"
-                  name="pin"
-                  value={formData.pin}
-                  onChange={handleChange}
-                  placeholder="6자리 PIN"
-                  maxLength={6}
-                  required
-                />
-              </div>
-            </>
-          ) : (
-            <div className="form-group">
-              <label>접속 PIN</label>
+              <label>비밀번호</label>
               <input
                 type="password"
-                name="accessPin"
-                value={formData.accessPin}
+                name="password"
+                value={formData.password}
                 onChange={handleChange}
-                placeholder="6자리 접속 PIN"
+                placeholder="비밀번호"
+                required
+              />
+            </div>
+            {error && <div className="error-message">{error}</div>}
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? '처리 중...' : '로그인'}
+            </button>
+          </form>
+        )}
+
+        {/* Register Step 1: Email input */}
+        {mode === 'register' && (
+          <form onSubmit={handleSendCode}>
+            <div className="form-group">
+              <label>이메일</label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                placeholder="your@email.com"
+                required
+              />
+            </div>
+            {error && <div className="error-message">{error}</div>}
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? '발송 중...' : '인증 코드 받기'}
+            </button>
+            <p className="info-text">
+              입력한 이메일로 6자리 인증 코드가 발송됩니다.
+            </p>
+          </form>
+        )}
+
+        {/* Register Step 2: Verify + Password */}
+        {mode === 'verify' && (
+          <form onSubmit={handleRegister}>
+            {message && <div className="success-message">{message}</div>}
+            <div className="form-group">
+              <label>이메일</label>
+              <input
+                type="email"
+                value={formData.email}
+                disabled
+                style={{ background: '#f5f5f5' }}
+              />
+            </div>
+            <div className="form-group">
+              <label>인증 코드</label>
+              <input
+                type="text"
+                name="verificationCode"
+                value={formData.verificationCode}
+                onChange={handleChange}
+                placeholder="6자리 인증 코드"
                 maxLength={6}
                 required
               />
             </div>
-          )}
-
-          {error && <div className="error-message">{error}</div>}
-
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={loading}
-          >
-            {loading ? '처리 중...' : mode === 'register' ? '회원가입' : '로그인'}
-          </button>
-        </form>
-
-        {mode === 'register' && (
-          <p className="info-text">
-            회원가입 시 검사키트의 시리얼번호와 PIN이 필요합니다.
-            <br />
-            검사 결과지에서 확인하실 수 있습니다.
-          </p>
+            <div className="form-group">
+              <label>비밀번호</label>
+              <input
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                placeholder="비밀번호 (4자 이상)"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>비밀번호 확인</label>
+              <input
+                type="password"
+                name="passwordConfirm"
+                value={formData.passwordConfirm}
+                onChange={handleChange}
+                placeholder="비밀번호 재입력"
+                required
+              />
+            </div>
+            {error && <div className="error-message">{error}</div>}
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? '처리 중...' : '회원가입 완료'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => { setMode('register'); setMessage(''); setError(''); }}
+            >
+              뒤로
+            </button>
+          </form>
         )}
-
-        {/* Test Account Info */}
-        <div className="test-account-box">
-          <div className="test-account-header">
-            <span className="test-badge">TEST</span>
-            <span>테스트 계정</span>
-          </div>
-          <div className="test-account-content">
-            <div className="test-row">
-              <span className="test-label">이름:</span>
-              <span className="test-value">김철수</span>
-            </div>
-            <div className="test-row">
-              <span className="test-label">전화번호:</span>
-              <span className="test-value">010-9999-8888</span>
-            </div>
-            <div className="test-row">
-              <span className="test-label">접속 PIN:</span>
-              <span className="test-value pin">715302</span>
-            </div>
-          </div>
-          <button
-            type="button"
-            className="btn-fill-test"
-            onClick={() => {
-              setMode('login');
-              setIdentifyMethod('phone');
-              setFormData({
-                ...formData,
-                name: '김철수',
-                phone: '010-9999-8888',
-                accessPin: '715302',
-              });
-            }}
-          >
-            테스트 계정으로 채우기
-          </button>
-        </div>
       </div>
 
       <style>{`
@@ -345,8 +274,9 @@ const LoginPage = () => {
           display: flex;
           justify-content: center;
           align-items: center;
-          min-height: 80vh;
+          min-height: 100vh;
           padding: 1rem;
+          background: #f8f9fa;
         }
 
         .login-card {
@@ -434,6 +364,17 @@ const LoginPage = () => {
           cursor: not-allowed;
         }
 
+        .btn-secondary {
+          background: white;
+          color: #666;
+          border: 1px solid #ddd;
+          margin-top: 0.5rem;
+        }
+
+        .btn-secondary:hover {
+          background: #f5f5f5;
+        }
+
         .divider {
           display: flex;
           align-items: center;
@@ -479,35 +420,21 @@ const LoginPage = () => {
           box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
         }
 
-        .identify-toggle {
-          display: flex;
-          gap: 0.5rem;
-          margin-bottom: 1rem;
-        }
-
-        .toggle-btn {
-          flex: 1;
-          padding: 0.5rem;
-          border: 1px solid #ddd;
-          border-radius: 6px;
-          background: white;
-          cursor: pointer;
-          font-size: 0.85rem;
-          transition: all 0.2s;
-        }
-
-        .toggle-btn.active {
-          border-color: #2196F3;
-          background: #E3F2FD;
-          color: #2196F3;
-        }
-
         .error-message {
           color: #d32f2f;
           background: #ffebee;
           padding: 0.75rem;
           border-radius: 6px;
-          margin-top: 1rem;
+          margin-top: 0.5rem;
+          font-size: 0.9rem;
+        }
+
+        .success-message {
+          color: #2e7d32;
+          background: #e8f5e9;
+          padding: 0.75rem;
+          border-radius: 6px;
+          margin-bottom: 1rem;
           font-size: 0.9rem;
         }
 
@@ -519,78 +446,6 @@ const LoginPage = () => {
           font-size: 0.8rem;
           color: #666;
           text-align: center;
-        }
-
-        .test-account-box {
-          margin-top: 1.5rem;
-          padding: 1rem;
-          background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
-          border: 1px solid #ffc107;
-          border-radius: 8px;
-        }
-
-        .test-account-header {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          margin-bottom: 0.75rem;
-          font-weight: 600;
-          color: #f57c00;
-        }
-
-        .test-badge {
-          background: #ff9800;
-          color: white;
-          padding: 0.2rem 0.5rem;
-          border-radius: 4px;
-          font-size: 0.7rem;
-          font-weight: bold;
-        }
-
-        .test-account-content {
-          background: white;
-          border-radius: 6px;
-          padding: 0.75rem;
-          margin-bottom: 0.75rem;
-        }
-
-        .test-row {
-          display: flex;
-          justify-content: space-between;
-          padding: 0.25rem 0;
-          font-size: 0.9rem;
-        }
-
-        .test-label {
-          color: #666;
-        }
-
-        .test-value {
-          font-weight: 500;
-          color: #333;
-        }
-
-        .test-value.pin {
-          font-family: monospace;
-          font-size: 1rem;
-          color: #d32f2f;
-          letter-spacing: 0.1rem;
-        }
-
-        .btn-fill-test {
-          width: 100%;
-          padding: 0.6rem;
-          background: #ff9800;
-          color: white;
-          border: none;
-          border-radius: 6px;
-          font-size: 0.85rem;
-          cursor: pointer;
-          transition: background 0.2s;
-        }
-
-        .btn-fill-test:hover {
-          background: #f57c00;
         }
       `}</style>
     </div>

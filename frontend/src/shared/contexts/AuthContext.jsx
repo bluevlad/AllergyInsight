@@ -57,7 +57,41 @@ export const AuthProvider = ({ children }) => {
     window.location.href = `${backendUrl}/api/auth/google/login`;
   };
 
-  // Simple registration
+  // Email verification code
+  const sendVerificationCode = async (data) => {
+    try {
+      const response = await authApi.sendVerificationCode(data);
+      return { success: true, message: response.message };
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  // Email registration (verify + set password)
+  const registerEmail = async (data) => {
+    try {
+      const response = await authApi.registerEmail(data);
+      localStorage.setItem('access_token', response.access_token);
+      setUser(response.user);
+      return { success: true, user: response.user };
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  // Email + password login
+  const loginEmail = async (data) => {
+    try {
+      const response = await authApi.loginEmail(data);
+      localStorage.setItem('access_token', response.access_token);
+      setUser(response.user);
+      return { success: true, user: response.user };
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  // Legacy: Simple registration
   const registerSimple = async (data) => {
     try {
       const response = await authApi.registerSimple(data);
@@ -66,21 +100,18 @@ export const AuthProvider = ({ children }) => {
       setAccessPin(response.access_pin);
       return { success: true, accessPin: response.access_pin };
     } catch (error) {
-      console.error('Registration failed:', error);
       throw error;
     }
   };
 
-  // Simple login
+  // Legacy: Simple login
   const loginSimple = async (data) => {
     try {
       const response = await authApi.loginSimple(data);
       localStorage.setItem('access_token', response.access_token);
       setUser(response.user);
-      // 로그인한 사용자 정보 반환 (상태 업데이트 전에 리다이렉트 결정을 위해)
       return { success: true, user: response.user };
     } catch (error) {
-      console.error('Login failed:', error);
       throw error;
     }
   };
@@ -161,6 +192,9 @@ export const AuthProvider = ({ children }) => {
     isConsumer,
     getDefaultApp,
     loginWithGoogle,
+    sendVerificationCode,
+    registerEmail,
+    loginEmail,
     registerSimple,
     loginSimple,
     loginAdmin,
