@@ -180,6 +180,37 @@ const LoginPage = () => {
             <button type="submit" className="btn btn-primary" disabled={loading}>
               {loading ? '처리 중...' : '로그인'}
             </button>
+
+            {/* 테스트 계정 안내 */}
+            <div className="test-account-box">
+              <div className="test-account-header">
+                <span className="test-badge">TEST</span>
+                <span>테스트 계정</span>
+              </div>
+              <div className="test-account-content">
+                <div className="test-row">
+                  <span className="test-label">이메일:</span>
+                  <span className="test-value">kincs@unmong.com</span>
+                </div>
+                <div className="test-row">
+                  <span className="test-label">비밀번호:</span>
+                  <span className="test-value pw">123456</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn-fill-test"
+                onClick={() => {
+                  setFormData(prev => ({
+                    ...prev,
+                    email: 'kincs@unmong.com',
+                    password: '123456',
+                  }));
+                }}
+              >
+                테스트 계정으로 채우기
+              </button>
+            </div>
           </form>
         )}
 
@@ -446,6 +477,78 @@ const LoginPage = () => {
           font-size: 0.8rem;
           color: #666;
           text-align: center;
+        }
+
+        .test-account-box {
+          margin-top: 1.5rem;
+          padding: 1rem;
+          background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
+          border: 1px solid #ffc107;
+          border-radius: 8px;
+        }
+
+        .test-account-header {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          margin-bottom: 0.75rem;
+          font-weight: 600;
+          color: #f57c00;
+        }
+
+        .test-badge {
+          background: #ff9800;
+          color: white;
+          padding: 0.2rem 0.5rem;
+          border-radius: 4px;
+          font-size: 0.7rem;
+          font-weight: bold;
+        }
+
+        .test-account-content {
+          background: white;
+          border-radius: 6px;
+          padding: 0.75rem;
+          margin-bottom: 0.75rem;
+        }
+
+        .test-row {
+          display: flex;
+          justify-content: space-between;
+          padding: 0.25rem 0;
+          font-size: 0.9rem;
+        }
+
+        .test-label {
+          color: #666;
+        }
+
+        .test-value {
+          font-weight: 500;
+          color: #333;
+        }
+
+        .test-value.pw {
+          font-family: monospace;
+          font-size: 1rem;
+          color: #d32f2f;
+          letter-spacing: 0.1rem;
+        }
+
+        .btn-fill-test {
+          width: 100%;
+          padding: 0.6rem;
+          background: #ff9800;
+          color: white;
+          border: none;
+          border-radius: 6px;
+          font-size: 0.85rem;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+
+        .btn-fill-test:hover {
+          background: #f57c00;
         }
       `}</style>
     </div>

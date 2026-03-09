@@ -14,10 +14,10 @@ from app.database.connection import SessionLocal
 
 DEFAULT_PASSWORD = "dnflskfk"
 
-# 특정 사용자별 비밀번호 설정
-SPECIAL_PASSWORDS = {
-    "홍길동": "123456",
-    "김철수": "123456",
+# 특정 사용자별 비밀번호 및 이메일 설정
+SPECIAL_USERS = {
+    "홍길동": {"password": "123456", "email": "hongkd@unmong.com"},
+    "김철수": {"password": "123456", "email": "kincs@unmong.com"},
 }
 
 
@@ -31,15 +31,15 @@ def migrate():
         db.commit()
         print("[OK] password_hash 컬럼 확인/추가 완료")
 
-        # 2. 특정 사용자 비밀번호 개별 설정
-        for name, password in SPECIAL_PASSWORDS.items():
-            pw_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+        # 2. 특정 사용자 비밀번호 및 이메일 개별 설정
+        for name, info in SPECIAL_USERS.items():
+            pw_hash = bcrypt.hashpw(info["password"].encode(), bcrypt.gensalt()).decode()
             result = db.execute(text("""
-                UPDATE users SET password_hash = :password_hash
+                UPDATE users SET password_hash = :password_hash, email = :email
                 WHERE name = :name
-            """), {"password_hash": pw_hash, "name": name})
+            """), {"password_hash": pw_hash, "email": info["email"], "name": name})
             if result.rowcount > 0:
-                print(f"[OK] '{name}' 비밀번호 설정 완료")
+                print(f"[OK] '{name}' 비밀번호/이메일({info['email']}) 설정 완료")
             else:
                 print(f"[SKIP] '{name}' 사용자를 찾을 수 없음")
         db.commit()
