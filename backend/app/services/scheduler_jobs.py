@@ -1,9 +1,10 @@
 """스케줄러 Job 함수 모듈
 
-5개의 스케줄된 Job:
+6개의 스케줄된 Job:
 - job_daily_paper_search: 매일 02:00 KST 알레르겐 로테이션 논문 검색
 - job_newsletter_sync: 매일 03:00 KST AllergyNewsLetter DB 증분 동기화
 - job_korean_translation: 매일 04:00 KST 미번역 논문 한국어 번역
+- job_analytics_aggregation: 매일 05:00 KST 분석 집계 (알러젠 양성률 + 키워드 트렌드)
 - job_news_pipeline: 매일 07:00 KST 뉴스 수집 파이프라인 (수집→중복제거→AI분석)
 - job_newsletter_send: 매일 08:00 KST 구독자 뉴스레터 발송
 """
@@ -410,6 +411,49 @@ def job_news_pipeline(trigger_type: str = "scheduled") -> None:
 # ============================================================================
 # Job 5: 뉴스레터 발송 (HealthPulse 통합)
 # ============================================================================
+
+def job_analytics_aggregation(trigger_type: str = "scheduled") -> None:
+    """월별 알러젠 양성률 집계 + 키워드 트렌드 추출
+
+    AnalyticsService.aggregate_all_months()로 미집계 월을 집계하고,
+    KeywordTrendService.extract_all_months()로 키워드를 추출합니다.
+    """
+    db = SessionLocal()
+    log = _log_start(db, "analytics_aggregation", trigger_type)
+
+    try:
+        from .analytics_service import AnalyticsService
+        from .keyword_trend_service import KeywordTrendService
+
+        analytics_svc = AnalyticsService()
+        keyword_svc = KeywordTrendService()
+
+        # 1) 알러젠 양성률 집계
+        agg_results = analytics_svc.aggregate_all_months(db)
+        logger.info(f"[analytics_aggregation] 알러젠 집계: {len(agg_results)}개월 처리")
+
+        # 2) 키워드 트렌드 추출
+        kw_results = keyword_svc.extract_all_months(db)
+        logger.info(f"[analytics_aggregation] 키워드 추출: {len(kw_results)}개월 처리")
+
+        summary = {
+            "allergen_months_processed": len(agg_results),
+            "keyword_months_processed": len(kw_results),
+            "allergen_details": agg_results[:5] if agg_results else [],
+            "keyword_details": kw_results[:5] if kw_results else [],
+        }
+        _log_complete(db, log, summary)
+        logger.info(
+            f"[analytics_aggregation] 완료: 알러젠 {len(agg_results)}개월, "
+            f"키워드 {len(kw_results)}개월"
+        )
+
+    except Exception as e:
+        _log_fail(db, log, str(e))
+        logger.error(f"[analytics_aggregation] 실패: {e}")
+    finally:
+        db.close()
+
 
 def job_newsletter_send(trigger_type: str = "scheduled") -> None:
     """인증된 구독자에게 키워드 매칭 기반 뉴스레터 발송
