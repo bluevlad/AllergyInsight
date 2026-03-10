@@ -17,8 +17,8 @@ services:
       - JWT_ALGORITHM=HS256
       - JWT_EXPIRE_MINUTES=1440
       # URLs (for OAuth redirect)
-      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:4040}
-      - BACKEND_URL=${BACKEND_URL:-http://localhost:9040}
+      - FRONTEND_URL=${FRONTEND_URL:-https://insight.unmong.com}
+      - BACKEND_URL=${BACKEND_URL:-https://insight.unmong.com}
       # Existing
       - PUBMED_API_KEY=${PUBMED_API_KEY:-}
       - PUBMED_EMAIL=${PUBMED_EMAIL:-}
@@ -40,7 +40,7 @@ services:
       - GMAIL_ADDRESS=${GMAIL_ADDRESS:-}
       - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD:-}
       # Subscription
-      - SUBSCRIPTION_BASE_URL=${SUBSCRIPTION_BASE_URL:-http://localhost:4040/subscribe}
+      - SUBSCRIPTION_BASE_URL=${SUBSCRIPTION_BASE_URL:-https://insight.unmong.com/subscribe}
     volumes:
       - backend_downloads:/app/downloads
     networks:
@@ -77,7 +77,7 @@ services:
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
       - GMAIL_ADDRESS=${GMAIL_ADDRESS:-}
       - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD:-}
-      - SUBSCRIPTION_BASE_URL=${SUBSCRIPTION_BASE_URL:-http://localhost:4040/subscribe}
+      - SUBSCRIPTION_BASE_URL=${SUBSCRIPTION_BASE_URL:-https://insight.unmong.com/subscribe}
     depends_on:
       - backend
     networks:
