@@ -7,9 +7,12 @@ Never returns individual patient data or PII.
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from ..database.connection import get_db
 from ..database.models import User, UserDiagnosis, Paper
+from ..database.competitor_models import CompetitorNews, CompetitorCompany
 from ..services.analytics_service import AnalyticsService
 from ..services.keyword_trend_service import KeywordTrendService
 from ..services.insight_report_service import InsightReportService
@@ -163,3 +166,71 @@ def get_insight_detail(report_id: int, db: Session = Depends(get_db)):
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Report not found")
     return report
+
+
+# --- Public News (전일 수집 뉴스) ---
+
+@router.get("/news/recent")
+def get_recent_news(
+    days: int = Query(default=1, ge=1, le=7, description="최근 N일 뉴스"),
+    category: Optional[str] = Query(default=None, description="카테고리 필터"),
+    limit: int = Query(default=30, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    """최근 수집된 뉴스 목록 (공개, read-only). 중복 제외, 중요도순 정렬."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    query = (
+        db.query(CompetitorNews)
+        .join(CompetitorCompany, isouter=True)
+        .filter(
+            CompetitorNews.is_duplicate == False,
+            CompetitorNews.created_at >= cutoff,
+        )
+    )
+
+    if category:
+        query = query.filter(CompetitorNews.category == category)
+
+    news_items = query.order_by(
+        CompetitorNews.importance_score.desc().nullslast(),
+        CompetitorNews.published_at.desc().nullslast(),
+        CompetitorNews.created_at.desc(),
+    ).limit(limit).all()
+
+    items = []
+    for news in news_items:
+        items.append({
+            "id": news.id,
+            "title": news.title,
+            "description": news.description,
+            "url": news.url,
+            "source": news.source,
+            "company_code": news.company.code if news.company else None,
+            "company_name": news.company.name_kr if news.company else None,
+            "published_at": news.published_at.isoformat() if news.published_at else None,
+            "category": news.category,
+            "summary": news.summary,
+            "importance_score": news.importance_score,
+        })
+
+    # 카테고리별 건수
+    cat_counts_query = (
+        db.query(CompetitorNews.category, func.count(CompetitorNews.id))
+        .filter(
+            CompetitorNews.is_duplicate == False,
+            CompetitorNews.created_at >= cutoff,
+        )
+        .group_by(CompetitorNews.category)
+        .all()
+    )
+    by_category = {cat: cnt for cat, cnt in cat_counts_query}
+
+    total = sum(by_category.values())
+
+    return {
+        "items": items,
+        "total": total,
+        "by_category": by_category,
+        "days": days,
+    }

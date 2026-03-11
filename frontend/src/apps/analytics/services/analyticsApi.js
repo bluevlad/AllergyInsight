@@ -31,6 +31,8 @@ export const analyticsApi = {
   getInsightReports: (params) => api.get('/insights', { params }).then(r => r.data),
   getInsightAllergens: () => api.get('/insights/allergens').then(r => r.data),
   getInsightDetail: (reportId) => api.get(`/insights/${reportId}`).then(r => r.data),
+  // 최근 수집 뉴스
+  getRecentNews: (params) => api.get('/news/recent', { params }).then(r => r.data),
 };
 
 export default analyticsApi;
