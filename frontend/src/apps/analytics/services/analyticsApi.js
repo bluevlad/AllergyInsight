@@ -18,6 +18,7 @@ export const analyticsApi = {
   getKeywordsOverview: () => api.get('/keywords/overview').then(r => r.data),
   getKeywordTrend: (params) => api.get('/keywords/trend', { params }).then(r => r.data),
   getSummary: () => api.get('/summary').then(r => r.data),
+  getPaperStats: () => api.get('/papers/stats').then(r => r.data),
   // Insight Reports
   getInsightReports: (params) => api.get('/insights', { params }).then(r => r.data),
   getInsightAllergens: () => api.get('/insights/allergens').then(r => r.data),

@@ -68,6 +68,75 @@ def get_platform_summary(db: Session = Depends(get_db)):
     }
 
 
+@router.get("/papers/stats")
+def get_paper_collection_stats(db: Session = Depends(get_db)):
+    """Public paper collection statistics - aggregate counts only, no PII."""
+    from ..database.models import PaperAllergenLink
+
+    total = db.query(func.count(Paper.id)).scalar() or 0
+
+    # Source breakdown
+    source_rows = db.query(
+        Paper.source,
+        func.count(Paper.id),
+    ).group_by(Paper.source).all()
+    by_source = {(src or "unknown"): cnt for src, cnt in source_rows}
+
+    # Guideline count
+    guideline_count = db.query(func.count(Paper.id)).filter(
+        Paper.is_guideline == True
+    ).scalar() or 0
+
+    # Year distribution
+    year_rows = db.query(
+        Paper.year,
+        func.count(Paper.id),
+    ).filter(Paper.year.isnot(None)).group_by(Paper.year).order_by(Paper.year).all()
+    by_year = {str(yr): cnt for yr, cnt in year_rows}
+
+    # Top allergen links
+    allergen_rows = db.query(
+        PaperAllergenLink.allergen_code,
+        func.count(PaperAllergenLink.id),
+    ).group_by(PaperAllergenLink.allergen_code).order_by(
+        func.count(PaperAllergenLink.id).desc()
+    ).limit(15).all()
+    top_allergen_links = [
+        {"allergen_code": code, "paper_count": cnt}
+        for code, cnt in allergen_rows
+    ]
+
+    # Link type distribution
+    link_type_rows = db.query(
+        PaperAllergenLink.link_type,
+        func.count(PaperAllergenLink.id),
+    ).group_by(PaperAllergenLink.link_type).all()
+    by_link_type = {lt: cnt for lt, cnt in link_type_rows}
+
+    # Recent papers (10)
+    recent = db.query(Paper).order_by(Paper.created_at.desc()).limit(10).all()
+    recent_papers = [
+        {
+            "title": p.title,
+            "source": p.source,
+            "year": p.year,
+            "is_guideline": p.is_guideline,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+        }
+        for p in recent
+    ]
+
+    return {
+        "total": total,
+        "guideline_count": guideline_count,
+        "by_source": by_source,
+        "by_year": by_year,
+        "top_allergen_links": top_allergen_links,
+        "by_link_type": by_link_type,
+        "recent_papers": recent_papers,
+    }
+
+
 # --- Allergen Insight Reports ---
 
 @router.get("/insights")

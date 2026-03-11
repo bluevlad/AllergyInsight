@@ -6,10 +6,9 @@ import { NavLink } from 'react-router-dom';
 
 const AnalyticsNav = () => {
   const navItems = [
-    { to: '/analytics/dashboard', label: '대시보드', icon: '📊' },
-    { to: '/analytics/allergen-trends', label: '알러젠 트렌드', icon: '🧬' },
-    { to: '/analytics/keyword-trends', label: '키워드 트렌드', icon: '🔍' },
-    { to: '/analytics/insights', label: '연구 인사이트', icon: '💡' },
+    { to: '/analytics/allergen-analysis', label: '알러젠 분석', icon: '🧬' },
+    { to: '/analytics/paper-collection', label: '논문 수집정보', icon: '📄' },
+    { to: '/analytics/allergen-news', label: '알러젠뉴스 정보', icon: '📰' },
   ];
 
   return (
