@@ -395,9 +395,9 @@ const AllergenAnalysisPage = () => {
         /* 카테고리 섹션 */
         .aa-allergens-grid { margin-bottom: 2rem; }
         .aa-category-section { margin-bottom: 2rem; }
-        .aa-category-header { display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; color: white; font-size: 1rem; }
-        .aa-category-header.food { background: linear-gradient(135deg, #f39c12 0%, #d68910 100%); }
-        .aa-category-header.inhalant { background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); }
+        .aa-category-header { display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 1rem; font-weight: 700; }
+        .aa-category-header.food { background: #fef3e2; color: #b7791f; border-left: 4px solid #f39c12; }
+        .aa-category-header.inhalant { background: #e8f4fd; color: #1a5276; border-left: 4px solid #3498db; }
         .aa-cat-count { font-size: 0.875rem; font-weight: normal; opacity: 0.9; }
 
         /* 알러젠 카드 */
