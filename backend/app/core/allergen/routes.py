@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from . import (
     ALLERGEN_MASTER_DB,
+    ALLERGEN_PRESCRIPTION_DB,
     AllergenCategory,
     AllergenType,
     get_allergen_by_code,
@@ -35,6 +36,7 @@ class AllergenResponse(BaseModel):
     type: str
     description: Optional[str] = None
     note: Optional[str] = None
+    has_prescription: bool = False
 
 
 class AllergenListResponse(BaseModel):
@@ -65,15 +67,22 @@ def allergen_to_response(allergen: dict) -> AllergenResponse:
     """알러젠 딕셔너리를 응답 모델로 변환"""
     category = allergen.get("category")
     allergen_type = allergen.get("type")
+    code = allergen.get("code", "")
+    name_en = allergen.get("name_en", "")
+    has_prescription = (
+        code in ALLERGEN_PRESCRIPTION_DB or
+        name_en.lower().replace(" ", "_") in ALLERGEN_PRESCRIPTION_DB
+    )
 
     return AllergenResponse(
-        code=allergen.get("code", ""),
+        code=code,
         name_kr=allergen.get("name_kr", ""),
-        name_en=allergen.get("name_en", ""),
+        name_en=name_en,
         category=category.value if hasattr(category, 'value') else str(category),
         type=allergen_type.value if hasattr(allergen_type, 'value') else str(allergen_type),
         description=allergen.get("description"),
         note=allergen.get("note"),
+        has_prescription=has_prescription,
     )
 
 

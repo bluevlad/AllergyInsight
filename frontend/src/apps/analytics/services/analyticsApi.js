@@ -12,9 +12,17 @@ const api = axios.create({
   baseURL: `${API_BASE}/api/public/analytics`,
 });
 
+const allergenApi = axios.create({
+  baseURL: `${API_BASE}/api/allergens`,
+});
+
 export const analyticsApi = {
   getOverview: () => api.get('/overview').then(r => r.data),
   getAllergenTrend: (allergenCode, limit = 12) => api.get(`/trend/${allergenCode}`, { params: { limit } }).then(r => r.data),
+  // 알러젠 마스터 데이터
+  getAllergenList: (params) => allergenApi.get('/', { params }).then(r => r.data),
+  getAllergenDetail: (code) => allergenApi.get(`/${code}`).then(r => r.data),
+  getAllergenCategories: () => allergenApi.get('/categories').then(r => r.data),
   getKeywordsOverview: () => api.get('/keywords/overview').then(r => r.data),
   getKeywordTrend: (params) => api.get('/keywords/trend', { params }).then(r => r.data),
   getSummary: () => api.get('/summary').then(r => r.data),
