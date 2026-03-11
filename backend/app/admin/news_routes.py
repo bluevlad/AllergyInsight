@@ -419,7 +419,7 @@ async def get_scheduler_status(
     current_user: User = Depends(require_super_admin),
 ):
     """스케줄러 상태 조회"""
-    from ..api.main import get_scheduler_service
+    from ..services.scheduler_service import get_scheduler_service
 
     scheduler = get_scheduler_service()
     if scheduler is None:
@@ -442,7 +442,7 @@ async def trigger_scheduler(
     current_user: User = Depends(require_super_admin),
 ):
     """스케줄러 즉시 실행"""
-    from ..api.main import get_scheduler_service
+    from ..services.scheduler_service import get_scheduler_service
 
     scheduler = get_scheduler_service()
     if scheduler is None:
@@ -468,7 +468,7 @@ async def update_scheduler_config(
     current_user: User = Depends(require_super_admin),
 ):
     """스케줄러 설정 변경 (통합 스케줄러에서는 환경변수 기반으로 동작)"""
-    from ..api.main import get_scheduler_service
+    from ..services.scheduler_service import get_scheduler_service
 
     scheduler = get_scheduler_service()
     if scheduler is None:

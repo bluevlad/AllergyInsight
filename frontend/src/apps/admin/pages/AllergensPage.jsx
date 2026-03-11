@@ -254,15 +254,19 @@ const AllergensPage = () => {
           padding: 0.75rem 1rem;
           border-radius: 8px;
           margin-bottom: 1rem;
-          color: white;
+          font-weight: 700;
         }
 
         .category-header.food {
-          background: linear-gradient(135deg, #f39c12 0%, #d68910 100%);
+          background: #fef3e2;
+          color: #b7791f;
+          border-left: 4px solid #f39c12;
         }
 
         .category-header.inhalant {
-          background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+          background: #e8f4fd;
+          color: #1a5276;
+          border-left: 4px solid #3498db;
         }
 
         .category-header .count {

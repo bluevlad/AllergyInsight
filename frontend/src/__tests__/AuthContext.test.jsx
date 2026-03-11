@@ -12,9 +12,13 @@ import { authApi } from '../shared/services/api';
 jest.mock('../shared/services/api', () => ({
   authApi: {
     getMe: jest.fn(),
+    sendVerificationCode: jest.fn(),
+    registerEmail: jest.fn(),
+    loginEmail: jest.fn(),
     loginSimple: jest.fn(),
     registerSimple: jest.fn(),
     registerKit: jest.fn(),
+    loginAdmin: jest.fn(),
     logout: jest.fn(),
   },
 }));

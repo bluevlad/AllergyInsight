@@ -22,10 +22,13 @@ class User(Base):
     google_id = Column(String(255), unique=True, nullable=True)
     profile_image = Column(String(500), nullable=True)
 
-    # Simple registration fields
-    phone = Column(String(20), nullable=True)  # Hashed
+    # Password auth fields
+    password_hash = Column(String(255), nullable=True)  # For email+password login
+
+    # Simple registration fields (legacy)
+    phone = Column(String(20), nullable=True)
     birth_date = Column(Date, nullable=True)
-    access_pin_hash = Column(String(255), nullable=True)  # For simple login
+    access_pin_hash = Column(String(255), nullable=True)  # Legacy: simple login PIN
 
     # Role: 확장된 역할 체계 지원
     # 'patient', 'doctor', 'nurse', 'lab_tech', 'hospital_admin', 'super_admin'

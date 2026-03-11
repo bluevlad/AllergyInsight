@@ -3,6 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 > 상위 `C:/GIT/CLAUDE.md`의 Git-First Workflow를 상속합니다.
+> 도메인/URL/포트 규칙: [Claude-Opus-bluevlad/standards/infrastructure/DOMAIN_MANAGEMENT.md](https://github.com/bluevlad/Claude-Opus-bluevlad/blob/main/standards/infrastructure/DOMAIN_MANAGEMENT.md) — `https://도메인:포트` 사용 금지
 
 ## Project Overview
 

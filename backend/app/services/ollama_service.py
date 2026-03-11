@@ -139,6 +139,183 @@ class OllamaService:
             "category": self.classify(title, description),
         }
 
+    # --- 알러젠 인사이트 분석 기능 ---
+
+    KNOWN_ALLERGENS = [
+        "peanut", "milk", "egg", "wheat", "soy", "fish", "shrimp", "crab",
+        "peach", "walnut", "pine_nut", "sesame", "buckwheat", "tomato",
+        "pork", "chicken", "beef", "squid", "mussel", "abalone",
+        "dust_mite", "dog", "cat", "cockroach", "mold",
+        "cedar", "birch", "ragweed", "grass", "mugwort",
+    ]
+
+    def extract_allergens(self, title: str, description: str) -> list[dict]:
+        """뉴스/논문에서 알러젠 코드 + 카테고리 추출"""
+        allergen_list = ", ".join(self.KNOWN_ALLERGENS)
+        prompt = (
+            "다음 기사에서 관련된 알러젠과 내용 카테고리를 JSON 배열로 추출하세요.\n"
+            f"알러젠 목록: {allergen_list}\n"
+            "카테고리: treatment, epidemiology, diagnosis_method, regulation, research\n"
+            "관련 알러젠이 없으면 빈 배열 []을 반환하세요.\n\n"
+            f"제목: {title}\n"
+            f"내용: {description or '(내용 없음)'}\n\n"
+            '응답 형식(JSON만): [{"allergen": "peanut", "category": "treatment", "relevance": 0.8}]'
+        )
+
+        result = self._chat(prompt)
+        if result:
+            try:
+                import json
+                # JSON 배열 부분 추출
+                start = result.find("[")
+                end = result.rfind("]") + 1
+                if start >= 0 and end > start:
+                    items = json.loads(result[start:end])
+                    valid = []
+                    for item in items:
+                        code = item.get("allergen", "")
+                        if code in self.KNOWN_ALLERGENS:
+                            valid.append({
+                                "allergen": code,
+                                "category": item.get("category", "research"),
+                                "relevance": max(0.0, min(1.0, float(item.get("relevance", 0.5)))),
+                            })
+                    return valid
+            except (ValueError, KeyError):
+                pass
+
+        # Fallback: 키워드 매칭
+        return self._keyword_allergen_extract(title, description)
+
+    def _keyword_allergen_extract(self, title: str, description: str) -> list[dict]:
+        """키워드 기반 알러젠 추출 (fallback)"""
+        text = f"{title} {description or ''}".lower()
+        allergen_kr = {
+            "peanut": ["땅콩", "peanut"], "milk": ["우유", "유제품", "milk", "dairy"],
+            "egg": ["계란", "달걀", "egg"], "wheat": ["밀", "글루텐", "wheat", "gluten"],
+            "soy": ["대두", "콩", "soy"], "shrimp": ["새우", "shrimp"],
+            "crab": ["게", "crab"], "fish": ["생선", "어류", "fish"],
+            "peach": ["복숭아", "peach"], "walnut": ["호두", "walnut"],
+            "dust_mite": ["집먼지진드기", "dust mite"], "dog": ["개", "반려견", "dog"],
+            "cat": ["고양이", "cat"], "mold": ["곰팡이", "mold"],
+            "cedar": ["삼나무", "cedar"], "birch": ["자작나무", "birch"],
+            "ragweed": ["돼지풀", "ragweed"],
+        }
+        found = []
+        for code, keywords in allergen_kr.items():
+            for kw in keywords:
+                if kw in text:
+                    found.append({"allergen": code, "category": "research", "relevance": 0.5})
+                    break
+        return found
+
+    def generate_insight_report(self, allergen_code: str, sources: list[dict]) -> dict | None:
+        """알러젠별 인사이트 리포트 생성
+
+        Args:
+            allergen_code: 알러젠 코드
+            sources: [{"type": "paper"|"news", "title": str, "abstract": str}]
+
+        Returns:
+            {"title": str, "content": str, "key_findings": list, "treatment_score": int}
+        """
+        if not sources:
+            return None
+
+        # 소스 텍스트 구성 (최대 15개)
+        source_texts = []
+        for i, s in enumerate(sources[:15], 1):
+            src_type = "논문" if s["type"] == "paper" else "뉴스"
+            abstract = (s.get("abstract") or "")[:300]
+            source_texts.append(f"{i}. [{src_type}] {s['title']}\n   {abstract}")
+
+        sources_block = "\n".join(source_texts)
+
+        prompt = (
+            f"당신은 알러지 전문 분석가입니다. 아래는 '{allergen_code}' 알러젠 관련 최근 논문/뉴스입니다.\n"
+            f"이 자료들을 종합 분석하여 다음 형식으로 보고서를 작성하세요.\n\n"
+            f"=== 자료 ===\n{sources_block}\n\n"
+            "=== 보고서 형식 ===\n"
+            "1. 제목: 한 줄로 작성\n"
+            "2. 본문: 마크다운 형식으로 아래 3개 섹션을 포함\n"
+            "   ## 최근 연구 동향\n"
+            "   ## 치료법 발전 현황\n"
+            "   ## 주목할 발견\n"
+            "3. 핵심 발견: 3-5개 항목을 | 로 구분\n"
+            "4. 치료 발전도: 0-100 사이 숫자 (최근 자료 기준 치료 관련 진전 정도)\n\n"
+            "응답 형식:\n"
+            "TITLE: (제목)\n"
+            "CONTENT:\n(마크다운 본문)\n"
+            "FINDINGS: (발견1|발견2|발견3)\n"
+            "SCORE: (숫자)"
+        )
+
+        result = self._chat_long(prompt)
+        if not result:
+            return None
+
+        return self._parse_insight_response(result, allergen_code)
+
+    def _chat_long(self, prompt: str) -> str | None:
+        """긴 응답용 Ollama 호출 (num_predict 확장)"""
+        client = self._get_client()
+        if not client or not self._available:
+            return None
+
+        try:
+            response = client.chat(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                options={"temperature": 0.4, "num_predict": 2000},
+            )
+            return response["message"]["content"].strip()
+        except Exception as e:
+            logger.warning(f"Ollama 긴 응답 호출 실패: {e}")
+            return None
+
+    def _parse_insight_response(self, response: str, allergen_code: str) -> dict:
+        """인사이트 리포트 응답 파싱"""
+        title = f"{allergen_code} 알러젠 월간 분석 리포트"
+        content = response
+        key_findings = []
+        treatment_score = 50
+
+        lines = response.split("\n")
+        content_start = -1
+        findings_line = ""
+
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith("TITLE:"):
+                title = stripped.replace("TITLE:", "").strip()
+            elif stripped == "CONTENT:":
+                content_start = i + 1
+            elif stripped.startswith("FINDINGS:"):
+                findings_line = stripped.replace("FINDINGS:", "").strip()
+                if content_start >= 0:
+                    content = "\n".join(lines[content_start:i]).strip()
+            elif stripped.startswith("SCORE:"):
+                try:
+                    score_text = stripped.replace("SCORE:", "").strip()
+                    treatment_score = int(float(score_text.split()[0]))
+                    treatment_score = max(0, min(100, treatment_score))
+                except (ValueError, IndexError):
+                    pass
+
+        if findings_line:
+            key_findings = [f.strip() for f in findings_line.split("|") if f.strip()]
+
+        if content_start >= 0 and not key_findings:
+            # FINDINGS 라인을 찾지 못한 경우 content는 CONTENT: 이후 전체
+            content = "\n".join(lines[content_start:]).strip()
+
+        return {
+            "title": title,
+            "content": content,
+            "key_findings": key_findings[:5],
+            "treatment_score": treatment_score,
+        }
+
     def _keyword_importance(self, title: str, description: str) -> float:
         """키워드 기반 중요도 (fallback)"""
         text = f"{title} {description or ''}".lower()

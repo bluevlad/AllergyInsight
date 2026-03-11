@@ -15,7 +15,26 @@ export const authApi = {
   // 로그아웃
   logout: () => apiClient.post('/auth/logout'),
 
-  // 간편 등록
+  // 이메일 인증코드 발송
+  sendVerificationCode: (data) => apiClient.post('/auth/email/send-code', {
+    email: data.email,
+    name: data.name || '',
+  }),
+
+  // 이메일 회원가입 (인증코드 확인 + 비밀번호 설정)
+  registerEmail: (data) => apiClient.post('/auth/email/register', {
+    email: data.email,
+    code: data.code,
+    password: data.password,
+  }),
+
+  // 이메일 + 비밀번호 로그인
+  loginEmail: (data) => apiClient.post('/auth/email/login', {
+    email: data.email,
+    password: data.password,
+  }),
+
+  // Legacy: 간편 등록 (deprecated)
   registerSimple: (data) => apiClient.post('/auth/simple/register', {
     name: data.name,
     phone: data.phone || null,
@@ -24,11 +43,17 @@ export const authApi = {
     pin: data.pin,
   }),
 
-  // 간편 로그인
+  // Legacy: 간편 로그인 (deprecated)
   loginSimple: (data) => apiClient.post('/auth/simple/login', {
     name: data.name,
     birth_date: data.birthDate || null,
     phone: data.phone || null,
+    access_pin: data.accessPin,
+  }),
+
+  // 관리자 로그인 (이름 + PIN)
+  loginAdmin: (data) => apiClient.post('/auth/admin/login', {
+    name: data.name,
     access_pin: data.accessPin,
   }),
 

@@ -125,7 +125,51 @@ const PapersPage = () => {
                   {paper.year && (
                     <span className="year">{paper.year}</span>
                   )}
+                  {paper.created_at && (
+                    <span className="collected">수집: {formatDateTime(paper.created_at)}</span>
+                  )}
                 </div>
+
+                {/* 원본 링크 */}
+                {(paper.pmid || paper.doi || paper.url) && (
+                  <div className="paper-links">
+                    {paper.pmid && (
+                      <a href={`https://pubmed.ncbi.nlm.nih.gov/${paper.pmid}`} target="_blank" rel="noopener noreferrer" className="link-btn pubmed">
+                        PubMed
+                      </a>
+                    )}
+                    {paper.doi && (
+                      <a href={`https://doi.org/${paper.doi}`} target="_blank" rel="noopener noreferrer" className="link-btn doi">
+                        DOI
+                      </a>
+                    )}
+                    {paper.url && !paper.pmid && !paper.doi && (
+                      <a href={paper.url} target="_blank" rel="noopener noreferrer" className="link-btn url">
+                        원본 보기
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {/* 수집 근거 */}
+                {(paper.collection_reason || (paper.allergen_links && paper.allergen_links.length > 0)) && (
+                  <div className="paper-collection-info">
+                    {paper.allergen_links && paper.allergen_links.length > 0 && (
+                      <div className="allergen-tags">
+                        {paper.allergen_links.map((link, idx) => (
+                          <span key={idx} className={`allergen-tag ${link.link_type}`}>
+                            {link.allergen_name || link.allergen_code}
+                            <span className="link-type">{getLinkTypeName(link.link_type)}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {paper.collection_reason && (
+                      <div className="collection-reason">{paper.collection_reason}</div>
+                    )}
+                  </div>
+                )}
+
                 <div className="paper-actions">
                   <button
                     onClick={() => handleDelete(paper.id)}
@@ -295,6 +339,113 @@ const PapersPage = () => {
           content: '📅';
         }
 
+        .collected {
+          color: #999;
+          font-size: 0.8rem;
+        }
+
+        .collected::before {
+          content: '🕐';
+        }
+
+        .paper-links {
+          display: flex;
+          gap: 0.5rem;
+          margin-bottom: 0.75rem;
+        }
+
+        .link-btn {
+          display: inline-block;
+          padding: 0.25rem 0.625rem;
+          border-radius: 4px;
+          font-size: 0.75rem;
+          font-weight: 500;
+          text-decoration: none;
+          transition: opacity 0.2s;
+        }
+
+        .link-btn:hover {
+          opacity: 0.8;
+        }
+
+        .link-btn.pubmed {
+          background: #1a5276;
+          color: white;
+        }
+
+        .link-btn.doi {
+          background: #f39c12;
+          color: white;
+        }
+
+        .link-btn.url {
+          background: #7f8c8d;
+          color: white;
+        }
+
+        .paper-collection-info {
+          background: #f8f9fa;
+          border-radius: 6px;
+          padding: 0.625rem 0.875rem;
+          margin-bottom: 0.75rem;
+          border-left: 3px solid #667eea;
+        }
+
+        .allergen-tags {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.375rem;
+          margin-bottom: 0.375rem;
+        }
+
+        .allergen-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.25rem;
+          padding: 0.2rem 0.5rem;
+          border-radius: 12px;
+          font-size: 0.7rem;
+          font-weight: 500;
+          background: #e8eaf6;
+          color: #283593;
+        }
+
+        .allergen-tag.cross_reactivity {
+          background: #fce4ec;
+          color: #c62828;
+        }
+
+        .allergen-tag.symptom {
+          background: #fff3e0;
+          color: #e65100;
+        }
+
+        .allergen-tag.dietary {
+          background: #e8f5e9;
+          color: #2e7d32;
+        }
+
+        .allergen-tag.emergency {
+          background: #ffebee;
+          color: #b71c1c;
+        }
+
+        .allergen-tag .link-type {
+          font-size: 0.625rem;
+          opacity: 0.75;
+        }
+
+        .allergen-tag .link-type::before {
+          content: '·';
+          margin-right: 0.125rem;
+        }
+
+        .collection-reason {
+          font-size: 0.75rem;
+          color: #666;
+          line-height: 1.4;
+        }
+
         .paper-actions {
           display: flex;
           justify-content: flex-end;
@@ -346,6 +497,12 @@ const PapersPage = () => {
   );
 };
 
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('ko-KR') + ' ' + d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+};
+
 const getSourceName = (source) => {
   const sources = {
     pubmed: 'PubMed',
@@ -353,6 +510,19 @@ const getSourceName = (source) => {
     manual: '직접 입력',
   };
   return sources[source] || source;
+};
+
+const getLinkTypeName = (type) => {
+  const types = {
+    symptom: '증상',
+    dietary: '식이',
+    cross_reactivity: '교차반응',
+    substitute: '대체식품',
+    emergency: '응급',
+    management: '관리',
+    general: '일반',
+  };
+  return types[type] || type;
 };
 
 export default PapersPage;
