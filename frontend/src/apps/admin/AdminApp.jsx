@@ -18,7 +18,7 @@ import AllergensPage from './pages/AllergensPage';
 import PapersPage from './pages/PapersPage';
 import OrganizationsPage from './pages/OrganizationsPage';
 import CompetitorNewsPage from './pages/CompetitorNewsPage';
-// AnalyticsPage는 공개 /analytics 페이지로 대체됨
+// AnalyticsPage는 각 관리 메뉴 탭으로 분산 배치됨
 
 const AdminLoginForm = () => {
   const { loginAdmin } = useAuth();
@@ -212,9 +212,6 @@ const AdminApp = () => {
 
           {/* Competitor News */}
           <Route path="/news" element={<CompetitorNewsPage />} />
-
-          {/* Analytics - 공개 페이지로 리다이렉트 */}
-          <Route path="/analytics" element={<Navigate to="/analytics" replace />} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/admin" replace />} />

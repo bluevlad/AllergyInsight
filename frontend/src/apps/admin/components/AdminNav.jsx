@@ -15,32 +15,20 @@ const AdminNav = () => {
     { to: '/admin/papers', label: '논문 관리', icon: '📄' },
     { to: '/admin/organizations', label: '조직 관리', icon: '🏥' },
     { to: '/admin/news', label: '경쟁사 뉴스', icon: '📰' },
-    { to: '/analytics', label: '분석/통계', icon: '📈', external: true },
   ];
 
   return (
     <nav className="nav admin-nav">
       <div className="nav-links">
         {navItems.map((item) => (
-          item.external ? (
-            <a
-              key={item.to}
-              href={item.to}
-              className="nav-link"
-            >
-              <span className="nav-icon">{item.icon}</span>
-              <span className="nav-label">{item.label}</span>
-            </a>
-          ) : (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
-              <span className="nav-icon">{item.icon}</span>
-              <span className="nav-label">{item.label}</span>
-            </NavLink>
-          )
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+          >
+            <span className="nav-icon">{item.icon}</span>
+            <span className="nav-label">{item.label}</span>
+          </NavLink>
         ))}
       </div>
 
