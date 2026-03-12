@@ -1,16 +1,19 @@
 /**
  * Admin Login Page - Purple themed admin-specific login
  *
- * Provides Google OAuth and name + accessPin login for administrators.
+ * Provides Google OAuth (ID 토큰 방식) and email + password login for administrators.
  * Redirects to /admin on success, shows error if not super_admin.
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../shared/contexts/AuthContext';
 
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
 const AdminLoginPage = () => {
   const navigate = useNavigate();
-  const { loginWithGoogle, loginEmail, user, isSuperAdmin, isAdmin } = useAuth();
+  const { verifyGoogleToken, loginEmail, user, isSuperAdmin, isAdmin } = useAuth();
+  const googleBtnRef = useRef(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -57,14 +60,46 @@ const AdminLoginPage = () => {
     );
   }
 
+  // Google Identity Services 초기화
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID || !window.google?.accounts) return;
+
+    window.google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleGoogleCredential,
+    });
+
+    if (googleBtnRef.current) {
+      window.google.accounts.id.renderButton(
+        googleBtnRef.current,
+        { theme: 'outline', size: 'large', width: '100%', text: 'signin_with', locale: 'ko' }
+      );
+    }
+  }, []);
+
+  const handleGoogleCredential = async (response) => {
+    setLoading(true);
+    setError('');
+    try {
+      const result = await verifyGoogleToken(response.credential);
+      const role = result.user?.role;
+      if (role === 'super_admin' || role === 'admin') {
+        navigate('/admin', { replace: true });
+      } else {
+        setError('관리자 권한이 필요합니다');
+      }
+    } catch (err) {
+      const detail = err.response?.data?.detail || 'Google 로그인에 실패했습니다.';
+      setError(detail);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     setError('');
-  };
-
-  const handleGoogleLogin = () => {
-    loginWithGoogle();
   };
 
   const handleLogin = async (e) => {
@@ -103,16 +138,8 @@ const AdminLoginPage = () => {
         <h1 className="admin-login-title">AllergyInsight 관리자</h1>
         <p className="admin-login-subtitle">관리자 전용 로그인</p>
 
-        {/* Google OAuth */}
-        <button className="admin-btn admin-btn-google" onClick={handleGoogleLogin}>
-          <svg viewBox="0 0 24 24" width="20" height="20">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-          </svg>
-          Google 계정으로 로그인
-        </button>
+        {/* Google OAuth (ID 토큰 방식) */}
+        <div ref={googleBtnRef} className="admin-google-btn-wrapper" />
 
         <div className="admin-login-divider">
           <span>또는</span>
@@ -227,15 +254,9 @@ const adminStyles = `
     font-weight: 500;
   }
 
-  .admin-btn-google {
-    background: white;
-    border: 1px solid #ddd;
-    color: #333;
-  }
-
-  .admin-btn-google:hover {
-    background: #f8f8f8;
-    border-color: #bbb;
+  .admin-google-btn-wrapper {
+    display: flex;
+    justify-content: center;
   }
 
   .admin-btn-primary {

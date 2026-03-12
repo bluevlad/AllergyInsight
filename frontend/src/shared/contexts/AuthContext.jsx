@@ -51,10 +51,16 @@ export const AuthProvider = ({ children }) => {
     checkAuth();
   }, [checkAuth]);
 
-  // Google login redirect
-  const loginWithGoogle = () => {
-    const backendUrl = import.meta.env.VITE_API_URL || '';
-    window.location.href = `${backendUrl}/api/auth/google/login`;
+  // Google ID 토큰 검증 후 로그인
+  const verifyGoogleToken = async (credential) => {
+    try {
+      const response = await authApi.verifyGoogleToken(credential);
+      localStorage.setItem('access_token', response.access_token);
+      setUser(response.user);
+      return { success: true, user: response.user };
+    } catch (error) {
+      throw error;
+    }
   };
 
   // Email verification code
@@ -191,7 +197,7 @@ export const AuthProvider = ({ children }) => {
     isHospitalStaff,
     isConsumer,
     getDefaultApp,
-    loginWithGoogle,
+    verifyGoogleToken,
     sendVerificationCode,
     registerEmail,
     loginEmail,

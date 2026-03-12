@@ -11,6 +11,10 @@ RUN npm ci
 # 소스 복사
 COPY . .
 
+# Build-time 환경변수 (Google OAuth)
+ARG VITE_GOOGLE_CLIENT_ID
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+
 # 빌드
 RUN npm run build
 

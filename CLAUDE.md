@@ -30,7 +30,7 @@ AllergyInsight - 알러지 연구 논문 검색/분석 플랫폼 (PubMed/Semanti
 | Vector DB | ChromaDB |
 | AI | OpenAI API (GPT), tiktoken |
 | PDF | PyMuPDF, pdfplumber |
-| Auth | python-jose (JWT), passlib (bcrypt), Authlib (OAuth) |
+| Auth | PyJWT (JWT), passlib (bcrypt), google-auth (ID 토큰 검증) |
 | HTTP Client | httpx, aiohttp, requests |
 | RSS | feedparser |
 | Config | Pydantic + python-dotenv |
@@ -127,10 +127,8 @@ DATABASE_URL=           # PostgreSQL 연결
 JWT_SECRET_KEY=         # JWT 서명 (필수)
 JWT_ALGORITHM=HS256
 JWT_EXPIRE_MINUTES=1440
-GOOGLE_CLIENT_ID=       # Google OAuth
-GOOGLE_CLIENT_SECRET=
-FRONTEND_URL=           # CORS/OAuth 리다이렉트
-BACKEND_URL=
+GOOGLE_CLIENT_ID=       # Google OAuth (ID 토큰 방식, CLIENT_SECRET 불필요)
+SUPER_ADMIN_EMAILS=     # Super Admin 이메일 (콤마 구분)
 PUBMED_API_KEY=         # PubMed API
 PUBMED_EMAIL=
 SEMANTIC_SCHOLAR_API_KEY=

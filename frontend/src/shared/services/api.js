@@ -15,6 +15,9 @@ export const authApi = {
   // 로그아웃
   logout: () => apiClient.post('/auth/logout'),
 
+  // Google ID 토큰 검증
+  verifyGoogleToken: (credential) => apiClient.post('/auth/google/verify', { credential }),
+
   // 이메일 인증코드 발송
   sendVerificationCode: (data) => apiClient.post('/auth/email/send-code', {
     email: data.email,

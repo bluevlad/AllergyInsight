@@ -10,7 +10,7 @@ FastAPI 기반 REST API 서버입니다.
 """
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.sessions import SessionMiddleware
+
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -100,12 +100,6 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-)
-
-# Session middleware (required for OAuth)
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=auth_settings.jwt_secret_key,
 )
 
 # Activity logging middleware (환자 행동 추적)

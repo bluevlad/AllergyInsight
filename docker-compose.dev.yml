@@ -39,16 +39,13 @@ services:
     environment:
       # Database
       - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/allergyinsight_dev
-      # Google OAuth
+      # Google OAuth (ID 토큰 방식 - CLIENT_SECRET 불필요)
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - SUPER_ADMIN_EMAILS=${SUPER_ADMIN_EMAILS:-}
       # JWT
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT_SECRET_KEY is required}
       - JWT_ALGORITHM=HS256
       - JWT_EXPIRE_MINUTES=1440
-      # URLs (개발 포트)
-      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:4041}
-      - BACKEND_URL=${BACKEND_URL:-http://localhost:9041}
       # Existing
       - PUBMED_API_KEY=${PUBMED_API_KEY:-}
       - PUBMED_EMAIL=${PUBMED_EMAIL:-}
@@ -78,6 +75,7 @@ services:
       dockerfile: Dockerfile
       args:
         - VITE_API_URL=http://localhost:9041
+        - VITE_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
     container_name: allergyinsight-dev-frontend
     ports:
       - "4041:4040"
