@@ -40,7 +40,7 @@ const SubscribePage = () => {
         setError(result.message);
       } else {
         setMessage(result.message);
-        if (result.status === 'created' || result.status === 'reactivated') {
+        if (result.status === 'created' || result.status === 'reactivated' || result.status === 'pending_verification') {
           setTimeout(() => navigate(`/subscribe/verify?email=${encodeURIComponent(email)}`), 2000);
         }
       }

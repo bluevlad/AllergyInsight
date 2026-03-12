@@ -67,7 +67,7 @@ class SubscriptionService:
                 # 미인증 상태 → 인증 코드 재발송
                 sent = self._send_verification(db, email)
                 return {
-                    "status": "exists",
+                    "status": "pending_verification",
                     "message": "인증 이메일이 재발송되었습니다." if sent
                     else "인증 이메일 발송에 실패했습니다. 잠시 후 다시 시도하세요.",
                     "email_sent": sent,
