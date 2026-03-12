@@ -60,20 +60,32 @@ const AdminLoginPage = () => {
     );
   }
 
-  // Google Identity Services 초기화
+  // Google Identity Services 초기화 (스크립트 로드 대기)
   useEffect(() => {
-    if (!GOOGLE_CLIENT_ID || !window.google?.accounts) return;
+    if (!GOOGLE_CLIENT_ID) return;
 
-    window.google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: handleGoogleCredential,
-    });
-
-    if (googleBtnRef.current) {
+    const initGoogleBtn = () => {
+      if (!window.google?.accounts?.id || !googleBtnRef.current) return;
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleCredential,
+      });
       window.google.accounts.id.renderButton(
         googleBtnRef.current,
         { theme: 'outline', size: 'large', width: '100%', text: 'signin_with', locale: 'ko' }
       );
+    };
+
+    if (window.google?.accounts?.id) {
+      initGoogleBtn();
+    } else {
+      const interval = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          clearInterval(interval);
+          initGoogleBtn();
+        }
+      }, 100);
+      return () => clearInterval(interval);
     }
   }, []);
 
