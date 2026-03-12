@@ -36,9 +36,13 @@ const SubscribePage = () => {
       setLoading(true);
       setError(null);
       const result = await subscribeApi.subscribe({ email, name, keywords });
-      setMessage(result.message);
-      if (result.status === 'created' || result.status === 'reactivated') {
-        setTimeout(() => navigate(`/subscribe/verify?email=${encodeURIComponent(email)}`), 2000);
+      if (result.email_sent === false) {
+        setError(result.message);
+      } else {
+        setMessage(result.message);
+        if (result.status === 'created' || result.status === 'reactivated') {
+          setTimeout(() => navigate(`/subscribe/verify?email=${encodeURIComponent(email)}`), 2000);
+        }
       }
     } catch (err) {
       setError(err.message);

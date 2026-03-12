@@ -56,17 +56,21 @@ class SubscriptionService:
                     existing.keywords = keywords
                 db.commit()
 
-                self._send_verification(db, email)
+                sent = self._send_verification(db, email)
                 return {
                     "status": "reactivated",
-                    "message": "구독이 재활성화되었습니다. 인증 이메일을 확인하세요.",
+                    "message": "구독이 재활성화되었습니다. 인증 이메일을 확인하세요." if sent
+                    else "구독이 재활성화되었지만 인증 이메일 발송에 실패했습니다. 잠시 후 재발송을 시도하세요.",
+                    "email_sent": sent,
                 }
             else:
                 # 미인증 상태 → 인증 코드 재발송
-                self._send_verification(db, email)
+                sent = self._send_verification(db, email)
                 return {
                     "status": "exists",
-                    "message": "인증 이메일이 재발송되었습니다.",
+                    "message": "인증 이메일이 재발송되었습니다." if sent
+                    else "인증 이메일 발송에 실패했습니다. 잠시 후 다시 시도하세요.",
+                    "email_sent": sent,
                 }
 
         # 새 구독자 생성
@@ -83,15 +87,21 @@ class SubscriptionService:
         db.commit()
 
         # 인증 코드 발송
-        self._send_verification(db, email)
+        sent = self._send_verification(db, email)
 
         return {
             "status": "created",
-            "message": "구독 신청이 완료되었습니다. 인증 이메일을 확인하세요.",
+            "message": "구독 신청이 완료되었습니다. 인증 이메일을 확인하세요." if sent
+            else "구독 신청은 완료되었지만 인증 이메일 발송에 실패했습니다. 잠시 후 재발송을 시도하세요.",
+            "email_sent": sent,
         }
 
-    def _send_verification(self, db: Session, email: str):
-        """인증 코드 생성 및 발송"""
+    def _send_verification(self, db: Session, email: str) -> bool:
+        """인증 코드 생성 및 발송
+
+        Returns:
+            bool: 이메일 발송 성공 여부
+        """
         # 기존 미사용 코드 만료 처리
         db.query(EmailVerification).filter(
             EmailVerification.email == email,
@@ -113,12 +123,18 @@ class SubscriptionService:
             verification_code=code,
             expires_minutes=self.verification_expire_minutes,
         )
-        self.email_service.send(
+        result = self.email_service.send(
             to=email,
             subject="[AllergyInsight] 구독 인증 코드",
             html_body=html,
         )
-        logger.info(f"인증 코드 발송: {email}")
+
+        if not result.success:
+            logger.error(f"인증 코드 이메일 발송 실패 ({email}): {result.error}")
+            return False
+
+        logger.info(f"인증 코드 발송 성공: {email}")
+        return True
 
     def send_verification_email(self, db: Session, email: str) -> dict:
         """인증 코드 재발송"""
@@ -132,7 +148,9 @@ class SubscriptionService:
         if subscriber.is_verified:
             return {"success": False, "message": "이미 인증된 이메일입니다."}
 
-        self._send_verification(db, email)
+        sent = self._send_verification(db, email)
+        if not sent:
+            return {"success": False, "message": "인증 이메일 발송에 실패했습니다. 잠시 후 다시 시도하세요."}
         return {"success": True, "message": "인증 코드가 재발송되었습니다."}
 
     def verify(self, db: Session, email: str, code: str) -> dict:

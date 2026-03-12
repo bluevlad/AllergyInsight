@@ -41,7 +41,11 @@ const VerifyPage = () => {
       setLoading(true);
       setError(null);
       const result = await subscribeApi.resendVerification({ email });
-      setMessage(result.message);
+      if (result.success === false) {
+        setError(result.message);
+      } else {
+        setMessage(result.message);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
