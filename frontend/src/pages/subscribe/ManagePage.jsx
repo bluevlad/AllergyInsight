@@ -30,6 +30,11 @@ const ManagePage = () => {
   const loadStatus = async () => {
     try {
       const result = await subscribeApi.getStatus(email);
+      if (!result.subscribed) {
+        setStatus(null);
+        setError('구독 정보가 없습니다. 먼저 구독 신청을 해주세요.');
+        return;
+      }
       setStatus(result);
       setKeywords(result.keywords || []);
     } catch (err) {
@@ -153,10 +158,10 @@ const ManagePage = () => {
             </div>
 
             <div className="btn-group">
-              <button className="btn-submit" onClick={handleSaveKeywords} disabled={loading}>
+              <button className="btn-submit" onClick={handleSaveKeywords} disabled={loading || !status.is_active}>
                 키워드 저장
               </button>
-              <button className="btn-danger" onClick={handleUnsubscribe} disabled={loading}>
+              <button className="btn-danger" onClick={handleUnsubscribe} disabled={loading || !status.is_active}>
                 구독 해지
               </button>
             </div>
