@@ -26,6 +26,9 @@ import VerifyPage from './pages/subscribe/VerifyPage';
 import ManagePage from './pages/subscribe/ManagePage';
 import UnsubscribePage from './pages/subscribe/UnsubscribePage';
 
+// Public Report Page
+import AllergyReportPage from './pages/report/AllergyReportPage';
+
 /**
  * Protected Route Component
  * - professionalOnly: 의료진만 접근 가능
@@ -172,6 +175,13 @@ const GatewayLanding = () => {
         gap: '1.5rem',
       }}>
         <GatewayCard
+          title="알러지 리포트"
+          description="알러젠 정보를 입력하고 맞춤 관리 리포트를 받으세요"
+          href="/report"
+          color="#e74c3c"
+          icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+        />
+        <GatewayCard
           title="뉴스레터"
           description="알러지 관련 최신 뉴스와 연구 동향을 구독하세요"
           href="/subscribe"
@@ -273,6 +283,9 @@ const AppRouter = () => {
       <Route path="/subscribe/verify" element={<VerifyPage />} />
       <Route path="/subscribe/manage" element={<ManagePage />} />
       <Route path="/subscribe/unsubscribe" element={<UnsubscribePage />} />
+
+      {/* Public Report Route (no auth required) */}
+      <Route path="/report" element={<AllergyReportPage />} />
 
       {/* Admin App (/admin/*) - 자체 관리자 로그인 폼 포함 */}
       <Route path="/admin/*" element={<AdminApp />} />

@@ -73,6 +73,9 @@ from .subscription_routes import router as subscription_router
 # Public: Analytics (no auth required, read-only aggregates)
 from .analytics_routes import router as public_analytics_router
 
+# Public: Allergy Report (no auth required, stateless)
+from .report_routes import router as report_router
+
 # 보안 로깅 설정
 security_logger = logging.getLogger("security")
 security_logger.setLevel(logging.INFO)
@@ -127,6 +130,9 @@ app.include_router(subscription_router, prefix="/api", tags=["Subscription"])  #
 
 # Include public analytics router (no auth required, read-only)
 app.include_router(public_analytics_router, prefix="/api/public/analytics", tags=["Public Analytics"])
+
+# Include report router (public, no auth required, stateless)
+app.include_router(report_router, prefix="/api", tags=["Report"])
 
 # 서비스 인스턴스 (lru_cache DI 패턴)
 @lru_cache(maxsize=1)
