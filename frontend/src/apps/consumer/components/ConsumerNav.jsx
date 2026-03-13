@@ -14,20 +14,34 @@ const ConsumerNav = () => {
     { to: '/app/lifestyle', label: '생활 관리', icon: '🏠' },
     { to: '/app/emergency', label: '응급 대처', icon: '🚨' },
     { to: '/app/kit-register', label: '키트 등록', icon: '📦' },
+    { to: '/report', label: '알러지 리포트', icon: '📄', external: true },
   ];
 
   return (
     <nav className="nav consumer-nav">
       <div className="nav-links">
         {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-          >
-            <span className="nav-icon">{item.icon}</span>
-            <span className="nav-label">{item.label}</span>
-          </NavLink>
+          item.external ? (
+            <a
+              key={item.to}
+              href={item.to}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="nav-link"
+            >
+              <span className="nav-icon">{item.icon}</span>
+              <span className="nav-label">{item.label}</span>
+            </a>
+          ) : (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+            >
+              <span className="nav-icon">{item.icon}</span>
+              <span className="nav-label">{item.label}</span>
+            </NavLink>
+          )
         ))}
       </div>
 
