@@ -160,4 +160,17 @@ OPENAI_API_KEY=         # OpenAI API
 - **네트워크**: database-network (외부 공유), allergyinsight-network (내부)
 - **헬스체크**: http://localhost:9040/api/health
 
+## Help Page 관리
+
+> 작성 표준: [HELP_PAGE_GUIDE.md](https://github.com/bluevlad/Claude-Opus-bluevlad/blob/main/standards/documentation/HELP_PAGE_GUIDE.md)
+> HTML 템플릿: [help-page-template.html](https://github.com/bluevlad/Claude-Opus-bluevlad/blob/main/standards/documentation/templates/help-page-template.html)
+
+- **기능 추가/변경/삭제 시 반드시 헬프 페이지도 함께 업데이트**
+- 헬프 파일 위치: `frontend/public/help/`
+- 서비스 accent-color: `#8b5cf6` (Violet)
+- 대상 가이드 파일:
+  - `user-guide.html` — 사용자 처방 대시보드 가이드
+  - `admin-guide.html` — 관리자 콘솔 가이드
+  - `newsletter-guide.html` — 뉴스레터 구독/발송 가이드
+
 > 로컬 환경 정보는 `CLAUDE.local.md` 참조 (git에 포함되지 않음)
