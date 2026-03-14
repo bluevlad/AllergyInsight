@@ -18,8 +18,8 @@ RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuse
 # 애플리케이션 코드 복사
 COPY . .
 
-# 다운로드 디렉토리 생성 및 권한 설정
-RUN mkdir -p downloads/papers && chown -R appuser:appuser /app
+# 다운로드 및 데이터 디렉토리 생성 및 권한 설정
+RUN mkdir -p downloads/papers data/chromadb && chown -R appuser:appuser /app
 
 # 비root 사용자로 전환
 USER appuser

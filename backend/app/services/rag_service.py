@@ -85,7 +85,10 @@ class RAGService:
 
     @property
     def is_available(self) -> bool:
-        if self._available is None:
+        if self._available is None or self._available is False:
+            # 실패 시에도 재시도 허용 (디렉토리 권한 등 런타임 해결 가능)
+            self._available = None
+            self._collection = None
             self._get_collection()
         return self._available
 
