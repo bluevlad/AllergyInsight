@@ -236,14 +236,28 @@ function AIConsultPage() {
         {/* 답변 */}
         {answer && !loading && (
           <div className="card answer-card" style={{ marginBottom: '1.5rem' }}>
-            {/* 신뢰도 */}
+            {/* 신뢰도 + 엔진 */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <h3 style={{ margin: 0 }}>AI 답변</h3>
-              <span className="confidence-badge" data-level={
-                answer.confidence >= 0.7 ? 'high' : answer.confidence >= 0.4 ? 'medium' : 'low'
-              }>
-                신뢰도 {Math.round(answer.confidence * 100)}%
-              </span>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                {answer.engine && (
+                  <span style={{
+                    padding: '0.2rem 0.6rem',
+                    borderRadius: '12px',
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    background: answer.engine === 'rag' ? '#e3f2fd' : '#f3e5f5',
+                    color: answer.engine === 'rag' ? '#1565c0' : '#7b1fa2',
+                  }}>
+                    {answer.engine === 'rag' ? 'RAG' : 'Keyword'}
+                  </span>
+                )}
+                <span className="confidence-badge" data-level={
+                  answer.confidence >= 0.7 ? 'high' : answer.confidence >= 0.4 ? 'medium' : 'low'
+                }>
+                  신뢰도 {Math.round(answer.confidence * 100)}%
+                </span>
+              </div>
             </div>
 
             {/* 답변 본문 */}
@@ -272,7 +286,30 @@ function AIConsultPage() {
               </div>
             )}
 
-            {/* 출처 논문 */}
+            {/* 출처 논문 (RAG 엔진) */}
+            {answer.sources && answer.sources.length > 0 && (
+              <div style={{ marginTop: '1.25rem' }}>
+                <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem' }}>
+                  참고 논문 ({answer.source_count}건)
+                </h4>
+                <div className="citations-list">
+                  {answer.sources.map((s, i) => (
+                    <div key={i} className="citation-item">
+                      <div style={{ fontWeight: 500, fontSize: '0.9rem' }}>
+                        [{i + 1}] {s.title}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: '#777', marginTop: '0.25rem' }}>
+                        {s.year > 0 && <span>{s.year} · </span>}
+                        {s.doi && <span>DOI: {s.doi} · </span>}
+                        <span>관련도 {Math.round(s.relevance * 100)}%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 출처 논문 (Keyword 엔진) */}
             {answer.citations && answer.citations.length > 0 && (
               <div style={{ marginTop: '1.25rem' }}>
                 <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem' }}>

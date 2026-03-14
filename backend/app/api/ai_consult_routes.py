@@ -43,11 +43,33 @@ CATEGORY_LABELS = {
 @router.post("/ask")
 @limiter.limit("10/minute")
 async def ask_question(request: Request, body: ConsultRequest):
-    """알러지 AI 상담 질문
+    """알러지 AI 상담 질문 (RAG 우선 → 키워드 fallback)
 
-    논문 기반으로 알러지 관련 질문에 답변합니다.
-    일반 사용자도 이용 가능합니다 (인증 불필요).
+    RAG(시맨틱 검색 + LLM) 엔진을 우선 사용하고,
+    RAG 미가용 시 키워드 기반 Q&A 엔진으로 자동 전환합니다.
     """
+    # 1) RAG 엔진 시도
+    from ..services.rag_service import get_rag_service
+
+    rag = get_rag_service()
+    if rag.is_available and rag.document_count > 0:
+        result = rag.ask(
+            question=body.question,
+            allergen=body.allergen,
+            n_context=body.max_citations,
+        )
+        if result["sources"]:
+            return {
+                "success": True,
+                "question": body.question,
+                "answer": result["answer"],
+                "confidence": result["confidence"],
+                "sources": result["sources"],
+                "source_count": len(result["sources"]),
+                "engine": "rag",
+            }
+
+    # 2) Fallback: 키워드 기반 Q&A 엔진
     from .main import get_qa_engine
 
     engine = get_qa_engine()
@@ -67,6 +89,7 @@ async def ask_question(request: Request, body: ConsultRequest):
         "citation_count": len(response.citations),
         "related_symptoms": [s.to_dict() for s in response.related_symptoms],
         "warnings": response.warnings,
+        "engine": "keyword",
     }
 
 

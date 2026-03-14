@@ -11,6 +11,8 @@ class PaperSource(str, Enum):
     SEMANTIC_SCHOLAR = "semantic_scholar"
     EUROPE_PMC = "europe_pmc"
     OPENALEX = "openalex"
+    CLINICALTRIALS = "clinicaltrials"
+    BIORXIV_MEDRXIV = "biorxiv_medrxiv"
     MANUAL_UPLOAD = "manual_upload"
 
 
