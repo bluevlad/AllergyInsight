@@ -44,6 +44,7 @@ class NewsSchedulerService:
 
         self.add_paper_search_job()
         self.add_korean_translation_job()
+        self.add_rag_enrich_job()
         self.add_crawl_job(crawl_hour, crawl_minute)
         self.add_send_job(send_hour, send_minute)
         self.add_insight_job()
@@ -51,7 +52,7 @@ class NewsSchedulerService:
         self._scheduler.start()
         self._running = True
         logger.info(
-            f"스케줄러 시작: 논문=02:00, 번역=04:00, "
+            f"스케줄러 시작: 논문=02:00, 번역=04:00, RAG/보강=05:00, "
             f"뉴스={crawl_hour:02d}:{crawl_minute:02d}, "
             f"발송={send_hour:02d}:{send_minute:02d}, 인사이트=매월 1일 03:00"
         )
@@ -96,6 +97,22 @@ class NewsSchedulerService:
             replace_existing=True,
         )
         logger.info(f"한국어 번역 작업 등록: {hour:02d}:{minute:02d}")
+
+    def add_rag_enrich_job(self, hour: int = 5, minute: int = 0):
+        """RAG 인덱싱 + Unpaywall 보강 작업 추가 (매일 05:00 KST)"""
+        from ..services.scheduler_jobs import job_rag_and_enrich
+
+        if self._scheduler.get_job("rag_and_enrich"):
+            self._scheduler.remove_job("rag_and_enrich")
+
+        self._scheduler.add_job(
+            job_rag_and_enrich,
+            trigger=CronTrigger(hour=hour, minute=minute),
+            id="rag_and_enrich",
+            name="RAG 인덱싱 + PDF 보강",
+            replace_existing=True,
+        )
+        logger.info(f"RAG/보강 작업 등록: {hour:02d}:{minute:02d}")
 
     def add_crawl_job(self, hour: int = 7, minute: int = 0):
         """뉴스 수집 작업 추가"""
@@ -160,6 +177,11 @@ class NewsSchedulerService:
         """인사이트 리포트 즉시 실행"""
         from .jobs import tag_and_generate_insights
         tag_and_generate_insights()
+
+    def run_rag_enrich_once(self):
+        """RAG 인덱싱 + PDF 보강 즉시 실행"""
+        from ..services.scheduler_jobs import job_rag_and_enrich
+        job_rag_and_enrich("manual")
 
     def run_crawl_once(self):
         """뉴스 수집 즉시 실행"""

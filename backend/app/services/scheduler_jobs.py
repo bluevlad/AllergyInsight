@@ -455,6 +455,75 @@ def job_analytics_aggregation(trigger_type: str = "scheduled") -> None:
         db.close()
 
 
+# ============================================================================
+# Job 6: RAG 인덱싱 + Unpaywall PDF 보강
+# ============================================================================
+
+def job_rag_and_enrich(trigger_type: str = "scheduled") -> None:
+    """신규 논문 RAG 인덱싱 + Unpaywall PDF URL 보강
+
+    1) 미인덱싱 논문을 ChromaDB에 배치 인덱싱
+    2) pdf_url이 없는 논문에 Unpaywall로 PDF URL 보강
+    """
+    db = SessionLocal()
+    log = _log_start(db, "rag_and_enrich", trigger_type)
+
+    try:
+        rag_result = {"indexed": 0, "skipped": 0, "total_chunks": 0}
+        unpaywall_result = {"checked": 0, "enriched": 0, "failed": 0}
+
+        # 1) RAG 인덱싱
+        try:
+            from .rag_service import get_rag_service
+
+            rag = get_rag_service()
+            if rag.is_available:
+                rag_result = rag.index_papers_from_db(db, batch_size=200)
+                logger.info(
+                    f"[rag_and_enrich] RAG: {rag_result['indexed']}건 인덱싱, "
+                    f"{rag_result['total_chunks']}개 청크"
+                )
+            else:
+                logger.warning("[rag_and_enrich] ChromaDB 미가용, RAG 인덱싱 건너뜀")
+        except Exception as e:
+            logger.warning(f"[rag_and_enrich] RAG 인덱싱 실패: {e}")
+
+        # 2) Unpaywall PDF URL 보강
+        try:
+            from .unpaywall_service import UnpaywallService
+
+            unpaywall = UnpaywallService()
+            try:
+                unpaywall_result = unpaywall.enrich_papers(db, batch_size=50)
+                logger.info(
+                    f"[rag_and_enrich] Unpaywall: {unpaywall_result['enriched']}/"
+                    f"{unpaywall_result['checked']}건 PDF URL 확보"
+                )
+            finally:
+                unpaywall.close()
+        except Exception as e:
+            logger.warning(f"[rag_and_enrich] Unpaywall 보강 실패: {e}")
+
+        summary = {
+            "rag_indexed": rag_result.get("indexed", 0),
+            "rag_chunks": rag_result.get("total_chunks", 0),
+            "unpaywall_checked": unpaywall_result.get("checked", 0),
+            "unpaywall_enriched": unpaywall_result.get("enriched", 0),
+        }
+        _log_complete(db, log, summary)
+        logger.info(f"[rag_and_enrich] 완료: {summary}")
+
+    except Exception as e:
+        _log_fail(db, log, str(e))
+        logger.error(f"[rag_and_enrich] 실패: {e}")
+    finally:
+        db.close()
+
+
+# ============================================================================
+# Job 7: 뉴스레터 발송
+# ============================================================================
+
 def job_newsletter_send(trigger_type: str = "scheduled") -> None:
     """인증된 구독자에게 키워드 매칭 기반 뉴스레터 발송
 

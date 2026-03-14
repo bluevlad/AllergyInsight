@@ -1,6 +1,6 @@
 """통합 논문 검색 서비스
 
-PubMed와 Semantic Scholar를 통합하여 검색하고,
+PubMed, Semantic Scholar, Europe PMC, OpenAlex를 통합하여 검색하고,
 중복을 제거하며 PDF 다운로드 링크를 보강합니다.
 """
 import asyncio
@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from .pubmed_service import PubMedService
 from .semantic_scholar_service import SemanticScholarService
 from .europe_pmc_service import EuropePMCService
+from .openalex_service import OpenAlexService
 from ..models.paper import Paper, PaperSearchResult, PaperSource
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,7 @@ class UnifiedSearchResult:
     # PDF 다운로드 가능한 논문 수
     downloadable_count: int = 0
     europe_pmc_count: int = 0
+    openalex_count: int = 0
 
     def to_dict(self) -> dict:
         return {
@@ -39,6 +41,7 @@ class UnifiedSearchResult:
             "pubmed_count": self.pubmed_count,
             "semantic_scholar_count": self.semantic_scholar_count,
             "europe_pmc_count": self.europe_pmc_count,
+            "openalex_count": self.openalex_count,
             "total_unique": self.total_unique,
             "downloadable_count": self.downloadable_count,
             "query": self.query,
@@ -58,7 +61,8 @@ class PaperSearchService:
         self.pubmed = PubMedService(api_key=pubmed_api_key, email=pubmed_email)
         self.semantic_scholar = SemanticScholarService(api_key=semantic_scholar_api_key)
         self.europe_pmc = EuropePMCService()
-        self._executor = ThreadPoolExecutor(max_workers=4)
+        self.openalex = OpenAlexService(email=pubmed_email)
+        self._executor = ThreadPoolExecutor(max_workers=5)
 
     def search(
         self,
@@ -87,12 +91,13 @@ class PaperSearchService:
         start_time = time.time()
 
         if sources is None:
-            sources = ["pubmed", "semantic_scholar", "europe_pmc"]
+            sources = ["pubmed", "semantic_scholar", "europe_pmc", "openalex"]
 
         all_papers = []
         pubmed_count = 0
         ss_count = 0
         epmc_count = 0
+        oa_count = 0
 
         # 병렬 검색 실행
         source_futures = {}
@@ -110,6 +115,11 @@ class PaperSearchService:
         if "europe_pmc" in sources:
             source_futures["europe_pmc"] = self._executor.submit(
                 self.europe_pmc.search, query, max_results_per_source
+            )
+
+        if "openalex" in sources:
+            source_futures["openalex"] = self._executor.submit(
+                self.openalex.search, query, max_results_per_source
             )
 
         # 결과 수집
@@ -137,6 +147,14 @@ class PaperSearchService:
             except Exception:
                 pass
 
+        if "openalex" in source_futures:
+            try:
+                oa_result = source_futures["openalex"].result(timeout=60)
+                all_papers.extend(oa_result.papers)
+                oa_count = oa_result.total_count
+            except Exception:
+                pass
+
         # 중복 제거
         if merge_duplicates:
             all_papers = self._merge_duplicates(all_papers)
@@ -153,6 +171,7 @@ class PaperSearchService:
             pubmed_count=pubmed_count,
             semantic_scholar_count=ss_count,
             europe_pmc_count=epmc_count,
+            openalex_count=oa_count,
             total_unique=len(all_papers),
             downloadable_count=downloadable,
             query=query,
@@ -192,7 +211,7 @@ class PaperSearchService:
         import time
         start_time = time.time()
 
-        # 병렬 검색 (PubMed + Semantic Scholar + Europe PMC)
+        # 병렬 검색 (PubMed + Semantic Scholar + Europe PMC + OpenAlex)
         pubmed_future = self._executor.submit(
             self.pubmed.search_allergy_papers,
             allergen,
@@ -213,10 +232,17 @@ class PaperSearchService:
             max_results_per_source,
         )
 
+        oa_future = self._executor.submit(
+            self.openalex.search_allergy,
+            allergen,
+            max_results_per_source,
+        )
+
         all_papers = []
         pubmed_count = 0
         ss_count = 0
         epmc_count = 0
+        oa_count = 0
 
         try:
             pubmed_result = pubmed_future.result(timeout=60)
@@ -239,6 +265,13 @@ class PaperSearchService:
         except Exception:
             pass
 
+        try:
+            oa_result = oa_future.result(timeout=60)
+            all_papers.extend(oa_result.papers)
+            oa_count = oa_result.total_count
+        except Exception:
+            pass
+
         # 중복 제거 및 PDF 링크 보강
         all_papers = self._merge_duplicates(all_papers)
         all_papers = self._enrich_pdf_links(all_papers)
@@ -250,6 +283,7 @@ class PaperSearchService:
             pubmed_count=pubmed_count,
             semantic_scholar_count=ss_count,
             europe_pmc_count=epmc_count,
+            openalex_count=oa_count,
             total_unique=len(all_papers),
             downloadable_count=downloadable,
             query=f"{allergen} allergy" + (" cross-reactivity" if include_cross_reactivity else ""),
@@ -364,4 +398,5 @@ class PaperSearchService:
     def close(self):
         """리소스 정리"""
         self.europe_pmc.close()
+        self.openalex.close()
         self._executor.shutdown(wait=False)

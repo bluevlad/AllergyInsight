@@ -10,6 +10,7 @@ class PaperSource(str, Enum):
     PUBMED = "pubmed"
     SEMANTIC_SCHOLAR = "semantic_scholar"
     EUROPE_PMC = "europe_pmc"
+    OPENALEX = "openalex"
     MANUAL_UPLOAD = "manual_upload"
 
 

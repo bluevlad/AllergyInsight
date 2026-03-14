@@ -394,23 +394,23 @@ GET https://api.crossref.org/works?query=food+allergy&rows=100
 
 ## 6. 권장 구현 우선순위
 
-### 6.1 1단계 (필수)
-- [x] PubMed - 의학 논문 메타데이터 (구현 완료)
-- [x] Semantic Scholar - PDF 링크 + 인용 분석 (구현 완료)
+### 6.1 1단계 (필수) — 구현 완료
+- [x] PubMed — 의학 논문 메타데이터 (`pubmed_service.py`)
+- [x] Semantic Scholar — PDF 링크 + 인용 분석 (`semantic_scholar_service.py`)
 
-### 6.2 2단계 (권장)
-- [ ] Europe PMC - 전문(Full-text) 무료 제공
-- [ ] OpenAlex - 대규모 메타데이터 보강
-- [ ] Unpaywall - PDF 링크 보강
+### 6.2 2단계 (권장) — 구현 완료
+- [x] Europe PMC — 전문(Full-text) 무료 제공 (`europe_pmc_service.py`)
+- [x] OpenAlex — 대규모 메타데이터 + 인용 네트워크 보강 (`openalex_service.py`)
+- [x] Unpaywall — DOI 기반 PDF 링크 보강 (`unpaywall_service.py`)
 
-### 6.3 3단계 (선택)
-- [ ] ClinicalTrials.gov - 임상시험 데이터
-- [ ] bioRxiv/medRxiv - 최신 프리프린트
-- [ ] CORE - 추가 전문 텍스트
+### 6.3 3단계 (선택) — 미구현
+- [ ] ClinicalTrials.gov — 임상시험 데이터
+- [ ] bioRxiv/medRxiv — 최신 프리프린트
+- [ ] CORE — 추가 전문 텍스트
 
-### 6.4 4단계 (기관 구독 시)
-- [ ] Scopus - 인용 분석 강화
-- [ ] Cochrane - 체계적 문헌고찰
+### 6.4 4단계 (기관 구독 시) — 미구현
+- [ ] Scopus — 인용 분석 강화
+- [ ] Cochrane — 체계적 문헌고찰
 
 ---
 
@@ -419,43 +419,39 @@ GET https://api.crossref.org/works?query=food+allergy&rows=100
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    PaperSearchService                       │
-│                      (통합 검색 서비스)                       │
+│               (4소스 병렬 통합 검색 서비스)                    │
 └─────────────────────────────────────────────────────────────┘
                             │
-        ┌───────────────────┼───────────────────┐
-        │                   │                   │
-        ▼                   ▼                   ▼
-┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-│    PubMed     │   │   Semantic    │   │   Europe      │
-│    Service    │   │   Scholar     │   │   PMC         │
-└───────────────┘   └───────────────┘   └───────────────┘
-        │                   │                   │
-        └───────────────────┼───────────────────┘
-                            │
-                            ▼
-                ┌───────────────────────┐
-                │   중복 제거 & 병합     │
-                │   (DOI/PMID 기반)     │
+    ┌───────────┬───────────┼───────────┬───────────┐
+    │           │           │           │           │
+    ▼           ▼           ▼           ▼           ▼
+┌────────┐ ┌─────────┐ ┌────────┐ ┌────────┐ ┌──────────┐
+│ PubMed │ │Semantic │ │ Europe │ │OpenAlex│ │Unpaywall │
+│Service │ │ Scholar │ │  PMC   │ │Service │ │(PDF보강) │
+└────────┘ └─────────┘ └────────┘ └────────┘ └──────────┘
+    │           │           │           │           │
+    └───────────┴───────────┼───────────┘           │
+                            │                       │
+                            ▼                       │
+                ┌───────────────────────┐           │
+                │   중복 제거 & 병합     │◀──────────┘
+                │   (DOI/PMID/Title)    │
                 └───────────────────────┘
                             │
-            ┌───────────────┼───────────────┐
-            │               │               │
-            ▼               ▼               ▼
-    ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
-    │  Unpaywall  │ │   CORE      │ │  OpenAlex   │
-    │ (PDF 보강)  │ │ (전문 보강) │ │ (인용 보강) │
-    └─────────────┘ └─────────────┘ └─────────────┘
-                            │
-                            ▼
-                ┌───────────────────────┐
-                │   자동 링크 추출       │
-                │   (알러젠-증상-식품)   │
-                └───────────────────────┘
-                            │
-                            ▼
-                ┌───────────────────────┐
-                │   데이터베이스 저장    │
-                └───────────────────────┘
+                ┌───────────┼───────────┐
+                │           │           │
+                ▼           ▼           ▼
+        ┌────────────┐ ┌─────────┐ ┌─────────┐
+        │ PostgreSQL │ │ChromaDB │ │ Local   │
+        │ (논문 DB)  │ │(벡터DB) │ │ LLM     │
+        └────────────┘ └─────────┘ │(EXAONE) │
+                            │      └─────────┘
+                            │           │
+                            ▼           ▼
+                    ┌───────────────────────┐
+                    │   RAG 기반 Q&A 엔진    │
+                    │ (시맨틱검색 + AI답변)  │
+                    └───────────────────────┘
 ```
 
 ---
@@ -480,7 +476,11 @@ GET https://api.crossref.org/works?query=food+allergy&rows=100
 PUBMED_API_KEY=your_pubmed_api_key
 PUBMED_EMAIL=your@email.com
 SEMANTIC_SCHOLAR_API_KEY=your_s2_api_key
-CORE_API_KEY=your_core_api_key
+# Europe PMC, OpenAlex, Unpaywall — API 키 불필요
+
+# Local LLM (MLX 서버)
+LLM_API_URL=http://host.docker.internal:11435/v1
+LLM_MODEL=mlx-community/EXAONE-3.5-7.8B-Instruct-4bit
 ```
 
 ---
@@ -502,3 +502,4 @@ CORE_API_KEY=your_core_api_key
 | 날짜 | 버전 | 변경 내용 |
 |------|------|----------|
 | 2025-01-23 | 1.0 | 최초 작성 |
+| 2026-03-14 | 2.0 | 2단계 소스 전체 구현 (Europe PMC, OpenAlex, Unpaywall), 아키텍처 다이어그램 현행화, AI 인프라(MLX/EXAONE/ChromaDB RAG) 반영 |
