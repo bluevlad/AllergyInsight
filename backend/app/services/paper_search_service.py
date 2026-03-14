@@ -1,7 +1,7 @@
 """통합 논문 검색 서비스
 
-PubMed, Semantic Scholar, Europe PMC, OpenAlex, bioRxiv/medRxiv를 통합하여
-검색하고, 중복을 제거하며 PDF 다운로드 링크를 보강합니다.
+PubMed, Semantic Scholar, Europe PMC, OpenAlex, bioRxiv/medRxiv, CORE를
+통합하여 검색하고, 중복을 제거하며 PDF 다운로드 링크를 보강합니다.
 """
 import asyncio
 import logging
@@ -16,6 +16,7 @@ from .semantic_scholar_service import SemanticScholarService
 from .europe_pmc_service import EuropePMCService
 from .openalex_service import OpenAlexService
 from .biorxiv_service import BiorxivService
+from .core_service import CoreService
 from ..models.paper import Paper, PaperSearchResult, PaperSource
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,7 @@ class UnifiedSearchResult:
     europe_pmc_count: int = 0
     openalex_count: int = 0
     biorxiv_count: int = 0
+    core_count: int = 0
 
     def to_dict(self) -> dict:
         return {
@@ -45,6 +47,7 @@ class UnifiedSearchResult:
             "europe_pmc_count": self.europe_pmc_count,
             "openalex_count": self.openalex_count,
             "biorxiv_count": self.biorxiv_count,
+            "core_count": self.core_count,
             "total_unique": self.total_unique,
             "downloadable_count": self.downloadable_count,
             "query": self.query,
@@ -66,7 +69,8 @@ class PaperSearchService:
         self.europe_pmc = EuropePMCService()
         self.openalex = OpenAlexService(email=pubmed_email)
         self.biorxiv = BiorxivService()
-        self._executor = ThreadPoolExecutor(max_workers=6)
+        self.core = CoreService()
+        self._executor = ThreadPoolExecutor(max_workers=7)
 
     def search(
         self,
@@ -96,38 +100,40 @@ class PaperSearchService:
 
         if sources is None:
             sources = ["pubmed", "semantic_scholar", "europe_pmc", "openalex", "biorxiv"]
+            # CORE는 API 키 설정 시에만 자동 포함
+            if self.core.is_available:
+                sources.append("core")
 
         all_papers = []
-        counts = {"pubmed": 0, "ss": 0, "epmc": 0, "oa": 0, "biorxiv": 0}
+        counts = {"pubmed": 0, "ss": 0, "epmc": 0, "oa": 0, "biorxiv": 0, "core": 0}
 
         # 병렬 검색 실행
         source_futures = {}
 
         if "pubmed" in sources:
             source_futures["pubmed"] = self._executor.submit(
-                self.pubmed.search, query, max_results_per_source
-            )
+                self.pubmed.search, query, max_results_per_source)
         if "semantic_scholar" in sources:
             source_futures["semantic_scholar"] = self._executor.submit(
-                self.semantic_scholar.search, query, max_results_per_source
-            )
+                self.semantic_scholar.search, query, max_results_per_source)
         if "europe_pmc" in sources:
             source_futures["europe_pmc"] = self._executor.submit(
-                self.europe_pmc.search, query, max_results_per_source
-            )
+                self.europe_pmc.search, query, max_results_per_source)
         if "openalex" in sources:
             source_futures["openalex"] = self._executor.submit(
-                self.openalex.search, query, max_results_per_source
-            )
+                self.openalex.search, query, max_results_per_source)
         if "biorxiv" in sources:
             source_futures["biorxiv"] = self._executor.submit(
-                self.biorxiv.search, query, max_results_per_source
-            )
+                self.biorxiv.search, query, max_results_per_source)
+        if "core" in sources and self.core.is_available:
+            source_futures["core"] = self._executor.submit(
+                self.core.search, query, max_results_per_source)
 
         # 결과 수집
         count_keys = {
             "pubmed": "pubmed", "semantic_scholar": "ss",
-            "europe_pmc": "epmc", "openalex": "oa", "biorxiv": "biorxiv",
+            "europe_pmc": "epmc", "openalex": "oa",
+            "biorxiv": "biorxiv", "core": "core",
         }
         for src_name, future in source_futures.items():
             try:
@@ -155,6 +161,7 @@ class PaperSearchService:
             europe_pmc_count=counts["epmc"],
             openalex_count=counts["oa"],
             biorxiv_count=counts["biorxiv"],
+            core_count=counts["core"],
             total_unique=len(all_papers),
             downloadable_count=downloadable,
             query=query,
@@ -194,7 +201,7 @@ class PaperSearchService:
         import time
         start_time = time.time()
 
-        # 병렬 검색 (5소스)
+        # 병렬 검색 (5+1소스, CORE는 API 키 설정 시에만)
         futures = {
             "pubmed": self._executor.submit(
                 self.pubmed.search_allergy_papers, allergen, include_cross_reactivity, max_results_per_source),
@@ -207,9 +214,12 @@ class PaperSearchService:
             "biorxiv": self._executor.submit(
                 self.biorxiv.search_allergy, allergen, max_results_per_source),
         }
+        if self.core.is_available:
+            futures["core"] = self._executor.submit(
+                self.core.search_allergy, allergen, max_results_per_source)
 
         all_papers = []
-        counts = {"pubmed": 0, "ss": 0, "epmc": 0, "oa": 0, "biorxiv": 0}
+        counts = {"pubmed": 0, "ss": 0, "epmc": 0, "oa": 0, "biorxiv": 0, "core": 0}
 
         for key, future in futures.items():
             try:
@@ -232,6 +242,7 @@ class PaperSearchService:
             europe_pmc_count=counts["epmc"],
             openalex_count=counts["oa"],
             biorxiv_count=counts["biorxiv"],
+            core_count=counts["core"],
             total_unique=len(all_papers),
             downloadable_count=downloadable,
             query=f"{allergen} allergy" + (" cross-reactivity" if include_cross_reactivity else ""),
@@ -348,4 +359,5 @@ class PaperSearchService:
         self.europe_pmc.close()
         self.openalex.close()
         self.biorxiv.close()
+        self.core.close()
         self._executor.shutdown(wait=False)

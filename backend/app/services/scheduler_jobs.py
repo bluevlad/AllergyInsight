@@ -504,11 +504,26 @@ def job_rag_and_enrich(trigger_type: str = "scheduled") -> None:
         except Exception as e:
             logger.warning(f"[rag_and_enrich] Unpaywall 보강 실패: {e}")
 
+        # 3) CORE Full-text RAG 보강 (API 키 설정 시에만)
+        fulltext_result = {"enriched": 0, "failed": 0}
+        try:
+            from .rag_service import get_rag_service
+
+            rag = get_rag_service()
+            if rag.is_available:
+                fulltext_result = rag.enrich_with_fulltext(db, batch_size=10)
+                logger.info(
+                    f"[rag_and_enrich] Full-text: {fulltext_result['enriched']}건 보강"
+                )
+        except Exception as e:
+            logger.warning(f"[rag_and_enrich] Full-text 보강 실패: {e}")
+
         summary = {
             "rag_indexed": rag_result.get("indexed", 0),
             "rag_chunks": rag_result.get("total_chunks", 0),
             "unpaywall_checked": unpaywall_result.get("checked", 0),
             "unpaywall_enriched": unpaywall_result.get("enriched", 0),
+            "fulltext_enriched": fulltext_result.get("enriched", 0),
         }
         _log_complete(db, log, summary)
         logger.info(f"[rag_and_enrich] 완료: {summary}")
@@ -521,7 +536,108 @@ def job_rag_and_enrich(trigger_type: str = "scheduled") -> None:
 
 
 # ============================================================================
-# Job 7: 뉴스레터 발송
+# Job 7: 프리프린트 수집 + 임상시험 검색
+# ============================================================================
+
+def job_preprint_and_trials(trigger_type: str = "scheduled") -> None:
+    """최신 프리프린트 수집 + 알러젠별 임상시험 검색
+
+    1) bioRxiv/medRxiv에서 최근 7일간 프리프린트 수집
+    2) ClinicalTrials.gov에서 주요 알러젠 임상시험 검색
+    """
+    db = SessionLocal()
+    log = _log_start(db, "preprint_and_trials", trigger_type)
+
+    try:
+        preprint_count = 0
+        trial_count = 0
+
+        # 1) 프리프린트 수집 (최근 7일)
+        try:
+            from .biorxiv_service import BiorxivService
+            from .paper_persistence_service import PaperPersistenceService
+            from datetime import timedelta
+
+            biorxiv = BiorxivService()
+            persistence = PaperPersistenceService()
+            today = datetime.utcnow()
+            week_ago = today - timedelta(days=7)
+
+            try:
+                result = biorxiv.collect_recent(
+                    date_from=week_ago.strftime("%Y-%m-%d"),
+                    date_to=today.strftime("%Y-%m-%d"),
+                    server="medrxiv",
+                    max_results=50,
+                )
+                for paper in result.papers:
+                    # 알러지 관련 키워드 필터
+                    text = f"{paper.title} {paper.abstract}".lower()
+                    if any(kw in text for kw in ["allergy", "allergen", "anaphylaxis", "immunotherapy", "ige"]):
+                        saved = persistence.save_paper(paper, db)
+                        if saved:
+                            preprint_count += 1
+            finally:
+                biorxiv.close()
+
+            logger.info(f"[preprint_and_trials] 프리프린트: {preprint_count}건 신규 저장")
+        except Exception as e:
+            logger.warning(f"[preprint_and_trials] 프리프린트 수집 실패: {e}")
+
+        # 2) 임상시험 검색 (주요 알러젠 3종 로테이션)
+        try:
+            from .clinicaltrials_service import ClinicalTrialsService
+            from .paper_persistence_service import PaperPersistenceService
+
+            ct = ClinicalTrialsService()
+            persistence = PaperPersistenceService()
+
+            # 요일 기반 로테이션 (7요일 × 3알러젠)
+            allergen_groups = [
+                ["peanut", "milk", "egg"],
+                ["wheat", "soy", "shellfish"],
+                ["tree_nut", "fish", "sesame"],
+                ["dust_mite", "cat", "dog"],
+                ["peanut", "milk", "egg"],
+                ["wheat", "soy", "shellfish"],
+                ["tree_nut", "fish", "sesame"],
+            ]
+            day_of_week = datetime.utcnow().weekday()
+            target_allergens = allergen_groups[day_of_week]
+
+            try:
+                for allergen in target_allergens:
+                    result = ct.search_allergy(allergen, max_results=5)
+                    for paper in result.papers:
+                        saved = persistence.save_paper(paper, db)
+                        if saved:
+                            trial_count += 1
+                    time.sleep(0.5)
+            finally:
+                ct.close()
+
+            logger.info(f"[preprint_and_trials] 임상시험: {trial_count}건 신규 ({target_allergens})")
+        except Exception as e:
+            logger.warning(f"[preprint_and_trials] 임상시험 검색 실패: {e}")
+
+        db.commit()
+
+        summary = {
+            "preprints_saved": preprint_count,
+            "trials_saved": trial_count,
+        }
+        _log_complete(db, log, summary)
+        logger.info(f"[preprint_and_trials] 완료: {summary}")
+
+    except Exception as e:
+        _log_fail(db, log, str(e))
+        logger.error(f"[preprint_and_trials] 실패: {e}")
+    finally:
+        db.close()
+
+
+# ============================================================================
+# Job 8: 뉴스레터 발송
 # ============================================================================
 
 def job_newsletter_send(trigger_type: str = "scheduled") -> None:

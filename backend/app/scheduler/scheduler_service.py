@@ -45,6 +45,7 @@ class NewsSchedulerService:
         self.add_paper_search_job()
         self.add_korean_translation_job()
         self.add_rag_enrich_job()
+        self.add_preprint_trials_job()
         self.add_crawl_job(crawl_hour, crawl_minute)
         self.add_send_job(send_hour, send_minute)
         self.add_insight_job()
@@ -114,6 +115,22 @@ class NewsSchedulerService:
         )
         logger.info(f"RAG/보강 작업 등록: {hour:02d}:{minute:02d}")
 
+    def add_preprint_trials_job(self, hour: int = 6, minute: int = 0):
+        """프리프린트 수집 + 임상시험 검색 작업 추가 (매일 06:00 KST)"""
+        from ..services.scheduler_jobs import job_preprint_and_trials
+
+        if self._scheduler.get_job("preprint_and_trials"):
+            self._scheduler.remove_job("preprint_and_trials")
+
+        self._scheduler.add_job(
+            job_preprint_and_trials,
+            trigger=CronTrigger(hour=hour, minute=minute),
+            id="preprint_and_trials",
+            name="프리프린트 + 임상시험 수집",
+            replace_existing=True,
+        )
+        logger.info(f"프리프린트/임상시험 작업 등록: {hour:02d}:{minute:02d}")
+
     def add_crawl_job(self, hour: int = 7, minute: int = 0):
         """뉴스 수집 작업 추가"""
         from .jobs import collect_news
@@ -182,6 +199,11 @@ class NewsSchedulerService:
         """RAG 인덱싱 + PDF 보강 즉시 실행"""
         from ..services.scheduler_jobs import job_rag_and_enrich
         job_rag_and_enrich("manual")
+
+    def run_preprint_trials_once(self):
+        """프리프린트 + 임상시험 즉시 실행"""
+        from ..services.scheduler_jobs import job_preprint_and_trials
+        job_preprint_and_trials("manual")
 
     def run_crawl_once(self):
         """뉴스 수집 즉시 실행"""

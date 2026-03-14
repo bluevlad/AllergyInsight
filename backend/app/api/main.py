@@ -79,6 +79,7 @@ from .report_routes import router as report_router
 # Public: AI Portal (no auth required)
 from .ai_consult_routes import router as ai_consult_router
 from .ai_insight_routes import router as ai_insight_router
+from .clinicaltrials_routes import router as clinicaltrials_router
 
 # 보안 로깅 설정
 security_logger = logging.getLogger("security")
@@ -141,6 +142,7 @@ app.include_router(report_router, prefix="/api", tags=["Report"])
 # Include AI portal routers (public, no auth required)
 app.include_router(ai_consult_router, prefix="/api", tags=["AI Consult"])
 app.include_router(ai_insight_router, prefix="/api", tags=["AI Insight"])
+app.include_router(clinicaltrials_router, prefix="/api", tags=["Clinical Trials"])
 
 # 서비스 인스턴스 (lru_cache DI 패턴)
 @lru_cache(maxsize=1)
@@ -347,6 +349,7 @@ async def search_papers(request: Request, body: SearchRequest):
         "europe_pmc_count": result.europe_pmc_count,
         "openalex_count": result.openalex_count,
         "biorxiv_count": result.biorxiv_count,
+        "core_count": result.core_count,
         "downloadable_count": result.downloadable_count,
         "search_time_ms": round(result.search_time_ms, 2),
         "papers": [p.to_dict() for p in result.papers],

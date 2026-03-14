@@ -232,6 +232,91 @@ class RAGService:
 
         return {"indexed": indexed, "skipped": skipped, "total_chunks": total_chunks}
 
+    def enrich_with_fulltext(self, db, batch_size: int = 20) -> dict:
+        """CORE Full-text로 기존 인덱스 보강
+
+        abstract만 인덱싱된 논문 중 DOI가 있는 것에 대해
+        CORE API로 전문 텍스트를 가져와 재인덱싱합니다.
+
+        Args:
+            db: SQLAlchemy 세션
+            batch_size: 한 번에 처리할 논문 수
+
+        Returns:
+            {"enriched": int, "failed": int}
+        """
+        from .core_service import CoreService
+
+        core = CoreService()
+        if not core.is_available:
+            return {"enriched": 0, "failed": 0, "skipped_reason": "CORE API 키 미설정"}
+
+        col = self._get_collection()
+        if not col:
+            return {"enriched": 0, "failed": 0}
+
+        from ..database.models import Paper as PaperORM
+
+        # DOI가 있고 abstract가 짧은 논문 (Full-text 보강 대상)
+        papers = (
+            db.query(PaperORM)
+            .filter(PaperORM.doi.isnot(None))
+            .filter(PaperORM.doi != "")
+            .filter(PaperORM.abstract.isnot(None))
+            .order_by(PaperORM.created_at.desc())
+            .limit(batch_size)
+            .all()
+        )
+
+        enriched = 0
+        failed = 0
+
+        for paper in papers:
+            try:
+                # CORE에서 Full-text 검색
+                result = core.search(paper.title[:100], max_results=1)
+                if not result.papers:
+                    failed += 1
+                    continue
+
+                core_paper = result.papers[0]
+                core_id = core_paper.source_id.replace("core:", "")
+
+                # Full-text 가져오기
+                fulltext = core.get_fulltext(core_id)
+                if not fulltext or len(fulltext) < len(paper.abstract or ""):
+                    failed += 1
+                    continue
+
+                # Full-text로 재인덱싱 (기존 abstract 대신)
+                from ..database.models import PaperAllergenLink
+                links = (
+                    db.query(PaperAllergenLink.allergen_code)
+                    .filter(PaperAllergenLink.paper_id == paper.id)
+                    .all()
+                )
+                allergen_codes = [link.allergen_code for link in links]
+
+                chunks = self.index_paper(
+                    paper_id=paper.id,
+                    title=paper.title,
+                    abstract=fulltext[:10000],  # Full-text 최대 10,000자
+                    allergen_codes=allergen_codes,
+                    year=paper.year,
+                    doi=paper.doi,
+                )
+                if chunks > 0:
+                    enriched += 1
+
+            except Exception as e:
+                logger.warning(f"Full-text 보강 실패 (paper_id={paper.id}): {e}")
+                failed += 1
+
+        core.close()
+
+        logger.info(f"Full-text 보강 완료: {enriched}/{len(papers)}건")
+        return {"enriched": enriched, "failed": failed}
+
     def search(
         self,
         query: str,
