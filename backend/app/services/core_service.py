@@ -150,14 +150,8 @@ class CoreService:
             if name:
                 authors.append(name)
 
-        # DOI
-        doi = None
-        for identifier in (item.get("identifiers") or []):
-            if identifier and identifier.startswith("10."):
-                doi = identifier
-                break
-        if not doi:
-            doi = item.get("doi")
+        # DOI (최상위 필드 우선)
+        doi = item.get("doi")
 
         # 연도
         year = item.get("yearPublished")
