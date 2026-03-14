@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # 기본값: MLX 서버 (Ollama 환경 변수 하위 호환)
 _DEFAULT_MLX_URL = "http://localhost:11435/v1"
-_DEFAULT_MLX_MODEL = "mlx-community/Qwen2.5-7B-Instruct-4bit"
+_DEFAULT_MLX_MODEL = "mlx-community/EXAONE-3.5-7.8B-Instruct-4bit"
 
 
 def _resolve_api_config() -> tuple[str, str]:
@@ -83,6 +83,15 @@ class OllamaService:
                 self._available = False
         return self._available
 
+    # 알러지/면역학 도메인 시스템 프롬프트
+    SYSTEM_PROMPT = (
+        "당신은 알러지 및 면역학 전문 의학 AI 어시스턴트입니다. "
+        "반드시 한국어로만 답변하세요. 영어 논문을 참고하더라도 답변은 한국어로 작성하세요. "
+        "의학 용어는 한국어 표기를 우선하되, 필요시 영문 약어를 괄호에 병기하세요. "
+        "예: 경구 면역치료(OIT), 아나필락시스(Anaphylaxis). "
+        "근거 없는 추측은 하지 마세요."
+    )
+
     def _chat(self, prompt: str, max_tokens: int = 500, max_retries: int = 2) -> Optional[str]:
         """OpenAI 호환 chat/completions 호출"""
         if not self.is_available:
@@ -91,7 +100,10 @@ class OllamaService:
         client = self._get_client()
         payload = {
             "model": self.model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [
+                {"role": "system", "content": self.SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
             "temperature": 0.3,
             "max_tokens": max_tokens,
         }

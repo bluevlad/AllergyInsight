@@ -32,7 +32,7 @@ services:
       - SEND_MINUTE=${SEND_MINUTE:-0}
       # AI (Local LLM - MLX 서버 또는 Ollama)
       - LLM_API_URL=${LLM_API_URL:-http://host.docker.internal:11435/v1}
-      - LLM_MODEL=${LLM_MODEL:-mlx-community/Qwen2.5-7B-Instruct-4bit}
+      - LLM_MODEL=${LLM_MODEL:-mlx-community/EXAONE-3.5-7.8B-Instruct-4bit}
       # Email
       - GMAIL_ADDRESS=${GMAIL_ADDRESS:-}
       - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD:-}
@@ -72,7 +72,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       # AI (Local LLM - MLX 서버 또는 Ollama)
       - LLM_API_URL=${LLM_API_URL:-http://host.docker.internal:11435/v1}
-      - LLM_MODEL=${LLM_MODEL:-mlx-community/Qwen2.5-7B-Instruct-4bit}
+      - LLM_MODEL=${LLM_MODEL:-mlx-community/EXAONE-3.5-7.8B-Instruct-4bit}
       - GMAIL_ADDRESS=${GMAIL_ADDRESS:-}
       - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD:-}
       - SUBSCRIPTION_BASE_URL=${SUBSCRIPTION_BASE_URL:-https://insight.unmong.com/subscribe}
