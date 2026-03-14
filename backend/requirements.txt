@@ -50,8 +50,10 @@ apscheduler>=3.10.4
 # YAML config
 pyyaml>=6.0.1
 
-# AI (Ollama)
-ollama>=0.4.7
+# AI (Local LLM - httpx로 OpenAI 호환 API 호출, 별도 패키지 불필요)
+
+# Vector DB (RAG 파이프라인)
+chromadb>=0.5.0
 
 # Template Engine
 jinja2>=3.1.3

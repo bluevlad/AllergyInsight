@@ -1,72 +1,121 @@
-"""Ollama AI 서비스
+"""로컬 LLM AI 서비스
 
-로컬 LLM (Ollama)을 사용한 뉴스 요약/분류/중요도 평가.
-Ollama 미가용 시 키워드 기반 fallback을 제공합니다.
+OpenAI 호환 API를 사용하여 로컬 LLM 서버(MLX, Ollama 등)와 통신합니다.
+LLM 서버 미가용 시 키워드 기반 fallback을 제공합니다.
+
+환경 변수:
+    LLM_API_URL: OpenAI 호환 API base URL (기본: http://localhost:11435/v1)
+    LLM_MODEL: 사용할 모델명 (기본: mlx-community/Qwen2.5-7B-Instruct-4bit)
+    OLLAMA_HOST: (하위 호환) Ollama 호스트 URL
+    OLLAMA_MODEL: (하위 호환) Ollama 모델명
 """
 import os
 import logging
 from typing import Optional
 
+import httpx
+
 from ..models.news_category import NewsCategoryType, classify_by_keywords
 
 logger = logging.getLogger(__name__)
 
+# 기본값: MLX 서버 (Ollama 환경 변수 하위 호환)
+_DEFAULT_MLX_URL = "http://localhost:11435/v1"
+_DEFAULT_MLX_MODEL = "mlx-community/Qwen2.5-7B-Instruct-4bit"
+
+
+def _resolve_api_config() -> tuple[str, str]:
+    """LLM API URL과 모델을 환경 변수에서 결정
+
+    우선순위:
+    1. LLM_API_URL / LLM_MODEL (명시적 설정)
+    2. OLLAMA_HOST / OLLAMA_MODEL (하위 호환 → Ollama /v1 경로 자동 추가)
+    3. 기본값 (MLX 서버)
+    """
+    llm_url = os.getenv("LLM_API_URL")
+    llm_model = os.getenv("LLM_MODEL")
+
+    if llm_url:
+        return llm_url, llm_model or _DEFAULT_MLX_MODEL
+
+    ollama_host = os.getenv("OLLAMA_HOST")
+    ollama_model = os.getenv("OLLAMA_MODEL")
+
+    if ollama_host:
+        # Ollama도 OpenAI 호환 /v1 엔드포인트를 지원
+        base = ollama_host.rstrip("/")
+        return f"{base}/v1", ollama_model or "qwen2.5:latest"
+
+    return _DEFAULT_MLX_URL, llm_model or _DEFAULT_MLX_MODEL
+
 
 class OllamaService:
-    """Ollama 기반 AI 분석 서비스"""
+    """로컬 LLM 기반 AI 분석 서비스 (OpenAI 호환 API)"""
 
     def __init__(
         self,
-        host: Optional[str] = None,
+        api_url: Optional[str] = None,
         model: Optional[str] = None,
     ):
-        self.host = host or os.getenv("OLLAMA_HOST", "http://172.30.1.72:11434")
-        self.model = model or os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
-        self._client = None
-        self._available = None
+        resolved_url, resolved_model = _resolve_api_config()
+        self.api_url = api_url or resolved_url
+        self.model = model or resolved_model
+        self._available: Optional[bool] = None
+        self._client: Optional[httpx.Client] = None
 
-    def _get_client(self):
-        """Ollama 클라이언트 (lazy 초기화)"""
+    def _get_client(self) -> httpx.Client:
+        """httpx 클라이언트 (lazy 초기화)"""
         if self._client is None:
-            try:
-                import ollama
-                self._client = ollama.Client(host=self.host)
-                self._available = True
-            except ImportError:
-                logger.warning("ollama 패키지가 설치되지 않았습니다. Fallback 모드로 동작합니다.")
-                self._available = False
-            except Exception as e:
-                logger.warning(f"Ollama 연결 실패: {e}. Fallback 모드로 동작합니다.")
-                self._available = False
+            self._client = httpx.Client(timeout=120.0)
         return self._client
 
     @property
     def is_available(self) -> bool:
-        """Ollama 사용 가능 여부"""
+        """LLM 서버 사용 가능 여부"""
         if self._available is None:
-            self._get_client()
+            try:
+                client = self._get_client()
+                # /models 엔드포인트로 서버 상태 확인
+                resp = client.get(f"{self.api_url}/models", timeout=5.0)
+                self._available = resp.status_code == 200
+            except Exception as e:
+                logger.warning(f"LLM 서버 연결 실패 ({self.api_url}): {e}. Fallback 모드로 동작합니다.")
+                self._available = False
         return self._available
 
-    def _chat(self, prompt: str, max_retries: int = 2) -> Optional[str]:
-        """Ollama 채팅 호출"""
-        client = self._get_client()
-        if not client or not self._available:
+    def _chat(self, prompt: str, max_tokens: int = 500, max_retries: int = 2) -> Optional[str]:
+        """OpenAI 호환 chat/completions 호출"""
+        if not self.is_available:
             return None
+
+        client = self._get_client()
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+            "max_tokens": max_tokens,
+        }
 
         for attempt in range(max_retries):
             try:
-                response = client.chat(
-                    model=self.model,
-                    messages=[{"role": "user", "content": prompt}],
-                    options={"temperature": 0.3, "num_predict": 500},
+                resp = client.post(
+                    f"{self.api_url}/chat/completions",
+                    json=payload,
+                    timeout=120.0,
                 )
-                return response["message"]["content"].strip()
+                resp.raise_for_status()
+                data = resp.json()
+                return data["choices"][0]["message"]["content"].strip()
             except Exception as e:
-                logger.warning(f"Ollama 호출 실패 (시도 {attempt + 1}): {e}")
-                if attempt == 0:
+                logger.warning(f"LLM 호출 실패 (시도 {attempt + 1}): {e}")
+                if attempt == max_retries - 1:
                     self._available = False
 
         return None
+
+    def _chat_long(self, prompt: str) -> Optional[str]:
+        """긴 응답용 호출 (max_tokens 확장)"""
+        return self._chat(prompt, max_tokens=2000)
 
     def summarize(self, title: str, description: str) -> str:
         """기사 요약 생성"""
@@ -256,23 +305,6 @@ class OllamaService:
 
         return self._parse_insight_response(result, allergen_code)
 
-    def _chat_long(self, prompt: str) -> str | None:
-        """긴 응답용 Ollama 호출 (num_predict 확장)"""
-        client = self._get_client()
-        if not client or not self._available:
-            return None
-
-        try:
-            response = client.chat(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                options={"temperature": 0.4, "num_predict": 2000},
-            )
-            return response["message"]["content"].strip()
-        except Exception as e:
-            logger.warning(f"Ollama 긴 응답 호출 실패: {e}")
-            return None
-
     def _parse_insight_response(self, response: str, allergen_code: str) -> dict:
         """인사이트 리포트 응답 파싱"""
         title = f"{allergen_code} 알러젠 월간 분석 리포트"
@@ -332,6 +364,12 @@ class OllamaService:
 
         return min(1.0, score)
 
+    def close(self):
+        """리소스 정리"""
+        if self._client:
+            self._client.close()
+            self._client = None
+
 
 # 싱글톤
 _ollama_service: Optional[OllamaService] = None
@@ -343,3 +381,30 @@ def get_ollama_service() -> OllamaService:
     if _ollama_service is None:
         _ollama_service = OllamaService()
     return _ollama_service
+
+
+def check_ollama_available() -> bool:
+    """LLM 서버 접속 가능 여부 확인 (스케줄러에서 사용)"""
+    return get_ollama_service().is_available
+
+
+def ollama_translate(text: str) -> Optional[str]:
+    """영문 텍스트를 한국어로 번역 (스케줄러 korean_translation Job에서 사용)
+
+    Args:
+        text: 번역할 영문 텍스트
+
+    Returns:
+        한국어 번역문 또는 None (실패 시)
+    """
+    service = get_ollama_service()
+    if not service.is_available:
+        return None
+
+    prompt = (
+        "Translate the following English text into natural Korean. "
+        "Output ONLY the translation, nothing else.\n\n"
+        f"{text}\n\n"
+        "한국어 번역:"
+    )
+    return service._chat(prompt)

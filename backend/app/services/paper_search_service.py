@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from .pubmed_service import PubMedService
 from .semantic_scholar_service import SemanticScholarService
+from .europe_pmc_service import EuropePMCService
 from ..models.paper import Paper, PaperSearchResult, PaperSource
 
 logger = logging.getLogger(__name__)
@@ -30,12 +31,14 @@ class UnifiedSearchResult:
 
     # PDF 다운로드 가능한 논문 수
     downloadable_count: int = 0
+    europe_pmc_count: int = 0
 
     def to_dict(self) -> dict:
         return {
             "papers": [p.to_dict() for p in self.papers],
             "pubmed_count": self.pubmed_count,
             "semantic_scholar_count": self.semantic_scholar_count,
+            "europe_pmc_count": self.europe_pmc_count,
             "total_unique": self.total_unique,
             "downloadable_count": self.downloadable_count,
             "query": self.query,
@@ -54,6 +57,7 @@ class PaperSearchService:
     ):
         self.pubmed = PubMedService(api_key=pubmed_api_key, email=pubmed_email)
         self.semantic_scholar = SemanticScholarService(api_key=semantic_scholar_api_key)
+        self.europe_pmc = EuropePMCService()
         self._executor = ThreadPoolExecutor(max_workers=4)
 
     def search(
@@ -83,47 +87,53 @@ class PaperSearchService:
         start_time = time.time()
 
         if sources is None:
-            sources = ["pubmed", "semantic_scholar"]
+            sources = ["pubmed", "semantic_scholar", "europe_pmc"]
 
         all_papers = []
         pubmed_count = 0
         ss_count = 0
+        epmc_count = 0
 
         # 병렬 검색 실행
-        futures = []
+        source_futures = {}
 
         if "pubmed" in sources:
-            futures.append(
-                self._executor.submit(
-                    self.pubmed.search, query, max_results_per_source
-                )
+            source_futures["pubmed"] = self._executor.submit(
+                self.pubmed.search, query, max_results_per_source
             )
-        else:
-            futures.append(None)
 
         if "semantic_scholar" in sources:
-            futures.append(
-                self._executor.submit(
-                    self.semantic_scholar.search, query, max_results_per_source
-                )
+            source_futures["semantic_scholar"] = self._executor.submit(
+                self.semantic_scholar.search, query, max_results_per_source
             )
-        else:
-            futures.append(None)
+
+        if "europe_pmc" in sources:
+            source_futures["europe_pmc"] = self._executor.submit(
+                self.europe_pmc.search, query, max_results_per_source
+            )
 
         # 결과 수집
-        if futures[0]:
+        if "pubmed" in source_futures:
             try:
-                pubmed_result = futures[0].result(timeout=60)
+                pubmed_result = source_futures["pubmed"].result(timeout=60)
                 all_papers.extend(pubmed_result.papers)
                 pubmed_count = pubmed_result.total_count
             except Exception:
                 pass
 
-        if len(futures) > 1 and futures[1]:
+        if "semantic_scholar" in source_futures:
             try:
-                ss_result = futures[1].result(timeout=60)
+                ss_result = source_futures["semantic_scholar"].result(timeout=60)
                 all_papers.extend(ss_result.papers)
                 ss_count = ss_result.total_count
+            except Exception:
+                pass
+
+        if "europe_pmc" in source_futures:
+            try:
+                epmc_result = source_futures["europe_pmc"].result(timeout=60)
+                all_papers.extend(epmc_result.papers)
+                epmc_count = epmc_result.total_count
             except Exception:
                 pass
 
@@ -142,6 +152,7 @@ class PaperSearchService:
             papers=all_papers,
             pubmed_count=pubmed_count,
             semantic_scholar_count=ss_count,
+            europe_pmc_count=epmc_count,
             total_unique=len(all_papers),
             downloadable_count=downloadable,
             query=query,
@@ -181,7 +192,7 @@ class PaperSearchService:
         import time
         start_time = time.time()
 
-        # 병렬 검색
+        # 병렬 검색 (PubMed + Semantic Scholar + Europe PMC)
         pubmed_future = self._executor.submit(
             self.pubmed.search_allergy_papers,
             allergen,
@@ -196,9 +207,16 @@ class PaperSearchService:
             max_results_per_source,
         )
 
+        epmc_future = self._executor.submit(
+            self.europe_pmc.search_allergy,
+            allergen,
+            max_results_per_source,
+        )
+
         all_papers = []
         pubmed_count = 0
         ss_count = 0
+        epmc_count = 0
 
         try:
             pubmed_result = pubmed_future.result(timeout=60)
@@ -214,6 +232,13 @@ class PaperSearchService:
         except Exception:
             pass
 
+        try:
+            epmc_result = epmc_future.result(timeout=60)
+            all_papers.extend(epmc_result.papers)
+            epmc_count = epmc_result.total_count
+        except Exception:
+            pass
+
         # 중복 제거 및 PDF 링크 보강
         all_papers = self._merge_duplicates(all_papers)
         all_papers = self._enrich_pdf_links(all_papers)
@@ -224,6 +249,7 @@ class PaperSearchService:
             papers=all_papers,
             pubmed_count=pubmed_count,
             semantic_scholar_count=ss_count,
+            europe_pmc_count=epmc_count,
             total_unique=len(all_papers),
             downloadable_count=downloadable,
             query=f"{allergen} allergy" + (" cross-reactivity" if include_cross_reactivity else ""),
@@ -337,4 +363,5 @@ class PaperSearchService:
 
     def close(self):
         """리소스 정리"""
+        self.europe_pmc.close()
         self._executor.shutdown(wait=False)

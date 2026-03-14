@@ -9,6 +9,7 @@ class PaperSource(str, Enum):
     """논문 출처"""
     PUBMED = "pubmed"
     SEMANTIC_SCHOLAR = "semantic_scholar"
+    EUROPE_PMC = "europe_pmc"
     MANUAL_UPLOAD = "manual_upload"
 
 
