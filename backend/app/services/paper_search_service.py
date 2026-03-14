@@ -1,7 +1,7 @@
 """통합 논문 검색 서비스
 
-PubMed, Semantic Scholar, Europe PMC, OpenAlex를 통합하여 검색하고,
-중복을 제거하며 PDF 다운로드 링크를 보강합니다.
+PubMed, Semantic Scholar, Europe PMC, OpenAlex, bioRxiv/medRxiv를 통합하여
+검색하고, 중복을 제거하며 PDF 다운로드 링크를 보강합니다.
 """
 import asyncio
 import logging
@@ -15,6 +15,7 @@ from .pubmed_service import PubMedService
 from .semantic_scholar_service import SemanticScholarService
 from .europe_pmc_service import EuropePMCService
 from .openalex_service import OpenAlexService
+from .biorxiv_service import BiorxivService
 from ..models.paper import Paper, PaperSearchResult, PaperSource
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ class UnifiedSearchResult:
     downloadable_count: int = 0
     europe_pmc_count: int = 0
     openalex_count: int = 0
+    biorxiv_count: int = 0
 
     def to_dict(self) -> dict:
         return {
@@ -42,6 +44,7 @@ class UnifiedSearchResult:
             "semantic_scholar_count": self.semantic_scholar_count,
             "europe_pmc_count": self.europe_pmc_count,
             "openalex_count": self.openalex_count,
+            "biorxiv_count": self.biorxiv_count,
             "total_unique": self.total_unique,
             "downloadable_count": self.downloadable_count,
             "query": self.query,
@@ -62,7 +65,8 @@ class PaperSearchService:
         self.semantic_scholar = SemanticScholarService(api_key=semantic_scholar_api_key)
         self.europe_pmc = EuropePMCService()
         self.openalex = OpenAlexService(email=pubmed_email)
-        self._executor = ThreadPoolExecutor(max_workers=5)
+        self.biorxiv = BiorxivService()
+        self._executor = ThreadPoolExecutor(max_workers=6)
 
     def search(
         self,
@@ -91,13 +95,10 @@ class PaperSearchService:
         start_time = time.time()
 
         if sources is None:
-            sources = ["pubmed", "semantic_scholar", "europe_pmc", "openalex"]
+            sources = ["pubmed", "semantic_scholar", "europe_pmc", "openalex", "biorxiv"]
 
         all_papers = []
-        pubmed_count = 0
-        ss_count = 0
-        epmc_count = 0
-        oa_count = 0
+        counts = {"pubmed": 0, "ss": 0, "epmc": 0, "oa": 0, "biorxiv": 0}
 
         # 병렬 검색 실행
         source_futures = {}
@@ -106,52 +107,33 @@ class PaperSearchService:
             source_futures["pubmed"] = self._executor.submit(
                 self.pubmed.search, query, max_results_per_source
             )
-
         if "semantic_scholar" in sources:
             source_futures["semantic_scholar"] = self._executor.submit(
                 self.semantic_scholar.search, query, max_results_per_source
             )
-
         if "europe_pmc" in sources:
             source_futures["europe_pmc"] = self._executor.submit(
                 self.europe_pmc.search, query, max_results_per_source
             )
-
         if "openalex" in sources:
             source_futures["openalex"] = self._executor.submit(
                 self.openalex.search, query, max_results_per_source
             )
+        if "biorxiv" in sources:
+            source_futures["biorxiv"] = self._executor.submit(
+                self.biorxiv.search, query, max_results_per_source
+            )
 
         # 결과 수집
-        if "pubmed" in source_futures:
+        count_keys = {
+            "pubmed": "pubmed", "semantic_scholar": "ss",
+            "europe_pmc": "epmc", "openalex": "oa", "biorxiv": "biorxiv",
+        }
+        for src_name, future in source_futures.items():
             try:
-                pubmed_result = source_futures["pubmed"].result(timeout=60)
-                all_papers.extend(pubmed_result.papers)
-                pubmed_count = pubmed_result.total_count
-            except Exception:
-                pass
-
-        if "semantic_scholar" in source_futures:
-            try:
-                ss_result = source_futures["semantic_scholar"].result(timeout=60)
-                all_papers.extend(ss_result.papers)
-                ss_count = ss_result.total_count
-            except Exception:
-                pass
-
-        if "europe_pmc" in source_futures:
-            try:
-                epmc_result = source_futures["europe_pmc"].result(timeout=60)
-                all_papers.extend(epmc_result.papers)
-                epmc_count = epmc_result.total_count
-            except Exception:
-                pass
-
-        if "openalex" in source_futures:
-            try:
-                oa_result = source_futures["openalex"].result(timeout=60)
-                all_papers.extend(oa_result.papers)
-                oa_count = oa_result.total_count
+                result = future.result(timeout=60)
+                all_papers.extend(result.papers)
+                counts[count_keys[src_name]] = result.total_count
             except Exception:
                 pass
 
@@ -168,10 +150,11 @@ class PaperSearchService:
 
         result = UnifiedSearchResult(
             papers=all_papers,
-            pubmed_count=pubmed_count,
-            semantic_scholar_count=ss_count,
-            europe_pmc_count=epmc_count,
-            openalex_count=oa_count,
+            pubmed_count=counts["pubmed"],
+            semantic_scholar_count=counts["ss"],
+            europe_pmc_count=counts["epmc"],
+            openalex_count=counts["oa"],
+            biorxiv_count=counts["biorxiv"],
             total_unique=len(all_papers),
             downloadable_count=downloadable,
             query=query,
@@ -211,66 +194,30 @@ class PaperSearchService:
         import time
         start_time = time.time()
 
-        # 병렬 검색 (PubMed + Semantic Scholar + Europe PMC + OpenAlex)
-        pubmed_future = self._executor.submit(
-            self.pubmed.search_allergy_papers,
-            allergen,
-            include_cross_reactivity,
-            max_results_per_source,
-        )
-
-        ss_future = self._executor.submit(
-            self.semantic_scholar.search_allergy_papers,
-            allergen,
-            include_cross_reactivity,
-            max_results_per_source,
-        )
-
-        epmc_future = self._executor.submit(
-            self.europe_pmc.search_allergy,
-            allergen,
-            max_results_per_source,
-        )
-
-        oa_future = self._executor.submit(
-            self.openalex.search_allergy,
-            allergen,
-            max_results_per_source,
-        )
+        # 병렬 검색 (5소스)
+        futures = {
+            "pubmed": self._executor.submit(
+                self.pubmed.search_allergy_papers, allergen, include_cross_reactivity, max_results_per_source),
+            "ss": self._executor.submit(
+                self.semantic_scholar.search_allergy_papers, allergen, include_cross_reactivity, max_results_per_source),
+            "epmc": self._executor.submit(
+                self.europe_pmc.search_allergy, allergen, max_results_per_source),
+            "oa": self._executor.submit(
+                self.openalex.search_allergy, allergen, max_results_per_source),
+            "biorxiv": self._executor.submit(
+                self.biorxiv.search_allergy, allergen, max_results_per_source),
+        }
 
         all_papers = []
-        pubmed_count = 0
-        ss_count = 0
-        epmc_count = 0
-        oa_count = 0
+        counts = {"pubmed": 0, "ss": 0, "epmc": 0, "oa": 0, "biorxiv": 0}
 
-        try:
-            pubmed_result = pubmed_future.result(timeout=60)
-            all_papers.extend(pubmed_result.papers)
-            pubmed_count = pubmed_result.total_count
-        except Exception:
-            pass
-
-        try:
-            ss_result = ss_future.result(timeout=60)
-            all_papers.extend(ss_result.papers)
-            ss_count = ss_result.total_count
-        except Exception:
-            pass
-
-        try:
-            epmc_result = epmc_future.result(timeout=60)
-            all_papers.extend(epmc_result.papers)
-            epmc_count = epmc_result.total_count
-        except Exception:
-            pass
-
-        try:
-            oa_result = oa_future.result(timeout=60)
-            all_papers.extend(oa_result.papers)
-            oa_count = oa_result.total_count
-        except Exception:
-            pass
+        for key, future in futures.items():
+            try:
+                r = future.result(timeout=60)
+                all_papers.extend(r.papers)
+                counts[key] = r.total_count
+            except Exception:
+                pass
 
         # 중복 제거 및 PDF 링크 보강
         all_papers = self._merge_duplicates(all_papers)
@@ -280,10 +227,11 @@ class PaperSearchService:
 
         result = UnifiedSearchResult(
             papers=all_papers,
-            pubmed_count=pubmed_count,
-            semantic_scholar_count=ss_count,
-            europe_pmc_count=epmc_count,
-            openalex_count=oa_count,
+            pubmed_count=counts["pubmed"],
+            semantic_scholar_count=counts["ss"],
+            europe_pmc_count=counts["epmc"],
+            openalex_count=counts["oa"],
+            biorxiv_count=counts["biorxiv"],
             total_unique=len(all_papers),
             downloadable_count=downloadable,
             query=f"{allergen} allergy" + (" cross-reactivity" if include_cross_reactivity else ""),
@@ -399,4 +347,5 @@ class PaperSearchService:
         """리소스 정리"""
         self.europe_pmc.close()
         self.openalex.close()
+        self.biorxiv.close()
         self._executor.shutdown(wait=False)

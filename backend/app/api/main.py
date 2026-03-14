@@ -346,6 +346,7 @@ async def search_papers(request: Request, body: SearchRequest):
         "semantic_scholar_count": result.semantic_scholar_count,
         "europe_pmc_count": result.europe_pmc_count,
         "openalex_count": result.openalex_count,
+        "biorxiv_count": result.biorxiv_count,
         "downloadable_count": result.downloadable_count,
         "search_time_ms": round(result.search_time_ms, 2),
         "papers": [p.to_dict() for p in result.papers],

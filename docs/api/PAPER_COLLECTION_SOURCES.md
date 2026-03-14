@@ -403,10 +403,10 @@ GET https://api.crossref.org/works?query=food+allergy&rows=100
 - [x] OpenAlex — 대규모 메타데이터 + 인용 네트워크 보강 (`openalex_service.py`)
 - [x] Unpaywall — DOI 기반 PDF 링크 보강 (`unpaywall_service.py`)
 
-### 6.3 3단계 (선택) — 부분 구현
+### 6.3 3단계 (선택) — 구현 완료
 - [x] ClinicalTrials.gov — 알러지 임상시험 검색 (`clinicaltrials_service.py`)
-- [x] bioRxiv/medRxiv — 프리프린트 검색 + 날짜 기반 수집 (`biorxiv_service.py`)
-- [ ] CORE — 추가 전문 텍스트 (API 키 필요, 보류)
+- [x] bioRxiv/medRxiv — 프리프린트 통합 검색 + 날짜 기반 수집 (`biorxiv_service.py`)
+- [x] CORE — Full-text 논문 검색 (`core_service.py`, API 키: `CORE_API_KEY` 환경변수)
 
 ### 6.4 4단계 (기관 구독 시) — 미구현
 - [ ] Scopus — 인용 분석 강화
@@ -504,3 +504,4 @@ LLM_MODEL=mlx-community/EXAONE-3.5-7.8B-Instruct-4bit
 | 2025-01-23 | 1.0 | 최초 작성 |
 | 2026-03-14 | 2.0 | 2단계 소스 전체 구현 (Europe PMC, OpenAlex, Unpaywall), 아키텍처 다이어그램 현행화, AI 인프라(MLX/EXAONE/ChromaDB RAG) 반영 |
 | 2026-03-14 | 2.1 | 3단계 소스 구현 (ClinicalTrials.gov, bioRxiv/medRxiv), SlowAPI 버그 수정, QA 엔진 RAG 통합 |
+| 2026-03-14 | 2.2 | bioRxiv 통합 검색 편입 (5소스 병렬), CORE API 서비스 추가 (API 키 환경변수 방식) |
