@@ -144,7 +144,7 @@ async def get_rag_stats():
 
 @router.post("/rag/index")
 @limiter.limit("2/minute")
-async def trigger_rag_indexing(http_request: Request, batch_size: int = 100):
+async def trigger_rag_indexing(request: Request, batch_size: int = 100):
     """RAG 인덱싱 트리거 (미인덱싱 논문을 벡터 DB에 추가)"""
     from ..services.rag_service import get_rag_service
     from ..database.connection import SessionLocal
