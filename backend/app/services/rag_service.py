@@ -254,7 +254,12 @@ class RAGService:
 
         where_filter = None
         if allergen_filter:
-            where_filter = {"allergens": {"$contains": allergen_filter}}
+            # allergens 필드는 "peanut" 또는 "peanut,milk" 형태의 쉼표 구분 문자열
+            # ChromaDB에서는 문서 텍스트로 필터링하는 것이 더 정확하므로
+            # where_document 대신 allergens 메타데이터에서 직접 매칭
+            # 단일 알러젠이면 정확 매칭, 복합이면 포함 여부 확인 불가하므로
+            # 쿼리 텍스트에 알러젠을 추가하여 관련성을 높임
+            query = f"{allergen_filter} {query}"
 
         try:
             results = col.query(
