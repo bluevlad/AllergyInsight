@@ -42,7 +42,7 @@ CATEGORY_LABELS = {
 
 @router.post("/ask")
 @limiter.limit("10/minute")
-async def ask_question(request: ConsultRequest, http_request: Request):
+async def ask_question(request: Request, body: ConsultRequest):
     """알러지 AI 상담 질문
 
     논문 기반으로 알러지 관련 질문에 답변합니다.
@@ -52,9 +52,9 @@ async def ask_question(request: ConsultRequest, http_request: Request):
 
     engine = get_qa_engine()
     response = engine.ask(
-        question=request.question,
-        allergen=request.allergen,
-        max_citations=request.max_citations,
+        question=body.question,
+        allergen=body.allergen,
+        max_citations=body.max_citations,
     )
 
     return {
@@ -98,7 +98,7 @@ async def get_quick_questions(allergen: str = "peanut"):
 
 @router.post("/ask/rag")
 @limiter.limit("10/minute")
-async def ask_question_rag(request: ConsultRequest, http_request: Request):
+async def ask_question_rag(request: Request, body: ConsultRequest):
     """RAG 기반 알러지 AI 상담 질문
 
     ChromaDB 벡터 검색 + LLM으로 논문 기반 답변을 생성합니다.
@@ -109,17 +109,17 @@ async def ask_question_rag(request: ConsultRequest, http_request: Request):
     rag = get_rag_service()
     if not rag.is_available:
         # RAG 미가용 시 기존 Q&A 엔진으로 fallback
-        return await ask_question(request, http_request)
+        return await ask_question(request, body)
 
     result = rag.ask(
-        question=request.question,
-        allergen=request.allergen,
-        n_context=request.max_citations,
+        question=body.question,
+        allergen=body.allergen,
+        n_context=body.max_citations,
     )
 
     return {
         "success": True,
-        "question": request.question,
+        "question": body.question,
         "answer": result["answer"],
         "confidence": result["confidence"],
         "sources": result["sources"],
