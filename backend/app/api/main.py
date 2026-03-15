@@ -44,6 +44,7 @@ from ..auth.paper_routes import router as paper_router
 from ..auth.config import auth_settings
 from ..database.connection import engine, init_db, get_db, SessionLocal
 from ..database.seed_users import seed_users
+from ..database.seed_allergens import seed_allergens
 from ..config import settings
 from ..database.models import User
 from ..core.auth import require_auth
@@ -879,6 +880,7 @@ async def startup_event():
     """앱 시작 시 데이터베이스 초기화 및 시드 데이터 생성"""
     init_db()
     seed_users()  # 테스트 사용자 시딩
+    seed_allergens()  # 알러젠 마스터 데이터 시딩
 
     # 스케줄러 초기화 (ENABLE_SCHEDULER=true일 때만)
     if os.getenv("ENABLE_SCHEDULER", "false").lower() == "true":

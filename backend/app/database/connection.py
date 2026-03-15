@@ -57,6 +57,7 @@ def init_db():
     from . import organization_models  # 조직 모델
     from . import newsletter_models  # 뉴스레터 발송 이력
     from . import subscriber_models  # 구독자 모델
+    from . import allergen_models  # 알러젠 마스터 데이터
     from ..services.diagnosis_repository import StoredDiagnosisModel, StoredPrescriptionModel  # noqa: F401
     Base.metadata.create_all(bind=engine)
     run_migrations()

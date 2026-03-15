@@ -1,24 +1,17 @@
 """알러젠 마스터 데이터 API
 
-120종 알러젠 기본 정보를 조회하는 API 엔드포인트입니다.
+119종 알러젠 기본 정보를 DB에서 조회하는 API 엔드포인트입니다.
 """
 from typing import Optional, List
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-from . import (
-    ALLERGEN_MASTER_DB,
-    ALLERGEN_PRESCRIPTION_DB,
-    AllergenCategory,
-    AllergenType,
-    get_allergen_by_code,
-    get_allergens_by_category,
-    get_allergens_by_type,
-    get_all_allergen_codes,
-    get_allergen_count,
-    search_allergens,
-    get_allergen_summary,
-)
+from ...database.connection import get_db
+from ...database.allergen_models import AllergenMaster
+from ...data.allergen_master import AllergenCategory, AllergenType
+from ...data.allergen_prescription_db import ALLERGEN_PRESCRIPTION_DB
+from . import service as allergen_service
 
 router = APIRouter(prefix="/allergens", tags=["Allergens"])
 
@@ -63,26 +56,25 @@ class AllergenSearchResponse(BaseModel):
 # Helper Functions
 # ============================================================================
 
-def allergen_to_response(allergen: dict) -> AllergenResponse:
-    """알러젠 딕셔너리를 응답 모델로 변환"""
-    category = allergen.get("category")
-    allergen_type = allergen.get("type")
-    code = allergen.get("code", "")
-    name_en = allergen.get("name_en", "")
-    has_prescription = (
+def _has_prescription(code: str, name_en: str) -> bool:
+    """처방 정보 존재 여부 확인"""
+    return (
         code in ALLERGEN_PRESCRIPTION_DB or
         name_en.lower().replace(" ", "_") in ALLERGEN_PRESCRIPTION_DB
     )
 
+
+def allergen_to_response(allergen: AllergenMaster) -> AllergenResponse:
+    """AllergenMaster ORM 객체를 응답 모델로 변환"""
     return AllergenResponse(
-        code=code,
-        name_kr=allergen.get("name_kr", ""),
-        name_en=name_en,
-        category=category.value if hasattr(category, 'value') else str(category),
-        type=allergen_type.value if hasattr(allergen_type, 'value') else str(allergen_type),
-        description=allergen.get("description"),
-        note=allergen.get("note"),
-        has_prescription=has_prescription,
+        code=allergen.code,
+        name_kr=allergen.name_kr,
+        name_en=allergen.name_en,
+        category=allergen.category,
+        type=allergen.type,
+        description=allergen.description,
+        note=allergen.note,
+        has_prescription=_has_prescription(allergen.code, allergen.name_en),
     )
 
 
@@ -92,74 +84,49 @@ def allergen_to_response(allergen: dict) -> AllergenResponse:
 
 @router.get("/", response_model=AllergenListResponse)
 async def list_allergens(
-    category: Optional[str] = Query(None, description="카테고리 필터 (예: mite, food, tree)"),
+    category: Optional[str] = Query(None, description="카테고리 필터 (예: mite, tree, egg_dairy)"),
     type: Optional[str] = Query(None, description="타입 필터 (food, inhalant, contact, venom)"),
     limit: int = Query(200, ge=1, le=500, description="최대 반환 개수"),
     offset: int = Query(0, ge=0, description="건너뛸 개수"),
+    db: Session = Depends(get_db),
 ):
     """
     알러젠 목록 조회
 
-    120종 알러젠 기본 정보를 조회합니다.
+    119종 알러젠 기본 정보를 조회합니다.
     카테고리 또는 타입으로 필터링할 수 있습니다.
     """
-    allergens = list(ALLERGEN_MASTER_DB.values())
+    items, total = allergen_service.list_allergens(
+        db, category=category, allergen_type=type, limit=limit, offset=offset,
+    )
 
-    # 카테고리 필터
-    if category:
-        try:
-            cat_enum = AllergenCategory(category)
-            allergens = [a for a in allergens if a.get("category") == cat_enum]
-        except ValueError:
-            # 문자열 비교 시도
-            allergens = [
-                a for a in allergens
-                if (a.get("category").value if hasattr(a.get("category"), 'value')
-                    else str(a.get("category"))) == category
-            ]
-
-    # 타입 필터
-    if type:
-        try:
-            type_enum = AllergenType(type)
-            allergens = [a for a in allergens if a.get("type") == type_enum]
-        except ValueError:
-            allergens = [
-                a for a in allergens
-                if (a.get("type").value if hasattr(a.get("type"), 'value')
-                    else str(a.get("type"))) == type
-            ]
-
-    total = len(allergens)
-
-    # 페이징
-    allergens = allergens[offset:offset + limit]
-
-    items = [allergen_to_response(a) for a in allergens]
-
-    return AllergenListResponse(items=items, total=total)
+    return AllergenListResponse(
+        items=[allergen_to_response(a) for a in items],
+        total=total,
+    )
 
 
 @router.get("/summary", response_model=AllergenSummaryResponse)
-async def get_summary():
+async def get_summary(db: Session = Depends(get_db)):
     """
     알러젠 요약 통계
 
     전체 알러젠 수, 카테고리별/타입별 분포를 반환합니다.
     """
-    return get_allergen_summary()
+    return allergen_service.get_summary(db)
 
 
 @router.get("/search", response_model=AllergenSearchResponse)
 async def search(
     q: str = Query(..., min_length=1, description="검색어 (한글명, 영문명, 코드)"),
+    db: Session = Depends(get_db),
 ):
     """
     알러젠 검색
 
     한글명, 영문명, 코드로 알러젠을 검색합니다.
     """
-    results = search_allergens(q)
+    results = allergen_service.search_allergens(db, q)
     items = [allergen_to_response(a) for a in results]
 
     return AllergenSearchResponse(
@@ -170,15 +137,16 @@ async def search(
 
 
 @router.get("/codes")
-async def list_codes():
+async def list_codes(db: Session = Depends(get_db)):
     """
     알러젠 코드 목록
 
     전체 알러젠 코드 목록을 반환합니다.
     """
+    codes = allergen_service.get_all_codes(db)
     return {
-        "codes": get_all_allergen_codes(),
-        "count": get_allergen_count(),
+        "codes": codes,
+        "count": len(codes),
     }
 
 
@@ -240,13 +208,13 @@ async def list_types():
 
 
 @router.get("/{code}", response_model=AllergenResponse)
-async def get_allergen(code: str):
+async def get_allergen(code: str, db: Session = Depends(get_db)):
     """
     알러젠 상세 조회
 
     코드로 특정 알러젠 정보를 조회합니다.
     """
-    allergen = get_allergen_by_code(code)
+    allergen = allergen_service.get_by_code(db, code)
 
     if not allergen:
         raise HTTPException(404, f"알러젠을 찾을 수 없습니다: {code}")
