@@ -1,4 +1,7 @@
 """스케줄러 관리자 API"""
+import logging
+import threading
+
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -7,6 +10,8 @@ from .dependencies import require_super_admin
 from ..database.connection import get_db
 from ..database.models import User
 from ..database.scheduler_models import SchedulerExecutionLog
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/scheduler", tags=["Scheduler Admin"])
 
@@ -170,4 +175,94 @@ async def get_latest_execution(
         "result_summary": log.result_summary,
         "error_message": log.error_message,
         "trigger_type": log.trigger_type,
+    }
+
+
+# ============================================================================
+# 벌크 논문 수집
+# ============================================================================
+
+@router.post("/bulk-collect")
+async def bulk_collect_papers(
+    start_year: int = Query(2016, ge=2000, le=2030, description="수집 시작 연도"),
+    end_year: int = Query(2026, ge=2000, le=2030, description="수집 종료 연도"),
+    rebuild_rag: bool = Query(True, description="수집 후 RAG DB 재구축 여부"),
+    current_user: User = Depends(require_super_admin),
+):
+    """연도별 논문 벌크 수집 (백그라운드 실행)
+
+    최근 10년간 알러지 논문을 연도별로 수집하고 RAG DB를 재구축합니다.
+    백그라운드에서 실행되며, 진행 상황은 /scheduler/history?job_id=bulk_paper_collect 에서 확인 가능합니다.
+    """
+    if start_year > end_year:
+        raise HTTPException(status_code=400, detail="start_year는 end_year보다 작거나 같아야 합니다.")
+
+    def _run_bulk():
+        import time
+        from datetime import datetime
+        from ..database.connection import SessionLocal
+
+        db = SessionLocal()
+        log = None
+        try:
+            log = SchedulerExecutionLog(
+                job_id="bulk_paper_collect",
+                status="running",
+                started_at=datetime.utcnow(),
+                trigger_type="manual",
+            )
+            db.add(log)
+            db.commit()
+            db.refresh(log)
+
+            from scripts.bulk_collect_papers import collect_year, rebuild_rag_db, ALL_ALLERGENS
+
+            results = []
+            for year in range(start_year, end_year + 1):
+                try:
+                    result = collect_year(year, ALL_ALLERGENS)
+                    results.append(result)
+                    logger.info(f"[bulk_collect] {year}: {result['total_new']}건 신규")
+                except Exception as e:
+                    logger.warning(f"[bulk_collect] {year} 실패: {e}")
+                    results.append({"year": year, "total_found": 0, "total_new": 0, "error": str(e)})
+                time.sleep(3)
+
+            rag_result = None
+            if rebuild_rag:
+                rag_result = rebuild_rag_db()
+
+            now = datetime.utcnow()
+            log.status = "success"
+            log.completed_at = now
+            log.duration_seconds = (now - log.started_at).total_seconds()
+            log.result_summary = {
+                "years_processed": len(results),
+                "total_found": sum(r.get("total_found", 0) for r in results),
+                "total_new": sum(r.get("total_new", 0) for r in results),
+                "year_details": {r["year"]: r.get("total_new", 0) for r in results},
+                "rag_rebuild": rag_result,
+            }
+            db.commit()
+
+        except Exception as e:
+            if log:
+                now = datetime.utcnow()
+                log.status = "failed"
+                log.completed_at = now
+                log.duration_seconds = (now - log.started_at).total_seconds()
+                log.error_message = str(e)
+                db.commit()
+            logger.error(f"[bulk_collect] 전체 실패: {e}")
+        finally:
+            db.close()
+
+    thread = threading.Thread(target=_run_bulk, daemon=True)
+    thread.start()
+
+    return {
+        "message": f"{start_year}~{end_year} 논문 벌크 수집이 백그라운드에서 시작되었습니다.",
+        "years": list(range(start_year, end_year + 1)),
+        "rebuild_rag": rebuild_rag,
+        "check_progress": "/api/admin/scheduler/history?job_id=bulk_paper_collect",
     }

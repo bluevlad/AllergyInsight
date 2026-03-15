@@ -153,8 +153,8 @@ class Paper(Base):
     year = Column(Integer, nullable=True)
 
     # Content
-    abstract = Column(String(5000), nullable=True)
-    abstract_kr = Column(String(5000), nullable=True)
+    abstract = Column(Text, nullable=True)
+    abstract_kr = Column(Text, nullable=True)
 
     # URLs
     url = Column(String(500), nullable=True)  # PubMed or DOI URL

@@ -117,6 +117,17 @@ def run_migrations():
                     conn.execute(text(stmt))
                     logger.info(f"Migration: papers.{col_name} 컬럼 추가")
 
+            # abstract/abstract_kr 컬럼 VARCHAR→TEXT 변환 (긴 초록 지원)
+            for col_name in ("abstract", "abstract_kr"):
+                result = conn.execute(text(
+                    "SELECT data_type FROM information_schema.columns "
+                    "WHERE table_name = 'papers' AND column_name = :col"
+                ), {"col": col_name})
+                row = result.fetchone()
+                if row and row[0] == "character varying":
+                    conn.execute(text(f"ALTER TABLE papers ALTER COLUMN {col_name} TYPE TEXT"))
+                    logger.info(f"Migration: papers.{col_name} VARCHAR→TEXT 변환")
+
             # 인덱스 추가 (이미 있으면 무시)
             for idx_name, idx_def in [
                 ("idx_papers_source", "CREATE INDEX IF NOT EXISTS idx_papers_source ON papers (source)"),
