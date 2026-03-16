@@ -19,7 +19,8 @@ docs/
 └── dev/                               # 개발자 가이드
     ├── SETUP.md                       # 개발 환경 설정
     ├── DEPLOYMENT.md                  # 배포 절차
-    └── BRANCH_WORKFLOW.md             # 브랜치 전략
+    ├── BRANCH_WORKFLOW.md             # 브랜치 전략
+    └── LLM_ARCHITECTURE.md            # LLM 이중화 아키텍처
 ```
 
 ## 문서 저장소 (Claude-Opus-bluevlad/docs/AllergyInsight/)

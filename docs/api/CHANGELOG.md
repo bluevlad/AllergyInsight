@@ -1,5 +1,21 @@
 # API 변경 이력
 
+## [2.1.0] - 2026-03-16
+
+### Added
+- LLM 이중화 프로바이더 구조 (Gemini 2.5 Flash + 로컬 MLX)
+- 뉴스 관련성 필터 (`relevance_score`, `is_relevant`)
+- 뉴스레터 품질 게이트 (관련성/중요도/요약 검증)
+- 뉴스 AI 분석 통합 프롬프트 (기사당 1회 호출로 4항목 동시 분석)
+- 관리자 메뉴에 뉴스레터/구독자 관리 추가
+
+### Changed
+- `OllamaService`: 용도별 LLM 프로바이더 분리 (`NEWS_LLM_PROVIDER`, `RAG_LLM_PROVIDER`)
+- `analyze_article()`: 통합 프롬프트 방식으로 API 효율화
+- `_get_today_articles()`: 관련성/중요도/요약 품질 필터 적용
+
+---
+
 ## [2.0.0] - 2025-01
 
 ### Breaking Changes
