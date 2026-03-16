@@ -46,9 +46,11 @@ class CompetitorNews(Base):
     is_important = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # AI 분석 컬럼 (Phase 2)
+    # AI 분석 컬럼
     summary = Column(Text, nullable=True)
     importance_score = Column(Float, nullable=True)
+    relevance_score = Column(Float, nullable=True)
+    is_relevant = Column(Boolean, default=True)
     content_hash = Column(String(64), nullable=True)
     is_duplicate = Column(Boolean, default=False)
     is_processed = Column(Boolean, default=False)

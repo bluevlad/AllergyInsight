@@ -1,7 +1,10 @@
 """뉴스레터 서비스
 
 이메일 발송 + 리포트 생성 + DB 이력 관리를 조합합니다.
+품질 게이트: 관련성/중요도/요약 검증을 통해 저품질 기사를 제외합니다.
 """
+import os
+import re
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -16,6 +19,18 @@ from ..database.newsletter_models import NewsletterSendHistory
 
 logger = logging.getLogger(__name__)
 
+# 뉴스레터 포함 최소 중요도 (이 값 미만이면 제외)
+_IMPORTANCE_THRESHOLD = float(os.getenv("NEWS_IMPORTANCE_THRESHOLD", "0.2"))
+
+# 요약 실패로 간주하는 패턴
+_BAD_SUMMARY_PATTERNS = [
+    r"요약을?\s*작성하기\s*어렵",
+    r"구체적인\s*요약을?\s*작성",
+    r"내용[이가]?\s*(부족|없|불충분)",
+    r"요약할?\s*수\s*없",
+    r"제공된\s*.*만으로는",
+]
+
 
 class NewsletterService:
     """뉴스레터 서비스"""
@@ -28,20 +43,41 @@ class NewsletterService:
         self.email_service = email_service or get_email_service()
         self.report_generator = report_generator or NewsReportGenerator()
 
+    @staticmethod
+    def _is_bad_summary(summary: Optional[str]) -> bool:
+        """요약 실패 여부 판정"""
+        if not summary:
+            return True
+        for pattern in _BAD_SUMMARY_PATTERNS:
+            if re.search(pattern, summary):
+                return True
+        return False
+
     def _get_today_articles(self, db: Session, days: int = 1) -> list[dict]:
-        """오늘(또는 최근 N일) 기사 조회"""
+        """오늘(또는 최근 N일) 기사 조회 (품질 게이트 적용)"""
         since = datetime.now(timezone.utc) - timedelta(days=days)
 
         articles = db.query(CompetitorNews).join(CompetitorCompany).filter(
             CompetitorNews.created_at >= since,
             CompetitorNews.is_duplicate == False,
+            CompetitorNews.is_relevant == True,
         ).order_by(
             CompetitorNews.importance_score.desc().nullslast(),
             CompetitorNews.created_at.desc(),
         ).limit(100).all()
 
-        return [
-            {
+        result = []
+        for a in articles:
+            # 중요도 임계값 미달 제외
+            if a.importance_score is not None and a.importance_score < _IMPORTANCE_THRESHOLD:
+                continue
+
+            # 요약 실패 기사 제외
+            if self._is_bad_summary(a.summary):
+                logger.debug(f"요약 실패 기사 제외: {a.title[:50]}")
+                continue
+
+            result.append({
                 "title": a.title,
                 "url": a.url,
                 "source": a.source,
@@ -50,9 +86,9 @@ class NewsletterService:
                 "summary": a.summary,
                 "importance_score": a.importance_score,
                 "category": a.category or "general",
-            }
-            for a in articles
-        ]
+            })
+
+        return result
 
     def preview_newsletter(self, db: Session, days: int = 1) -> str:
         """뉴스레터 미리보기 HTML"""

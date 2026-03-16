@@ -1,16 +1,21 @@
-"""로컬 LLM AI 서비스
+"""LLM AI 서비스
 
-OpenAI 호환 API를 사용하여 로컬 LLM 서버(MLX, Ollama 등)와 통신합니다.
-LLM 서버 미가용 시 키워드 기반 fallback을 제공합니다.
+Gemini(클라우드) 또는 로컬 LLM(MLX/Ollama)을 용도별로 분리 운영합니다.
+- 뉴스 분석, RAG 답변: Gemini 2.5 Flash (고품질, 무료)
+- 한국어 번역, 알러젠 추출: 로컬 LLM (대량 처리)
 
 환경 변수:
-    LLM_API_URL: OpenAI 호환 API base URL (기본: http://localhost:11435/v1)
-    LLM_MODEL: 사용할 모델명 (기본: mlx-community/Qwen2.5-7B-Instruct-4bit)
+    GEMINI_API_KEY: Google Gemini API 키
+    NEWS_LLM_PROVIDER: 뉴스 분석용 LLM (gemini|local, 기본: gemini)
+    RAG_LLM_PROVIDER: RAG 답변용 LLM (gemini|local, 기본: gemini)
+    LLM_API_URL: 로컬 LLM OpenAI 호환 API base URL
+    LLM_MODEL: 로컬 LLM 모델명
     OLLAMA_HOST: (하위 호환) Ollama 호스트 URL
     OLLAMA_MODEL: (하위 호환) Ollama 모델명
 """
 import os
 import logging
+import time
 from typing import Optional
 
 import httpx
@@ -19,69 +24,116 @@ from ..models.news_category import NewsCategoryType, classify_by_keywords
 
 logger = logging.getLogger(__name__)
 
-# 기본값: MLX 서버 (Ollama 환경 변수 하위 호환)
-_DEFAULT_MLX_URL = "http://localhost:11435/v1"
-_DEFAULT_MLX_MODEL = "mlx-community/EXAONE-3.5-7.8B-Instruct-4bit"
+# Gemini 설정
+_GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
+_GEMINI_MODEL = "gemini-2.5-flash"
+
+# 로컬 LLM 기본값
+_DEFAULT_LOCAL_URL = "http://localhost:11435/v1"
+_DEFAULT_LOCAL_MODEL = "mlx-community/EXAONE-3.5-7.8B-Instruct-4bit"
 
 
-def _resolve_api_config() -> tuple[str, str]:
-    """LLM API URL과 모델을 환경 변수에서 결정
+def _resolve_local_config() -> tuple[str, str]:
+    """로컬 LLM API URL과 모델을 환경 변수에서 결정
 
     우선순위:
     1. LLM_API_URL / LLM_MODEL (명시적 설정)
-    2. OLLAMA_HOST / OLLAMA_MODEL (하위 호환 → Ollama /v1 경로 자동 추가)
+    2. OLLAMA_HOST / OLLAMA_MODEL (하위 호환)
     3. 기본값 (MLX 서버)
     """
     llm_url = os.getenv("LLM_API_URL")
     llm_model = os.getenv("LLM_MODEL")
 
     if llm_url:
-        return llm_url, llm_model or _DEFAULT_MLX_MODEL
+        return llm_url, llm_model or _DEFAULT_LOCAL_MODEL
 
     ollama_host = os.getenv("OLLAMA_HOST")
     ollama_model = os.getenv("OLLAMA_MODEL")
 
     if ollama_host:
-        # Ollama도 OpenAI 호환 /v1 엔드포인트를 지원
         base = ollama_host.rstrip("/")
         return f"{base}/v1", ollama_model or "qwen2.5:latest"
 
-    return _DEFAULT_MLX_URL, llm_model or _DEFAULT_MLX_MODEL
+    return _DEFAULT_LOCAL_URL, llm_model or _DEFAULT_LOCAL_MODEL
+
+
+def _resolve_gemini_config() -> tuple[Optional[str], str, str]:
+    """Gemini API 설정 반환: (api_key, url, model)"""
+    api_key = os.getenv("GEMINI_API_KEY")
+    return api_key, _GEMINI_API_URL, _GEMINI_MODEL
 
 
 class OllamaService:
-    """로컬 LLM 기반 AI 분석 서비스 (OpenAI 호환 API)"""
+    """LLM AI 분석 서비스 (Gemini + 로컬 LLM 이중화)"""
 
     def __init__(
         self,
         api_url: Optional[str] = None,
         model: Optional[str] = None,
     ):
-        resolved_url, resolved_model = _resolve_api_config()
+        # 로컬 LLM 설정
+        resolved_url, resolved_model = _resolve_local_config()
         self.api_url = api_url or resolved_url
         self.model = model or resolved_model
         self._available: Optional[bool] = None
         self._client: Optional[httpx.Client] = None
 
+        # Gemini 설정
+        gemini_key, gemini_url, gemini_model = _resolve_gemini_config()
+        self._gemini_api_key = gemini_key
+        self._gemini_url = gemini_url
+        self._gemini_model = gemini_model
+        self._gemini_available: Optional[bool] = None
+        self._gemini_client: Optional[httpx.Client] = None
+
+        # 용도별 프로바이더 설정
+        self._news_provider = os.getenv("NEWS_LLM_PROVIDER", "gemini")
+        self._rag_provider = os.getenv("RAG_LLM_PROVIDER", "gemini")
+
     def _get_client(self) -> httpx.Client:
-        """httpx 클라이언트 (lazy 초기화)"""
+        """로컬 LLM httpx 클라이언트 (lazy 초기화)"""
         if self._client is None:
             self._client = httpx.Client(timeout=120.0)
         return self._client
 
+    def _get_gemini_client(self) -> httpx.Client:
+        """Gemini httpx 클라이언트 (lazy 초기화)"""
+        if self._gemini_client is None:
+            self._gemini_client = httpx.Client(
+                timeout=60.0,
+                headers={"Authorization": f"Bearer {self._gemini_api_key}"},
+            )
+        return self._gemini_client
+
     @property
     def is_available(self) -> bool:
-        """LLM 서버 사용 가능 여부"""
+        """로컬 LLM 서버 사용 가능 여부"""
         if self._available is None:
             try:
                 client = self._get_client()
-                # /models 엔드포인트로 서버 상태 확인
                 resp = client.get(f"{self.api_url}/models", timeout=5.0)
                 self._available = resp.status_code == 200
             except Exception as e:
-                logger.warning(f"LLM 서버 연결 실패 ({self.api_url}): {e}. Fallback 모드로 동작합니다.")
+                logger.warning(f"로컬 LLM 연결 실패 ({self.api_url}): {e}. Fallback 모드로 동작합니다.")
                 self._available = False
         return self._available
+
+    @property
+    def is_gemini_available(self) -> bool:
+        """Gemini API 사용 가능 여부"""
+        if self._gemini_available is None:
+            if not self._gemini_api_key:
+                logger.info("GEMINI_API_KEY 미설정. Gemini 비활성화.")
+                self._gemini_available = False
+            else:
+                try:
+                    client = self._get_gemini_client()
+                    resp = client.get(f"{self._gemini_url}/models", timeout=10.0)
+                    self._gemini_available = resp.status_code == 200
+                except Exception as e:
+                    logger.warning(f"Gemini API 연결 실패: {e}")
+                    self._gemini_available = False
+        return self._gemini_available
 
     # 알러지/면역학 도메인 시스템 프롬프트
     SYSTEM_PROMPT = (
@@ -92,8 +144,56 @@ class OllamaService:
         "근거 없는 추측은 하지 마세요."
     )
 
-    def _chat(self, prompt: str, max_tokens: int = 500, max_retries: int = 2) -> Optional[str]:
-        """OpenAI 호환 chat/completions 호출"""
+    def _chat_gemini(self, prompt: str, max_tokens: int = 500) -> Optional[str]:
+        """Gemini API 호출 (OpenAI 호환)"""
+        if not self.is_gemini_available:
+            return None
+
+        client = self._get_gemini_client()
+        payload = {
+            "model": self._gemini_model,
+            "messages": [
+                {"role": "system", "content": self.SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.3,
+            "max_tokens": max_tokens,
+        }
+
+        try:
+            resp = client.post(
+                f"{self._gemini_url}/chat/completions",
+                json=payload,
+                timeout=60.0,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data["choices"][0]["message"]["content"].strip()
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                logger.warning("Gemini Rate Limit 초과. 5초 대기 후 재시도합니다.")
+                time.sleep(5)
+                try:
+                    resp = client.post(
+                        f"{self._gemini_url}/chat/completions",
+                        json=payload,
+                        timeout=60.0,
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+                    return data["choices"][0]["message"]["content"].strip()
+                except Exception as retry_err:
+                    logger.warning(f"Gemini 재시도 실패: {retry_err}")
+            else:
+                logger.warning(f"Gemini API 오류: {e}")
+        except Exception as e:
+            logger.warning(f"Gemini 호출 실패: {e}")
+            self._gemini_available = False
+
+        return None
+
+    def _chat_local(self, prompt: str, max_tokens: int = 500, max_retries: int = 2) -> Optional[str]:
+        """로컬 LLM chat/completions 호출"""
         if not self.is_available:
             return None
 
@@ -119,15 +219,87 @@ class OllamaService:
                 data = resp.json()
                 return data["choices"][0]["message"]["content"].strip()
             except Exception as e:
-                logger.warning(f"LLM 호출 실패 (시도 {attempt + 1}): {e}")
+                logger.warning(f"로컬 LLM 호출 실패 (시도 {attempt + 1}): {e}")
                 if attempt == max_retries - 1:
                     self._available = False
 
         return None
 
-    def _chat_long(self, prompt: str) -> Optional[str]:
+    def _chat(self, prompt: str, max_tokens: int = 500, max_retries: int = 2, provider: str = "news") -> Optional[str]:
+        """용도별 LLM 호출 (Gemini 우선 → 로컬 Fallback)
+
+        Args:
+            prompt: 프롬프트
+            max_tokens: 최대 토큰 수
+            max_retries: 로컬 LLM 재시도 횟수
+            provider: 용도 ("news" | "rag" | "local")
+        """
+        # 프로바이더 결정
+        use_gemini = False
+        if provider == "news":
+            use_gemini = self._news_provider == "gemini"
+        elif provider == "rag":
+            use_gemini = self._rag_provider == "gemini"
+        # provider == "local"이면 항상 로컬 사용
+
+        if use_gemini:
+            result = self._chat_gemini(prompt, max_tokens)
+            if result:
+                return result
+            logger.info("Gemini 응답 실패. 로컬 LLM으로 Fallback합니다.")
+
+        return self._chat_local(prompt, max_tokens, max_retries)
+
+    def _chat_long(self, prompt: str, provider: str = "news") -> Optional[str]:
         """긴 응답용 호출 (max_tokens 확장)"""
-        return self._chat(prompt, max_tokens=2000)
+        return self._chat(prompt, max_tokens=2000, provider=provider)
+
+    def check_relevance(self, title: str, description: str) -> float:
+        """알러지/체외진단/IVD 산업 관련성 점수 (0.0~1.0)
+
+        Returns:
+            관련성 점수. 0.3 미만이면 무관 기사로 판정.
+        """
+        prompt = (
+            "다음 뉴스 기사가 알러지, 체외진단(IVD), 면역학, 진단키트, "
+            "알러젠, 또는 관련 의료기기 산업과 관련이 있는지 판단하세요.\n"
+            "0.0~1.0 사이 숫자로만 답하세요.\n"
+            "- 1.0: 직접적으로 관련됨 (알러지 진단, IVD 제품, 면역치료 등)\n"
+            "- 0.5: 간접적으로 관련됨 (의료기기 일반, 체외진단 기업의 사업 뉴스)\n"
+            "- 0.0: 전혀 관련 없음 (주식 투자분석, 일반 경제뉴스 등)\n\n"
+            f"제목: {title}\n"
+            f"내용: {description or '(내용 없음)'}\n\n"
+            "관련성 점수(숫자만):"
+        )
+
+        result = self._chat(prompt, max_tokens=50, provider="news")
+        if result:
+            try:
+                score = float(result.split()[0].strip(".,"))
+                return max(0.0, min(1.0, score))
+            except (ValueError, IndexError):
+                pass
+
+        # Fallback: 키워드 기반 관련성 판정
+        return self._keyword_relevance(title, description)
+
+    def _keyword_relevance(self, title: str, description: str) -> float:
+        """키워드 기반 관련성 판정 (fallback)"""
+        text = f"{title} {description or ''}".lower()
+        relevant_keywords = [
+            "알러지", "알러젠", "allergy", "allergen", "체외진단", "ivd",
+            "면역", "immuno", "진단키트", "아나필락시스", "anaphylaxis",
+            "항체", "ige", "항원", "피부반응", "두드러기", "천식",
+            "비염", "아토피", "식품알레르기", "약물알레르기",
+        ]
+        matches = sum(1 for kw in relevant_keywords if kw in text)
+        if matches >= 3:
+            return 0.9
+        elif matches >= 2:
+            return 0.7
+        elif matches >= 1:
+            return 0.5
+        return 0.1
 
     def summarize(self, title: str, description: str) -> str:
         """기사 요약 생성"""
@@ -139,7 +311,7 @@ class OllamaService:
             "요약:"
         )
 
-        result = self._chat(prompt)
+        result = self._chat(prompt, provider="news")
         if result:
             return result
 
@@ -159,7 +331,7 @@ class OllamaService:
             "점수(숫자만):"
         )
 
-        result = self._chat(prompt)
+        result = self._chat(prompt, provider="news")
         if result:
             try:
                 score = float(result.split()[0].strip(".,"))
@@ -181,7 +353,7 @@ class OllamaService:
             "카테고리:"
         )
 
-        result = self._chat(prompt)
+        result = self._chat(prompt, provider="news")
         if result:
             result_lower = result.lower().strip()
             for cat in NewsCategoryType:
@@ -193,12 +365,102 @@ class OllamaService:
         return classify_by_keywords(text).value
 
     def analyze_article(self, title: str, description: str) -> dict:
-        """기사 종합 분석 (요약 + 중요도 + 카테고리)"""
+        """기사 종합 분석 — 1회 통합 호출 (API 사용량 절약)
+
+        Gemini 무료 티어 RPD 한도(250/일)를 고려하여,
+        관련성/요약/중요도/카테고리를 단일 프롬프트로 한 번에 분석합니다.
+        통합 호출 실패 시 개별 메서드 Fallback으로 전환합니다.
+        """
+        categories = ", ".join([c.value for c in NewsCategoryType])
+        prompt = (
+            "다음 뉴스 기사를 분석하여 아래 4개 항목을 정확히 답하세요.\n"
+            "각 항목을 한 줄씩, 라벨과 값만 출력하세요. 다른 설명은 불필요합니다.\n\n"
+            f"제목: {title}\n"
+            f"내용: {description or '(내용 없음)'}\n\n"
+            "=== 분석 항목 ===\n"
+            "1. RELEVANCE: 알러지/체외진단(IVD)/면역학/진단키트 산업과의 관련성 (0.0~1.0 숫자)\n"
+            "   - 1.0: 직접 관련 (알러지 진단, IVD 제품, 면역치료)\n"
+            "   - 0.5: 간접 관련 (체외진단 기업의 일반 사업 뉴스)\n"
+            "   - 0.0: 무관 (주식 투자분석, 일반 경제뉴스)\n"
+            "2. SUMMARY: 한국어 2-3문장 요약 (핵심 내용만 간결하게)\n"
+            "3. IMPORTANCE: 체외진단/알러지 산업 중요도 (0.0~1.0 숫자)\n"
+            "   - 규제 변화, 신제품, M&A, 큰 투자 → 높은 점수\n"
+            "   - 일반 홍보/이벤트 → 낮은 점수\n"
+            f"4. CATEGORY: 다음 중 하나 → {categories}\n\n"
+            "=== 응답 형식 (이 형식 그대로 출력) ===\n"
+            "RELEVANCE: (숫자)\n"
+            "SUMMARY: (요약문)\n"
+            "IMPORTANCE: (숫자)\n"
+            "CATEGORY: (카테고리명)"
+        )
+
+        result = self._chat(prompt, max_tokens=500, provider="news")
+        if result:
+            parsed = self._parse_analysis_response(result)
+            if parsed:
+                return parsed
+
+        # 통합 호출 실패 시: 개별 Fallback (로컬 LLM + 키워드)
+        logger.info("통합 분석 실패. 개별 Fallback으로 전환합니다.")
         return {
-            "summary": self.summarize(title, description),
-            "importance_score": self.score_importance(title, description),
-            "category": self.classify(title, description),
+            "relevance_score": self._keyword_relevance(title, description),
+            "summary": (description[:200].strip() if description else title),
+            "importance_score": self._keyword_importance(title, description),
+            "category": classify_by_keywords(f"{title} {description or ''}").value,
         }
+
+    def _parse_analysis_response(self, response: str) -> Optional[dict]:
+        """통합 분석 응답 파싱
+
+        예상 형식:
+            RELEVANCE: 0.8
+            SUMMARY: 요약 내용...
+            IMPORTANCE: 0.6
+            CATEGORY: market
+        """
+        import re
+
+        result = {}
+        lines = response.strip().split("\n")
+
+        for line in lines:
+            stripped = line.strip()
+
+            # RELEVANCE
+            if stripped.upper().startswith("RELEVANCE:"):
+                val = stripped.split(":", 1)[1].strip()
+                try:
+                    result["relevance_score"] = max(0.0, min(1.0, float(val.split()[0].strip(".,)"))))
+                except (ValueError, IndexError):
+                    pass
+
+            # SUMMARY
+            elif stripped.upper().startswith("SUMMARY:"):
+                result["summary"] = stripped.split(":", 1)[1].strip()
+
+            # IMPORTANCE
+            elif stripped.upper().startswith("IMPORTANCE:"):
+                val = stripped.split(":", 1)[1].strip()
+                try:
+                    result["importance_score"] = max(0.0, min(1.0, float(val.split()[0].strip(".,)"))))
+                except (ValueError, IndexError):
+                    pass
+
+            # CATEGORY
+            elif stripped.upper().startswith("CATEGORY:"):
+                cat_val = stripped.split(":", 1)[1].strip().lower()
+                for cat in NewsCategoryType:
+                    if cat.value in cat_val:
+                        result["category"] = cat.value
+                        break
+
+        # 필수 필드 검증
+        if "relevance_score" in result and "summary" in result:
+            result.setdefault("importance_score", 0.3)
+            result.setdefault("category", "general")
+            return result
+
+        return None
 
     # --- 알러젠 인사이트 분석 기능 ---
 
@@ -223,7 +485,7 @@ class OllamaService:
             '응답 형식(JSON만): [{"allergen": "peanut", "category": "treatment", "relevance": 0.8}]'
         )
 
-        result = self._chat(prompt)
+        result = self._chat(prompt, provider="local")
         if result:
             try:
                 import json
@@ -311,7 +573,7 @@ class OllamaService:
             "SCORE: (숫자)"
         )
 
-        result = self._chat_long(prompt)
+        result = self._chat_long(prompt, provider="news")
         if not result:
             return None
 
@@ -381,6 +643,9 @@ class OllamaService:
         if self._client:
             self._client.close()
             self._client = None
+        if self._gemini_client:
+            self._gemini_client.close()
+            self._gemini_client = None
 
 
 # 싱글톤
@@ -403,6 +668,8 @@ def check_ollama_available() -> bool:
 def ollama_translate(text: str) -> Optional[str]:
     """영문 텍스트를 한국어로 번역 (스케줄러 korean_translation Job에서 사용)
 
+    로컬 LLM 우선 사용, 실패 시 Gemini Fallback.
+
     Args:
         text: 번역할 영문 텍스트
 
@@ -410,8 +677,6 @@ def ollama_translate(text: str) -> Optional[str]:
         한국어 번역문 또는 None (실패 시)
     """
     service = get_ollama_service()
-    if not service.is_available:
-        return None
 
     prompt = (
         "Translate the following English text into natural Korean. "
@@ -419,4 +684,4 @@ def ollama_translate(text: str) -> Optional[str]:
         f"{text}\n\n"
         "한국어 번역:"
     )
-    return service._chat(prompt)
+    return service._chat(prompt, provider="local")

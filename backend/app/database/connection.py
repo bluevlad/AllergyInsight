@@ -136,4 +136,17 @@ def run_migrations():
             ]:
                 conn.execute(text(idx_def))
 
+        # competitor_news 테이블 마이그레이션: 관련성 컬럼 추가
+        if _table_exists(conn, "competitor_news"):
+            cn_new_columns = [
+                ("relevance_score", "FLOAT"),
+                ("is_relevant", "BOOLEAN DEFAULT TRUE"),
+            ]
+            for col_name, col_def in cn_new_columns:
+                if not _column_exists(conn, "competitor_news", col_name):
+                    conn.execute(text(
+                        f"ALTER TABLE competitor_news ADD COLUMN {col_name} {col_def}"
+                    ))
+                    logger.info(f"Migration: competitor_news.{col_name} 컬럼 추가")
+
     logger.info("Database migration completed")
