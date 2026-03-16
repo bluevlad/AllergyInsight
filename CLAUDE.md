@@ -172,5 +172,7 @@ OPENAI_API_KEY=         # OpenAI API
   - `user-guide.html` — 사용자 처방 대시보드 가이드
   - `admin-guide.html` — 관리자 콘솔 가이드
   - `newsletter-guide.html` — 뉴스레터 구독/발송 가이드
+  - `ai-consult-guide.html` — AI 상담 사용자 가이드
+  - `analytics-guide.html` — 트렌드 분석 사용자 가이드
 
 > 로컬 환경 정보는 `CLAUDE.local.md` 참조 (git에 포함되지 않음)

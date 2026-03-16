@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AllergyInsight - 알러지 트렌드 분석 가이드</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ===== CSS Variables ===== */
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text-color: #f1f5f9;
+            --text-muted: #94a3b8;
+            --accent-color: #8b5cf6;
+            --border-color: rgba(148, 163, 184, 0.1);
+            --warning-color: #f59e0b;
+        }
+
+        /* ===== Reset & Base ===== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.7;
+            background-image: radial-gradient(ellipse at 50% 100%, hsla(263, 70%, 50%, 0.15), transparent 70%);
+            background-attachment: fixed;
+        }
+
+        /* ===== Layout ===== */
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+        }
+
+        /* ===== Back Link ===== */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 2rem;
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: var(--accent-color); }
+
+        /* ===== Header ===== */
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            background: rgba(139, 92, 246, 0.2);
+            color: var(--accent-color);
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        /* ===== Section Headings ===== */
+        h2 {
+            font-size: 1.5rem;
+            color: var(--accent-color);
+            margin: 2.5rem 0 1rem 0;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--accent-color);
+        }
+
+        h3 {
+            font-size: 1.2rem;
+            color: var(--text-color);
+            margin: 1.5rem 0 0.75rem 0;
+        }
+
+        p { margin-bottom: 1rem; }
+
+        /* ===== Target Users ===== */
+        .target-users {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 0.5rem;
+        }
+
+        .target-user-tag {
+            padding: 0.25rem 0.75rem;
+            background: rgba(139, 92, 246, 0.15);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            color: var(--accent-color);
+        }
+
+        /* ===== Feature Grid ===== */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .feature-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(139, 92, 246, 0.3);
+        }
+
+        .feature-icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-card h3 {
+            font-size: 1rem;
+            margin: 0.25rem 0;
+        }
+
+        .feature-card p {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin: 0;
+        }
+
+        /* ===== Numbered Steps ===== */
+        .steps {
+            counter-reset: step;
+            list-style: none;
+            padding: 0;
+            margin: 1.5rem 0;
+        }
+
+        .steps li {
+            position: relative;
+            padding-left: 3rem;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+
+        .steps li::before {
+            counter-increment: step;
+            content: counter(step);
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 2rem;
+            height: 2rem;
+            background: var(--accent-color);
+            color: #ffffff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.85rem;
+        }
+
+        /* ===== Info Box ===== */
+        .info-box {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .info-box.highlight {
+            border-left: 4px solid var(--accent-color);
+        }
+
+        .info-box.warning {
+            border-left: 4px solid var(--warning-color);
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .info-box strong {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-color);
+        }
+
+        .info-box p {
+            color: var(--text-muted);
+            margin: 0;
+        }
+
+        /* ===== FAQ ===== */
+        .faq-item {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+
+        .faq-question {
+            padding: 1rem 1.25rem;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        .faq-answer {
+            padding: 0 1.25rem 1rem 1.25rem;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border-color);
+        }
+
+        /* ===== Footer ===== */
+        footer {
+            text-align: center;
+            padding: 2rem 0;
+            margin-top: 3rem;
+            border-top: 1px solid var(--border-color);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 768px) {
+            h1 { font-size: 2rem; }
+            .feature-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <!-- ===== Back Link ===== -->
+        <a href="/" class="back-link">&larr; AllergyInsight로 돌아가기</a>
+
+        <!-- ===== Header ===== -->
+        <header>
+            <span class="badge">ANALYTICS GUIDE</span>
+            <h1>알러지 트렌드 분석 가이드</h1>
+            <p>알러젠별 연구 동향, 뉴스, 키워드 트렌드를 한눈에 파악합니다</p>
+        </header>
+
+        <!-- ===== 1. 서비스 소개 ===== -->
+        <h2>1. 서비스 소개</h2>
+        <p>
+            알러지 트렌드 분석은 AllergyInsight에 축적된 논문 데이터와 최신 뉴스를 분석하여,
+            알러젠별 연구 동향, 키워드 트렌드, 논문 컬렉션, 최신 뉴스 등을 시각화된 대시보드로 제공하는 서비스입니다.
+            알러지 분야의 전체적인 흐름과 개별 알러젠의 심층 분석 정보를 확인할 수 있습니다.
+        </p>
+        <h3>대상 사용자</h3>
+        <div class="target-users">
+            <span class="target-user-tag">알러지 연구자</span>
+            <span class="target-user-tag">의료 전문가</span>
+            <span class="target-user-tag">보건 정책 담당자</span>
+            <span class="target-user-tag">알러지 환자 및 보호자</span>
+        </div>
+
+        <!-- ===== 2. 주요 기능 ===== -->
+        <h2>2. 주요 기능</h2>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <h3>분석 대시보드</h3>
+                <p>전체 알러젠의 연구 트렌드, 논문 수, 주요 키워드를 종합 대시보드에서 한눈에 확인합니다.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔬</div>
+                <h3>알러젠 분석</h3>
+                <p>개별 알러젠의 연구 동향, 관련 논문 수 변화, 주요 연구 주제를 심층 분석합니다.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📈</div>
+                <h3>키워드 트렌드</h3>
+                <p>알러지 연구 분야의 핵심 키워드 빈도 변화와 신규 등장 키워드를 추적합니다.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📰</div>
+                <h3>최신 뉴스</h3>
+                <p>알러지 관련 최신 뉴스를 자동 수집하여 최근 7일간의 주요 소식을 제공합니다.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📚</div>
+                <h3>논문 컬렉션</h3>
+                <p>주제별, 알러젠별로 분류된 논문 컬렉션을 탐색하고 관심 논문을 확인할 수 있습니다.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">💡</div>
+                <h3>인사이트 상세</h3>
+                <p>각 알러젠별 AI 기반 심층 인사이트 리포트를 확인하고 연구 방향을 파악합니다.</p>
+            </div>
+        </div>
+
+        <!-- ===== 3. 사용 방법 ===== -->
+        <h2>3. 사용 방법</h2>
+        <ol class="steps">
+            <li>
+                <strong>트렌드 분석 페이지 접속</strong><br>
+                메인 화면 또는 메뉴에서 "트렌드 분석"을 클릭하여 분석 대시보드로 이동합니다.
+            </li>
+            <li>
+                <strong>개요 탭에서 전체 현황 파악</strong><br>
+                개요 탭에서 전체 알러젠의 연구 트렌드 요약, 최근 논문 수, 주요 키워드 등을 확인합니다.
+            </li>
+            <li>
+                <strong>알러젠 탐색으로 심층 분석</strong><br>
+                관심 있는 알러젠을 선택하면 해당 알러젠의 연구 동향, 관련 논문, 키워드 변화 등 상세 분석 정보를 볼 수 있습니다.
+            </li>
+            <li>
+                <strong>키워드 트렌드 확인</strong><br>
+                키워드 트렌드 메뉴에서 시간에 따른 연구 키워드 변화를 차트로 확인하고, 새로운 연구 흐름을 파악합니다.
+            </li>
+            <li>
+                <strong>최신 뉴스 확인</strong><br>
+                뉴스 탭에서 최근 7일간의 알러지 관련 뉴스를 확인하고 관심 기사를 클릭하여 상세 내용을 읽습니다.
+            </li>
+        </ol>
+
+        <!-- ===== 4. 주의사항 ===== -->
+        <h2>4. 주의사항</h2>
+
+        <div class="info-box highlight">
+            <strong>데이터 갱신 주기</strong>
+            <p>논문 데이터는 정기적으로 PubMed, Semantic Scholar에서 수집되며, 뉴스는 매일 자동 업데이트됩니다. 최신 데이터 반영까지 일정 시간이 소요될 수 있습니다.</p>
+        </div>
+
+        <div class="info-box highlight">
+            <strong>분석 범위</strong>
+            <p>트렌드 분석은 AllergyInsight에 수집된 논문 데이터를 기반으로 하며, 전체 의학 논문을 포괄하지는 않습니다. 연구 참고 자료로 활용하시기 바랍니다.</p>
+        </div>
+
+        <div class="info-box warning">
+            <strong>브라우저 호환성</strong>
+            <p>차트 및 시각화 기능은 최신 브라우저(Chrome, Edge, Safari, Firefox)에서 최적화되어 있습니다. Internet Explorer는 지원하지 않습니다.</p>
+        </div>
+
+        <!-- ===== 5. FAQ ===== -->
+        <h2>5. 자주 묻는 질문</h2>
+
+        <div class="faq-item">
+            <div class="faq-question">Q. 트렌드 분석을 이용하려면 로그인이 필요한가요?</div>
+            <div class="faq-answer">아니요, 트렌드 분석은 공개 페이지로 로그인 없이 누구나 이용할 수 있습니다.</div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">Q. 논문 데이터는 얼마나 자주 업데이트되나요?</div>
+            <div class="faq-answer">논문 데이터는 PubMed, Semantic Scholar에서 정기적으로 수집됩니다. 뉴스 데이터는 매일 자동으로 갱신됩니다.</div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">Q. 키워드 트렌드 차트는 어떤 기간을 보여주나요?</div>
+            <div class="faq-answer">수집된 논문의 전체 기간에 대한 키워드 빈도 변화를 보여줍니다. 특정 기간을 선택하여 필터링할 수도 있습니다.</div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">Q. 특정 알러젠의 상세 정보는 어떻게 확인하나요?</div>
+            <div class="faq-answer">개요 탭에서 관심 알러젠을 클릭하면 자동으로 알러젠 탐색 탭으로 이동하여 해당 알러젠의 상세 분석 정보(연구 동향, 관련 논문, 키워드 등)를 확인할 수 있습니다.</div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">Q. 분석 결과를 다운로드할 수 있나요?</div>
+            <div class="faq-answer">현재는 화면에서 직접 확인하는 방식만 지원합니다. 향후 PDF 리포트 다운로드 기능이 추가될 예정입니다.</div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">Q. 뉴스는 어디서 수집되나요?</div>
+            <div class="faq-answer">알러지 관련 주요 뉴스 소스에서 RSS 피드를 통해 자동 수집되며, 최근 7일간의 뉴스가 표시됩니다.</div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">Q. 인사이트 상세 리포트는 어떻게 생성되나요?</div>
+            <div class="faq-answer">AI가 각 알러젠에 대한 수집된 논문 데이터를 종합 분석하여 연구 동향, 주요 발견, 향후 전망 등을 포함한 인사이트 리포트를 자동 생성합니다.</div>
+        </div>
+
+        <!-- ===== Footer ===== -->
+        <footer>
+            <p>&copy; 2026 AllergyInsight. All rights reserved.</p>
+        </footer>
+
+    </div>
+</body>
+</html>
