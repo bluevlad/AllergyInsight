@@ -8,7 +8,7 @@
 from datetime import date, datetime
 from typing import Optional
 
-from ..core.timezone import utc_now
+from ..utils.timezone import utc_now
 
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session

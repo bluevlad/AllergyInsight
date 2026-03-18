@@ -200,7 +200,7 @@ async def bulk_collect_papers(
     def _run_bulk():
         import time
         from datetime import datetime
-        from ..core.timezone import utc_now
+        from ..utils.timezone import utc_now
         from ..database.connection import SessionLocal
 
         db = SessionLocal()

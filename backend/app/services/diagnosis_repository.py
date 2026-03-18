@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey, Index
 from sqlalchemy.orm import Session
 
-from ..core.timezone import utc_now
+from ..utils.timezone import utc_now
 from ..database.connection import Base, SessionLocal
 
 

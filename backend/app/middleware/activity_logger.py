@@ -9,7 +9,7 @@ import logging
 import re
 from datetime import datetime
 
-from ..core.timezone import utc_now
+from ..utils.timezone import utc_now
 from typing import Optional
 
 from starlette.middleware.base import BaseHTTPMiddleware

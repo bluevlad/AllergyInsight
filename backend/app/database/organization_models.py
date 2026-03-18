@@ -4,7 +4,7 @@ from enum import Enum
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Index, Text
 from sqlalchemy.orm import relationship
 from .connection import Base
-from ..core.timezone import utc_now
+from ..utils.timezone import utc_now
 
 
 # ===== Enum Definitions =====

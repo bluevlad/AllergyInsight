@@ -13,7 +13,7 @@ from sqlalchemy import (
     ForeignKey, JSON, Text, Index,
 )
 from .connection import Base
-from ..core.timezone import utc_now
+from ..utils.timezone import utc_now
 
 
 class AnalyticsSnapshot(Base):

@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import Optional
 
 from ..config import settings
-from ..core.timezone import utc_now
+from ..utils.timezone import utc_now
 from ..database.connection import SessionLocal
 from ..database.scheduler_models import SchedulerExecutionLog
 

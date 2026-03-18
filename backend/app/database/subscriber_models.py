@@ -2,7 +2,7 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, JSON, ForeignKey, Index
 from .connection import Base
-from ..core.timezone import utc_now
+from ..utils.timezone import utc_now
 
 
 class NewsletterSubscriber(Base):

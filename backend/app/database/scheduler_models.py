@@ -5,7 +5,7 @@ from sqlalchemy import Column, Integer, String, DateTime, Float, Text
 from sqlalchemy.dialects.postgresql import JSONB
 
 from .connection import Base
-from ..core.timezone import utc_now
+from ..utils.timezone import utc_now
 
 
 class SchedulerExecutionLog(Base):

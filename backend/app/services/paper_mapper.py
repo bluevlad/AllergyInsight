@@ -5,7 +5,7 @@
 from datetime import datetime
 from typing import Optional
 
-from ..core.timezone import utc_now
+from ..utils.timezone import utc_now
 from ..models.paper import Paper as PaperDC, PaperSource
 from ..database.models import Paper as PaperORM
 

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from datetime import datetime
 
-from ...core.timezone import utc_now
+from ...utils.timezone import utc_now
 from ...database.allergen_models import AllergenMaster
 from ...data.allergen_master import AllergenCategory, AllergenType
 

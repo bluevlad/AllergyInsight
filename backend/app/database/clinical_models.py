@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Index
 from sqlalchemy.orm import relationship
 from .connection import Base
-from ..core.timezone import utc_now
+from ..utils.timezone import utc_now
 
 
 class ClinicalStatement(Base):
