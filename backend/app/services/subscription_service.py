@@ -8,6 +8,8 @@ import random
 import string
 import logging
 from datetime import datetime, timedelta
+
+from ..core.timezone import utc_now
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -113,7 +115,7 @@ class SubscriptionService:
         verification = EmailVerification(
             email=email,
             code=code,
-            expires_at=datetime.utcnow() + timedelta(minutes=self.verification_expire_minutes),
+            expires_at=utc_now() + timedelta(minutes=self.verification_expire_minutes),
         )
         db.add(verification)
         db.commit()
@@ -164,7 +166,7 @@ class SubscriptionService:
         if not verification:
             return {"success": False, "message": "유효하지 않은 인증 코드입니다."}
 
-        if verification.expires_at < datetime.utcnow():
+        if verification.expires_at < utc_now():
             return {"success": False, "message": "인증 코드가 만료되었습니다."}
 
         if verification.attempts >= verification.max_attempts:
@@ -181,7 +183,7 @@ class SubscriptionService:
 
         if subscriber:
             subscriber.is_verified = True
-            subscriber.verified_at = datetime.utcnow()
+            subscriber.verified_at = utc_now()
 
         db.commit()
 
@@ -205,7 +207,7 @@ class SubscriptionService:
             return {"success": False, "message": "이미 해지된 구독입니다."}
 
         subscriber.is_active = False
-        subscriber.unsubscribed_at = datetime.utcnow()
+        subscriber.unsubscribed_at = utc_now()
         db.commit()
 
         return {"success": True, "message": "구독이 해지되었습니다."}

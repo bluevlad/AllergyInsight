@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from datetime import datetime
 
+from ...core.timezone import utc_now
 from ...database.allergen_models import AllergenMaster
 from ...data.allergen_master import AllergenCategory, AllergenType
 
@@ -147,7 +148,7 @@ def update_allergen(db: Session, code: str, data: dict) -> Optional[AllergenMast
         if field in data and data[field] is not None:
             setattr(allergen, field, data[field])
 
-    allergen.updated_at = datetime.utcnow()
+    allergen.updated_at = utc_now()
     db.commit()
     db.refresh(allergen)
     return allergen
@@ -163,7 +164,7 @@ def delete_allergen(db: Session, code: str) -> bool:
         return False
 
     allergen.is_active = False
-    allergen.updated_at = datetime.utcnow()
+    allergen.updated_at = utc_now()
     db.commit()
     return True
 
@@ -178,6 +179,6 @@ def restore_allergen(db: Session, code: str) -> bool:
         return False
 
     allergen.is_active = True
-    allergen.updated_at = datetime.utcnow()
+    allergen.updated_at = utc_now()
     db.commit()
     return True

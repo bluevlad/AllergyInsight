@@ -13,6 +13,7 @@ from sqlalchemy import (
     ForeignKey, JSON, Text, Index,
 )
 from .connection import Base
+from ..core.timezone import utc_now
 
 
 class AnalyticsSnapshot(Base):
@@ -29,7 +30,7 @@ class AnalyticsSnapshot(Base):
     avg_grade = Column(Float, nullable=True)  # 평균 등급
     grade_distribution = Column(JSON, nullable=True)  # {0: 45, 1: 12, 2: 8, ...}
     cooccurrence_top5 = Column(JSON, nullable=True)  # [{"allergen": "crab", "rate": 0.82}, ...]
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     __table_args__ = (
         Index('idx_analytics_snapshot_date', 'snapshot_date'),
@@ -52,7 +53,7 @@ class KeywordTrend(Base):
     context_samples = Column(JSON, nullable=True)  # 대표 문장 3-5개
     trend_direction = Column(String(20), nullable=True)  # 'rising', 'stable', 'declining'
     change_rate = Column(Float, nullable=True)  # 전기 대비 변화율 (%)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     __table_args__ = (
         Index('idx_keyword_trend_keyword', 'keyword'),
@@ -75,7 +76,7 @@ class PatientActivityLog(Base):
     metadata_json = Column(JSON, nullable=True)  # 추가 컨텍스트 (검색어, 필터 등)
     ip_hash = Column(String(64), nullable=True)  # IP 해시 (비식별)
     user_agent = Column(String(200), nullable=True)  # 브라우저/디바이스
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     __table_args__ = (
         Index('idx_activity_log_user', 'user_id'),
@@ -95,7 +96,7 @@ class NewsAllergenLink(Base):
     allergen_code = Column(String(30), nullable=False)  # 'peanut', 'milk', 'egg' 등
     content_category = Column(String(30), nullable=True)  # 'treatment', 'epidemiology', 'diagnosis_method', 'regulation', 'research'
     relevance_score = Column(Float, nullable=True)  # 0.0~1.0
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     __table_args__ = (
         Index('idx_news_allergen_news', 'news_id'),
@@ -120,7 +121,7 @@ class AllergenInsightReport(Base):
     key_findings = Column(JSON, nullable=True)  # 핵심 발견 요약 ["finding1", "finding2"]
     treatment_score = Column(Integer, nullable=True)  # 치료 발전도 지표 (0-100)
     source_count = Column(Integer, nullable=True, default=0)  # 분석에 사용된 소스 수
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     __table_args__ = (
         Index('idx_insight_allergen', 'allergen_code'),

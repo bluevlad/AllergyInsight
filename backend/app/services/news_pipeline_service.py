@@ -7,6 +7,8 @@ import logging
 from datetime import datetime
 from typing import Optional
 
+from ..core.timezone import utc_now
+
 from sqlalchemy.orm import Session
 
 from .competitor_news_service import CompetitorNewsService
@@ -144,7 +146,7 @@ class NewsPipelineService:
                 if relevance < _RELEVANCE_THRESHOLD:
                     article.is_relevant = False
                     article.is_processed = True
-                    article.processed_at = datetime.utcnow()
+                    article.processed_at = utc_now()
                     irrelevant += 1
                     logger.info(
                         f"무관 기사 제외 (id={article.id}, relevance={relevance:.2f}): "
@@ -157,7 +159,7 @@ class NewsPipelineService:
                 article.importance_score = analysis["importance_score"]
                 article.category = analysis["category"]
                 article.is_processed = True
-                article.processed_at = datetime.utcnow()
+                article.processed_at = utc_now()
                 analyzed += 1
             except Exception as e:
                 logger.warning(f"기사 분석 실패 (id={article.id}): {e}")
@@ -187,7 +189,7 @@ class NewsPipelineService:
         article.importance_score = analysis["importance_score"]
         article.category = analysis["category"]
         article.is_processed = True
-        article.processed_at = datetime.utcnow()
+        article.processed_at = utc_now()
         db.commit()
 
         return analysis

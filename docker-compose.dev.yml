@@ -37,6 +37,7 @@ services:
     ports:
       - "9041:9040"
     environment:
+      - TZ=Asia/Seoul
       # Database
       - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/allergyinsight_dev
       # Google OAuth (ID 토큰 방식 - CLIENT_SECRET 불필요)
@@ -77,6 +78,8 @@ services:
         - VITE_API_URL=http://localhost:9041
         - VITE_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
     container_name: allergyinsight-dev-frontend
+    environment:
+      - TZ=Asia/Seoul
     ports:
       - "4041:4040"
     depends_on:

@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import Optional
 
 from ..config import settings
+from ..core.timezone import utc_now
 from ..database.connection import SessionLocal
 from ..database.scheduler_models import SchedulerExecutionLog
 
@@ -57,7 +58,7 @@ def _log_start(db, job_id: str, trigger_type: str = "scheduled") -> SchedulerExe
     log = SchedulerExecutionLog(
         job_id=job_id,
         status="running",
-        started_at=datetime.utcnow(),
+        started_at=utc_now(),
         trigger_type=trigger_type,
     )
     db.add(log)
@@ -68,7 +69,7 @@ def _log_start(db, job_id: str, trigger_type: str = "scheduled") -> SchedulerExe
 
 def _log_complete(db, log: SchedulerExecutionLog, result_summary: dict) -> None:
     """실행 로그 성공 기록"""
-    now = datetime.utcnow()
+    now = utc_now()
     log.status = "success"
     log.completed_at = now
     log.duration_seconds = (now - log.started_at).total_seconds()
@@ -78,7 +79,7 @@ def _log_complete(db, log: SchedulerExecutionLog, result_summary: dict) -> None:
 
 def _log_fail(db, log: SchedulerExecutionLog, error: str) -> None:
     """실행 로그 실패 기록"""
-    now = datetime.utcnow()
+    now = utc_now()
     log.status = "failed"
     log.completed_at = now
     log.duration_seconds = (now - log.started_at).total_seconds()
@@ -103,7 +104,7 @@ def job_daily_paper_search(trigger_type: str = "scheduled") -> None:
         from .paper_search_service import PaperSearchService
 
         service = PaperSearchService()
-        day_number = (datetime.utcnow() - datetime(2024, 1, 1)).days
+        day_number = (utc_now() - datetime(2024, 1, 1)).days
         allergens = get_allergens_for_day(day_number)
 
         logger.info(f"[daily_paper_search] 대상 알레르겐: {allergens}")
@@ -560,7 +561,7 @@ def job_preprint_and_trials(trigger_type: str = "scheduled") -> None:
 
             biorxiv = BiorxivService()
             persistence = PaperPersistenceService()
-            today = datetime.utcnow()
+            today = utc_now()
             week_ago = today - timedelta(days=7)
 
             try:
@@ -602,7 +603,7 @@ def job_preprint_and_trials(trigger_type: str = "scheduled") -> None:
                 ["wheat", "soy", "shellfish"],
                 ["tree_nut", "fish", "sesame"],
             ]
-            day_of_week = datetime.utcnow().weekday()
+            day_of_week = utc_now().weekday()
             target_allergens = allergen_groups[day_of_week]
 
             try:

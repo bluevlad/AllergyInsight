@@ -13,6 +13,7 @@ from typing import Optional
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 from .scheduler_jobs import (
     job_daily_paper_search,
@@ -29,6 +30,8 @@ logger = logging.getLogger(__name__)
 class SchedulerService:
     """APScheduler BackgroundScheduler 래퍼"""
 
+    KST = "Asia/Seoul"
+
     def __init__(self):
         self._scheduler = BackgroundScheduler(
             jobstores={"default": MemoryJobStore()},
@@ -38,17 +41,16 @@ class SchedulerService:
                 "max_instances": 1,
                 "misfire_grace_time": 3600,
             },
-            timezone="Asia/Seoul",
+            timezone=self.KST,
         )
         self._register_jobs()
 
     def _register_jobs(self) -> None:
-        """6개 Job 등록 (CronTrigger)"""
+        """6개 Job 등록 (CronTrigger, timezone=Asia/Seoul 명시)"""
         # Job 1: 일일 논문 검색 (02:00 KST)
         self._scheduler.add_job(
             job_daily_paper_search,
-            "cron",
-            hour=2, minute=0,
+            CronTrigger(hour=2, minute=0, timezone=self.KST),
             id="daily_paper_search",
             name="일일 논문 검색",
             replace_existing=True,
@@ -56,8 +58,7 @@ class SchedulerService:
         # Job 2: 뉴스레터 DB 증분 동기화 (03:00 KST)
         self._scheduler.add_job(
             job_newsletter_sync,
-            "cron",
-            hour=3, minute=0,
+            CronTrigger(hour=3, minute=0, timezone=self.KST),
             id="newsletter_sync",
             name="뉴스레터 동기화",
             replace_existing=True,
@@ -65,8 +66,7 @@ class SchedulerService:
         # Job 3: 한국어 번역 (04:00 KST)
         self._scheduler.add_job(
             job_korean_translation,
-            "cron",
-            hour=4, minute=0,
+            CronTrigger(hour=4, minute=0, timezone=self.KST),
             id="korean_translation",
             name="한국어 번역",
             replace_existing=True,
@@ -76,8 +76,7 @@ class SchedulerService:
         crawl_minute = int(os.getenv("CRAWL_MINUTE", "0"))
         self._scheduler.add_job(
             job_news_pipeline,
-            "cron",
-            hour=crawl_hour, minute=crawl_minute,
+            CronTrigger(hour=crawl_hour, minute=crawl_minute, timezone=self.KST),
             id="news_pipeline",
             name="뉴스 수집 파이프라인",
             replace_existing=True,
@@ -85,8 +84,7 @@ class SchedulerService:
         # Job 5: 분석 집계 (05:00 KST - 뉴스 수집 후, 뉴스레터 발송 전)
         self._scheduler.add_job(
             job_analytics_aggregation,
-            "cron",
-            hour=5, minute=0,
+            CronTrigger(hour=5, minute=0, timezone=self.KST),
             id="analytics_aggregation",
             name="분석 집계 (알러젠+키워드)",
             replace_existing=True,
@@ -96,8 +94,7 @@ class SchedulerService:
         send_minute = int(os.getenv("SEND_MINUTE", "0"))
         self._scheduler.add_job(
             job_newsletter_send,
-            "cron",
-            hour=send_hour, minute=send_minute,
+            CronTrigger(hour=send_hour, minute=send_minute, timezone=self.KST),
             id="newsletter_send",
             name="뉴스레터 발송",
             replace_existing=True,

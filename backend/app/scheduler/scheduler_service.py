@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 class NewsSchedulerService:
     """통합 스케줄러 (뉴스 + 논문 수집)"""
 
+    KST = "Asia/Seoul"
+
     def __init__(self):
         self._scheduler = BackgroundScheduler(
             job_defaults={
@@ -23,7 +25,7 @@ class NewsSchedulerService:
                 "max_instances": 1,
                 "misfire_grace_time": 3600,
             },
-            timezone="Asia/Seoul",
+            timezone=self.KST,
         )
         self._running = False
 
@@ -76,7 +78,7 @@ class NewsSchedulerService:
 
         self._scheduler.add_job(
             job_daily_paper_search,
-            trigger=CronTrigger(hour=hour, minute=minute),
+            trigger=CronTrigger(hour=hour, minute=minute, timezone=self.KST),
             id="daily_paper_search",
             name="일일 논문 검색",
             replace_existing=True,
@@ -92,7 +94,7 @@ class NewsSchedulerService:
 
         self._scheduler.add_job(
             job_korean_translation,
-            trigger=CronTrigger(hour=hour, minute=minute),
+            trigger=CronTrigger(hour=hour, minute=minute, timezone=self.KST),
             id="korean_translation",
             name="한국어 번역",
             replace_existing=True,
@@ -108,7 +110,7 @@ class NewsSchedulerService:
 
         self._scheduler.add_job(
             job_rag_and_enrich,
-            trigger=CronTrigger(hour=hour, minute=minute),
+            trigger=CronTrigger(hour=hour, minute=minute, timezone=self.KST),
             id="rag_and_enrich",
             name="RAG 인덱싱 + PDF 보강",
             replace_existing=True,
@@ -124,7 +126,7 @@ class NewsSchedulerService:
 
         self._scheduler.add_job(
             job_preprint_and_trials,
-            trigger=CronTrigger(hour=hour, minute=minute),
+            trigger=CronTrigger(hour=hour, minute=minute, timezone=self.KST),
             id="preprint_and_trials",
             name="프리프린트 + 임상시험 수집",
             replace_existing=True,
@@ -141,7 +143,7 @@ class NewsSchedulerService:
 
         self._scheduler.add_job(
             collect_news,
-            trigger=CronTrigger(hour=hour, minute=minute),
+            trigger=CronTrigger(hour=hour, minute=minute, timezone=self.KST),
             id="news_crawl",
             name="뉴스 수집",
             replace_existing=True,
@@ -157,7 +159,7 @@ class NewsSchedulerService:
 
         self._scheduler.add_job(
             generate_and_send_reports,
-            trigger=CronTrigger(hour=hour, minute=minute),
+            trigger=CronTrigger(hour=hour, minute=minute, timezone=self.KST),
             id="news_send",
             name="뉴스레터 발송",
             replace_existing=True,
@@ -173,7 +175,7 @@ class NewsSchedulerService:
 
         self._scheduler.add_job(
             tag_and_generate_insights,
-            trigger=CronTrigger(day=1, hour=3, minute=0),
+            trigger=CronTrigger(day=1, hour=3, minute=0, timezone=self.KST),
             id="insight_report",
             name="인사이트 리포트 생성",
             replace_existing=True,

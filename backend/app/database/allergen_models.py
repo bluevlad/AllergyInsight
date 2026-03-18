@@ -6,6 +6,7 @@ from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Index
 
 from .connection import Base
+from ..core.timezone import utc_now
 
 
 class AllergenMaster(Base):
@@ -22,8 +23,8 @@ class AllergenMaster(Base):
     note = Column(String(500), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     sort_order = Column(Integer, default=0, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, nullable=True, onupdate=utc_now)
 
     __table_args__ = (
         Index('idx_allergen_master_category', 'category'),

@@ -7,6 +7,8 @@ import os
 import re
 import logging
 from datetime import datetime, timedelta, timezone
+
+from ..core.timezone import utc_now
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -133,7 +135,7 @@ class NewsletterService:
 
         sent = 0
         failed = 0
-        now = datetime.utcnow()
+        now = utc_now()
 
         for recipient in recipients:
             result = self.email_service.send(recipient, subject, html)
@@ -221,7 +223,7 @@ class NewsletterService:
 
         sent = 0
         failed = 0
-        now = datetime.utcnow()
+        now = utc_now()
         report_date = datetime.now().strftime("%Y년 %m월 %d일")
 
         for subscriber in subscribers:

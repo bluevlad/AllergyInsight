@@ -8,6 +8,8 @@ import hashlib
 import logging
 import re
 from datetime import datetime
+
+from ..core.timezone import utc_now
 from typing import Optional
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -125,7 +127,7 @@ class ActivityLoggerMiddleware(BaseHTTPMiddleware):
                 resource_id=resource_id,
                 ip_hash=ip_hash,
                 user_agent=user_agent,
-                created_at=datetime.utcnow(),
+                created_at=utc_now(),
             )
             db.add(log)
             db.commit()

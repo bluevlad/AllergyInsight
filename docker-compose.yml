@@ -7,6 +7,7 @@ services:
     ports:
       - "9040:9040"
     environment:
+      - TZ=Asia/Seoul
       # Database (using shared postgresql container)
       - DATABASE_URL=postgresql://allergyinsight_svc:${DB_PASSWORD:?DB_PASSWORD is required}@postgresql:5432/allergyinsight
       # Google OAuth (ID 토큰 방식 - CLIENT_SECRET 불필요)
@@ -67,6 +68,7 @@ services:
     container_name: allergyinsight-scheduler
     command: ["python", "-m", "app.scheduler.cli"]
     environment:
+      - TZ=Asia/Seoul
       - DATABASE_URL=postgresql://allergyinsight_svc:${DB_PASSWORD:?DB_PASSWORD is required}@postgresql:5432/allergyinsight
       - ENABLE_SCHEDULER=true
       - CRAWL_HOUR=${CRAWL_HOUR:-7}
@@ -105,6 +107,8 @@ services:
       args:
         - VITE_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
     container_name: allergyinsight-frontend
+    environment:
+      - TZ=Asia/Seoul
     ports:
       - "4040:4040"
     depends_on:

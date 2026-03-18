@@ -86,7 +86,8 @@ from .clinicaltrials_routes import router as clinicaltrials_router
 security_logger = logging.getLogger("security")
 security_logger.setLevel(logging.INFO)
 handler = logging.StreamHandler()
-handler.setFormatter(logging.Formatter("[%(asctime)s] SECURITY %(levelname)s: %(message)s"))
+handler.setFormatter(logging.Formatter("[%(asctime)s] SECURITY %(levelname)s: %(message)s",
+                                          datefmt="%Y-%m-%d %H:%M:%S %Z"))
 security_logger.addHandler(handler)
 
 # Rate Limiter 설정

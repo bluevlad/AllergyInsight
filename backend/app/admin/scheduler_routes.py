@@ -200,6 +200,7 @@ async def bulk_collect_papers(
     def _run_bulk():
         import time
         from datetime import datetime
+        from ..core.timezone import utc_now
         from ..database.connection import SessionLocal
 
         db = SessionLocal()
@@ -208,7 +209,7 @@ async def bulk_collect_papers(
             log = SchedulerExecutionLog(
                 job_id="bulk_paper_collect",
                 status="running",
-                started_at=datetime.utcnow(),
+                started_at=utc_now(),
                 trigger_type="manual",
             )
             db.add(log)
@@ -232,7 +233,7 @@ async def bulk_collect_papers(
             if rebuild_rag:
                 rag_result = rebuild_rag_db()
 
-            now = datetime.utcnow()
+            now = utc_now()
             log.status = "success"
             log.completed_at = now
             log.duration_seconds = (now - log.started_at).total_seconds()
@@ -247,7 +248,7 @@ async def bulk_collect_papers(
 
         except Exception as e:
             if log:
-                now = datetime.utcnow()
+                now = utc_now()
                 log.status = "failed"
                 log.completed_at = now
                 log.duration_seconds = (now - log.started_at).total_seconds()

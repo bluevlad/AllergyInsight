@@ -8,6 +8,8 @@
 from datetime import date, datetime
 from typing import Optional
 
+from ..core.timezone import utc_now
+
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -120,7 +122,7 @@ async def get_activity_stats(
 ):
     """환자 행동 로그 통계"""
     from datetime import timedelta
-    since = datetime.utcnow() - timedelta(days=days)
+    since = utc_now() - timedelta(days=days)
 
     # 총 로그 수
     total = db.query(func.count(PatientActivityLog.id)).filter(
@@ -157,7 +159,7 @@ async def get_activity_stats(
         func.date(PatientActivityLog.created_at).label("day"),
         func.count(PatientActivityLog.id),
     ).filter(
-        PatientActivityLog.created_at >= datetime.utcnow() - timedelta(days=7)
+        PatientActivityLog.created_at >= utc_now() - timedelta(days=7)
     ).group_by("day").order_by("day").all()
 
     return {

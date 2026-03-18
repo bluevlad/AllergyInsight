@@ -4,6 +4,7 @@ from enum import Enum
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Index, Text
 from sqlalchemy.orm import relationship
 from .connection import Base
+from ..core.timezone import utc_now
 
 
 # ===== Enum Definitions =====
@@ -87,8 +88,8 @@ class Organization(Base):
     status = Column(String(20), default=OrganizationStatus.PENDING.value)
 
     # 메타데이터
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
     expires_at = Column(DateTime, nullable=True)  # 구독 만료일
 
     # 관계
@@ -121,7 +122,7 @@ class OrganizationMember(Base):
 
     # 상태
     is_active = Column(Boolean, default=True)
-    joined_at = Column(DateTime, default=datetime.utcnow)
+    joined_at = Column(DateTime, default=utc_now)
     left_at = Column(DateTime, nullable=True)
 
     # 관계
@@ -160,8 +161,8 @@ class HospitalPatient(Base):
     status = Column(String(30), default=HospitalPatientStatus.PENDING_CONSENT.value)
 
     # 메타데이터
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     # 관계
     organization = relationship("Organization", back_populates="hospital_patients")
