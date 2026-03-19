@@ -1,8 +1,8 @@
 """APScheduler 기반 통합 스케줄러 서비스
 
-BackgroundScheduler를 래핑하여 6개 Job을 관리합니다.
+BackgroundScheduler를 래핑하여 5개 Job을 관리합니다.
 - AllergyInsight 기존 3개: 논문 검색, 뉴스레터 동기화, 한국어 번역
-- HealthPulse 통합 2개: 뉴스 수집 파이프라인, 뉴스레터 발송
+- 뉴스 수집 파이프라인 1개
 - 분석 집계 1개: 알러젠 양성률 + 키워드 트렌드
 """
 import logging
@@ -20,7 +20,6 @@ from .scheduler_jobs import (
     job_newsletter_sync,
     job_korean_translation,
     job_news_pipeline,
-    job_newsletter_send,
     job_analytics_aggregation,
 )
 
@@ -46,7 +45,7 @@ class SchedulerService:
         self._register_jobs()
 
     def _register_jobs(self) -> None:
-        """6개 Job 등록 (CronTrigger, timezone=Asia/Seoul 명시)"""
+        """5개 Job 등록 (CronTrigger, timezone=Asia/Seoul 명시)"""
         # Job 1: 일일 논문 검색 (02:00 KST)
         self._scheduler.add_job(
             job_daily_paper_search,
@@ -89,22 +88,11 @@ class SchedulerService:
             name="분석 집계 (알러젠+키워드)",
             replace_existing=True,
         )
-        # Job 6: 뉴스레터 발송 (환경변수 SEND_HOUR/SEND_MINUTE, 기본 08:00 KST)
-        send_hour = int(os.getenv("SEND_HOUR", "8"))
-        send_minute = int(os.getenv("SEND_MINUTE", "0"))
-        self._scheduler.add_job(
-            job_newsletter_send,
-            CronTrigger(hour=send_hour, minute=send_minute, timezone=self.KST),
-            id="newsletter_send",
-            name="뉴스레터 발송",
-            replace_existing=True,
-        )
-
     def start(self) -> None:
         """스케줄러 시작"""
         if not self._scheduler.running:
             self._scheduler.start()
-            logger.info("통합 스케줄러 시작됨 (6개 Job)")
+            logger.info("통합 스케줄러 시작됨 (5개 Job)")
 
     def shutdown(self) -> None:
         """스케줄러 종료"""

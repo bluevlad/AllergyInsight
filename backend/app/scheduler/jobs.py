@@ -89,20 +89,3 @@ def tag_and_generate_insights():
         db.close()
 
 
-def generate_and_send_reports():
-    """뉴스레터 생성 및 발송
-
-    인증된 구독자에게 키워드 매칭 기반 뉴스레터를 발송합니다.
-    """
-    logger.info(f"[{datetime.now().isoformat()}] 뉴스레터 발송 시작")
-    db = SessionLocal()
-    try:
-        from ..services.newsletter_service import NewsletterService
-
-        service = NewsletterService()
-        result = service.send_to_subscribers(db=db, days=1)
-        logger.info(f"뉴스레터 발송 완료: {result['message']}")
-    except Exception as e:
-        logger.error(f"뉴스레터 발송 실패: {e}", exc_info=True)
-    finally:
-        db.close()

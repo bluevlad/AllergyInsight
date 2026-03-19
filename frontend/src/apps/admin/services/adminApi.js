@@ -76,16 +76,6 @@ export const adminApi = {
   },
 
   // ============================================================================
-  // Newsletter
-  // ============================================================================
-  newsletter: {
-    preview: (params = {}) => apiClient.get('/admin/newsletter/preview', { params, responseType: 'text', transformResponse: [(data) => data] }),
-    send: (data) => apiClient.post('/admin/newsletter/send', data),
-    history: (params = {}) => apiClient.get('/admin/newsletter/history', { params }),
-    stats: () => apiClient.get('/admin/newsletter/stats'),
-  },
-
-  // ============================================================================
   // Analytics
   // ============================================================================
   analytics: {

@@ -18,7 +18,6 @@ import AllergensPage from './pages/AllergensPage';
 import PapersPage from './pages/PapersPage';
 import OrganizationsPage from './pages/OrganizationsPage';
 import CompetitorNewsPage from './pages/CompetitorNewsPage';
-import NewsletterPage from './pages/NewsletterPage';
 import SubscribersPage from './pages/SubscribersPage';
 
 const AdminLoginForm = () => {
@@ -213,9 +212,6 @@ const AdminApp = () => {
 
           {/* Competitor News */}
           <Route path="/news" element={<CompetitorNewsPage />} />
-
-          {/* Newsletter */}
-          <Route path="/newsletter" element={<NewsletterPage />} />
 
           {/* Subscribers */}
           <Route path="/subscribers" element={<SubscribersPage />} />

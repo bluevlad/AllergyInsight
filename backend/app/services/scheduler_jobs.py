@@ -1,12 +1,11 @@
 """스케줄러 Job 함수 모듈
 
-6개의 스케줄된 Job:
+5개의 스케줄된 Job:
 - job_daily_paper_search: 매일 02:00 KST 알레르겐 로테이션 논문 검색
 - job_newsletter_sync: 매일 03:00 KST AllergyNewsLetter DB 증분 동기화
 - job_korean_translation: 매일 04:00 KST 미번역 논문 한국어 번역
 - job_analytics_aggregation: 매일 05:00 KST 분석 집계 (알러젠 양성률 + 키워드 트렌드)
 - job_news_pipeline: 매일 07:00 KST 뉴스 수집 파이프라인 (수집→중복제거→AI분석)
-- job_newsletter_send: 매일 08:00 KST 구독자 뉴스레터 발송
 """
 import logging
 import os
@@ -636,36 +635,3 @@ def job_preprint_and_trials(trigger_type: str = "scheduled") -> None:
     finally:
         db.close()
 
-
-# ============================================================================
-# Job 8: 뉴스레터 발송
-# ============================================================================
-
-def job_newsletter_send(trigger_type: str = "scheduled") -> None:
-    """인증된 구독자에게 키워드 매칭 기반 뉴스레터 발송
-
-    NewsletterService를 사용하여 최근 1일간 수집된
-    뉴스를 구독자에게 이메일로 발송합니다.
-    """
-    db = SessionLocal()
-    log = _log_start(db, "newsletter_send", trigger_type)
-
-    try:
-        from .newsletter_service import NewsletterService
-
-        service = NewsletterService()
-        result = service.send_to_subscribers(db=db, days=1)
-
-        summary = {
-            "message": result.get("message", ""),
-            "sent_count": result.get("sent_count", 0),
-            "failed_count": result.get("failed_count", 0),
-        }
-        _log_complete(db, log, summary)
-        logger.info(f"[newsletter_send] 완료: {summary['message']}")
-
-    except Exception as e:
-        _log_fail(db, log, str(e))
-        logger.error(f"[newsletter_send] 실패: {e}")
-    finally:
-        db.close()
