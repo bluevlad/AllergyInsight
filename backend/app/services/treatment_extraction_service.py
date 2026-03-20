@@ -21,6 +21,29 @@ logger = logging.getLogger(__name__)
 class TreatmentExtractionService:
     """치료법 추출 및 트렌드 서비스"""
 
+    # LLM이 한국어로 반환하는 알러젠 코드를 영문 코드로 매핑
+    ALLERGEN_KR_MAP = {
+        "땅콩": "peanut", "우유": "milk", "계란": "egg", "달걀": "egg",
+        "밀": "wheat", "대두": "soy", "콩": "soy", "생선": "fish",
+        "새우": "shrimp", "게": "crab", "복숭아": "peach", "호두": "walnut",
+        "참깨": "sesame", "메밀": "buckwheat", "토마토": "tomato",
+        "돼지고기": "pork", "닭고기": "chicken", "소고기": "beef",
+        "집먼지진드기": "dust_mite", "개": "dog", "고양이": "cat",
+        "곰팡이": "mold", "꽃가루": "pollen", "잔디": "grass",
+        "미지정": "general", "일반": "general", "전반": "general",
+    }
+
+    def _normalize_allergen_code(self, code: str, fallback: str = "general") -> str:
+        """알러젠 코드 정규화 (한국어 → 영문 코드)"""
+        if not code:
+            return fallback
+        # 이미 영문 코드면 그대로
+        from .ollama_service import OllamaService
+        if code in OllamaService.KNOWN_ALLERGENS:
+            return code
+        # 한국어 매핑
+        return self.ALLERGEN_KR_MAP.get(code, fallback)
+
     def extract_from_papers(
         self,
         db: Session,
@@ -87,8 +110,9 @@ class TreatmentExtractionService:
                     continue
 
                 for t in treatments:
-                    # 알러젠 코드 결정: LLM 추출값 > 힌트값
-                    allergen_code = t.get("allergen", "") or allergen_hint or "general"
+                    # 알러젠 코드 결정: LLM 추출값 > 힌트값 (한국어 보정)
+                    raw_code = t.get("allergen", "") or allergen_hint or "general"
+                    allergen_code = self._normalize_allergen_code(raw_code, allergen_hint or "general")
 
                     # 중복 확인
                     existing = db.query(TreatmentEntity).filter(
