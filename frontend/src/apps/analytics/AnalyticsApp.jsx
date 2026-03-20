@@ -12,6 +12,7 @@ import AnalyticsNav from './components/AnalyticsNav';
 import AllergenAnalysisPage from './pages/AllergenAnalysisPage';
 import PaperCollectionPage from './pages/PaperCollectionPage';
 import AllergenNewsPage from './pages/AllergenNewsPage';
+import ComprehensiveTrendPage from './pages/ComprehensiveTrendPage';
 
 const AnalyticsApp = () => {
   return (
@@ -30,6 +31,7 @@ const AnalyticsApp = () => {
           <Route path="/allergen-analysis" element={<AllergenAnalysisPage />} />
           <Route path="/paper-collection" element={<PaperCollectionPage />} />
           <Route path="/allergen-news" element={<AllergenNewsPage />} />
+          <Route path="/comprehensive-trend" element={<ComprehensiveTrendPage />} />
           <Route path="*" element={<Navigate to="/analytics" replace />} />
         </Routes>
       </main>

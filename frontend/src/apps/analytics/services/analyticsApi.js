@@ -33,6 +33,19 @@ export const analyticsApi = {
   getInsightDetail: (reportId) => api.get(`/insights/${reportId}`).then(r => r.data),
   // 최근 수집 뉴스
   getRecentNews: (params) => api.get('/news/recent', { params }).then(r => r.data),
+  // 논문 알러젠 트렌드 (Phase 1)
+  getPaperTrendOverview: () => api.get('/allergen-trend/overview').then(r => r.data),
+  getPaperTrend: (allergenCode, params) => api.get(`/allergen-trend/${allergenCode}`, { params }).then(r => r.data),
+  getPaperTrendRanking: (params) => api.get('/allergen-trend/ranking', { params }).then(r => r.data),
+  // 치료법 트렌드 (Phase 2)
+  getTreatmentOverview: () => api.get('/treatments/overview').then(r => r.data),
+  getTreatmentsByAllergen: (allergenCode) => api.get(`/treatments/${allergenCode}`).then(r => r.data),
+  getEmergingTreatments: (params) => api.get('/treatments/emerging', { params }).then(r => r.data),
+  // 역학 데이터 (Phase 4)
+  getEpidemiologyOverview: () => api.get('/epidemiology/overview').then(r => r.data),
+  getEpidemiologyByAllergen: (allergenCode, params) => api.get(`/epidemiology/${allergenCode}`, { params }).then(r => r.data),
+  // 종합 트렌드 (Phase 3)
+  getComprehensiveTrend: (allergenCode) => api.get(`/allergen-comprehensive/${allergenCode}`).then(r => r.data),
 };
 
 export default analyticsApi;
