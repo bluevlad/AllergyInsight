@@ -156,3 +156,54 @@ class PaperAllergenTrend(Base):
         Index('idx_paper_trend_period', 'period_type', 'year'),
         Index('idx_paper_trend_unique', 'period_type', 'year', 'quarter', 'allergen_code', unique=True),
     )
+
+
+class TreatmentEntity(Base):
+    """논문에서 추출된 치료법 엔티티"""
+    __tablename__ = "treatment_entities"
+
+    id = Column(Integer, primary_key=True, index=True)
+    treatment_name = Column(String(200), nullable=False)  # 영문 치료법명
+    treatment_name_kr = Column(String(200), nullable=True)  # 한국어 치료법명
+    treatment_type = Column(String(30), nullable=False)  # drug, immunotherapy, avoidance, biologic, dietary
+    allergen_code = Column(String(30), nullable=False)
+    paper_id = Column(Integer, ForeignKey("papers.id", ondelete="CASCADE"), nullable=False)
+    year = Column(Integer, nullable=True)  # Paper.year
+    evidence_level = Column(String(10), nullable=True)  # A, B, C, D
+    source_text = Column(Text, nullable=True)  # 추출 근거 문장
+    confidence = Column(Float, nullable=True)  # LLM 추출 신뢰도 (0-1)
+    is_verified = Column(Boolean, default=False)  # 관리자 검증 여부
+    created_at = Column(DateTime, default=utc_now)
+
+    __table_args__ = (
+        Index('idx_treatment_name', 'treatment_name'),
+        Index('idx_treatment_type', 'treatment_type'),
+        Index('idx_treatment_allergen', 'allergen_code'),
+        Index('idx_treatment_paper', 'paper_id'),
+        Index('idx_treatment_year', 'year'),
+        Index('idx_treatment_unique', 'treatment_name', 'allergen_code', 'paper_id', unique=True),
+    )
+
+
+class TreatmentTrend(Base):
+    """치료법 연도별 트렌드 집계"""
+    __tablename__ = "treatment_trends"
+
+    id = Column(Integer, primary_key=True, index=True)
+    treatment_name = Column(String(200), nullable=False)
+    treatment_type = Column(String(30), nullable=False)
+    year = Column(Integer, nullable=False)
+    paper_count = Column(Integer, nullable=False, default=0)
+    first_mentioned_year = Column(Integer, nullable=True)
+    related_allergens = Column(JSON, nullable=True)  # [{"code": "peanut", "count": 5}, ...]
+    avg_confidence = Column(Float, nullable=True)
+    trend_direction = Column(String(20), nullable=True)  # rising, stable, declining, new
+    change_rate = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+
+    __table_args__ = (
+        Index('idx_treat_trend_name', 'treatment_name'),
+        Index('idx_treat_trend_type', 'treatment_type'),
+        Index('idx_treat_trend_year', 'year'),
+        Index('idx_treat_trend_unique', 'treatment_name', 'year', unique=True),
+    )

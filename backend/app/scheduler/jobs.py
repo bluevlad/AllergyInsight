@@ -83,6 +83,40 @@ def aggregate_paper_allergen_trends():
         db.close()
 
 
+def extract_and_aggregate_treatments():
+    """치료법 추출 + 트렌드 집계 작업
+
+    미처리 논문에서 치료법을 추출하고 연도별 트렌드를 집계합니다.
+    """
+    logger.info(f"[{datetime.now().isoformat()}] 치료법 추출 시작")
+    db = SessionLocal()
+    try:
+        from ..services.treatment_extraction_service import TreatmentExtractionService
+
+        service = TreatmentExtractionService()
+
+        # 1단계: 미처리 논문에서 치료법 추출 (100건 배치)
+        extract_result = service.extract_from_papers(db, limit=100)
+        logger.info(
+            f"치료법 추출: 처리={extract_result['processed']}, "
+            f"추출={extract_result['extracted']}, 스킵={extract_result['skipped']}"
+        )
+
+        # 2단계: 트렌드 집계
+        trend_result = service.aggregate_trends(db)
+        logger.info(f"치료법 트렌드 집계: {trend_result['trends_created']}건")
+
+        return {
+            "extraction": extract_result,
+            "aggregation": trend_result,
+        }
+    except Exception as e:
+        logger.error(f"치료법 추출 실패: {e}", exc_info=True)
+        return None
+    finally:
+        db.close()
+
+
 def tag_and_generate_insights():
     """뉴스 알러젠 태깅 + 월별 인사이트 리포트 생성
 

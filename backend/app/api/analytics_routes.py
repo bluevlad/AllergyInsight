@@ -17,6 +17,7 @@ from ..services.analytics_service import AnalyticsService
 from ..services.keyword_trend_service import KeywordTrendService
 from ..services.insight_report_service import InsightReportService
 from ..services.allergen_trend_service import AllergenTrendService
+from ..services.treatment_extraction_service import TreatmentExtractionService
 
 router = APIRouter()
 
@@ -24,6 +25,7 @@ _analytics_service = AnalyticsService()
 _keyword_trend_service = KeywordTrendService()
 _insight_service = InsightReportService()
 _allergen_trend_service = AllergenTrendService()
+_treatment_service = TreatmentExtractionService()
 
 
 @router.get("/overview")
@@ -198,6 +200,36 @@ def get_allergen_paper_trend(
     """특정 알러젠의 논문 언급률 시계열 데이터."""
     return _allergen_trend_service.get_allergen_paper_trend(
         db, allergen_code, period_type=period, limit=limit
+    )
+
+
+# --- Treatment Trend (치료법 트렌드) ---
+
+@router.get("/treatments/overview")
+def get_treatment_overview(db: Session = Depends(get_db)):
+    """치료법 트렌드 개요 — 유형별 분포, 상승 치료법."""
+    return _treatment_service.get_overview(db)
+
+
+@router.get("/treatments/emerging")
+def get_emerging_treatments(
+    limit: int = Query(default=10, ge=1, le=30),
+    db: Session = Depends(get_db),
+):
+    """최근 등장한 치료법 (최근 3년 내 첫 언급)."""
+    return _treatment_service.get_emerging_treatments(db, limit=limit)
+
+
+@router.get("/treatments/{allergen_code}")
+def get_treatments_by_allergen(
+    allergen_code: str,
+    period: str = Query(default="yearly"),
+    limit: int = Query(default=20, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    """특정 알러젠의 치료법 트렌드 시계열 데이터."""
+    return _treatment_service.get_treatments_by_allergen(
+        db, allergen_code, period=period, limit=limit
     )
 
 

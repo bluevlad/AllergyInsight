@@ -532,6 +532,106 @@ class OllamaService:
                     break
         return found
 
+    # --- 치료법 엔티티 추출 ---
+
+    TREATMENT_TYPES = ["drug", "immunotherapy", "avoidance", "biologic", "dietary"]
+
+    def extract_treatments(self, title: str, abstract: str, allergen_code: str = "") -> list[dict]:
+        """논문 abstract에서 치료법 엔티티를 추출
+
+        Args:
+            title: 논문 제목
+            abstract: 논문 초록
+            allergen_code: 관련 알러젠 코드 (힌트)
+
+        Returns:
+            [{"name": "omalizumab", "name_kr": "오말리주맙", "type": "biologic",
+              "allergen": "peanut", "evidence_level": "B", "confidence": 0.85,
+              "source_text": "...근거 문장..."}]
+        """
+        if not abstract:
+            return []
+
+        type_list = ", ".join(self.TREATMENT_TYPES)
+        prompt = (
+            "다음 논문 초록에서 알러지 치료법/치료제를 JSON 배열로 추출하세요.\n"
+            "치료법 유형: " + type_list + "\n"
+            "- drug: 약물 (항히스타민제, 에피네프린, 코르티코스테로이드 등)\n"
+            "- immunotherapy: 면역요법 (경구, 피하, 설하 면역요법)\n"
+            "- avoidance: 회피요법 (알러젠 회피, 식이 제한)\n"
+            "- biologic: 생물학적 제제 (오말리주맙, 두필루맙 등)\n"
+            "- dietary: 식이 요법 (대체 식품, 영양 관리)\n\n"
+            f"알러젠 힌트: {allergen_code or '(미지정)'}\n"
+            f"제목: {title}\n"
+            f"초록: {abstract[:1500]}\n\n"
+            "치료법이 없으면 빈 배열 []을 반환하세요.\n"
+            '응답 형식(JSON만): [{"name": "영문 치료법명", "name_kr": "한국어명", '
+            '"type": "drug|immunotherapy|avoidance|biologic|dietary", '
+            '"allergen": "관련 알러젠 코드", "evidence_level": "A|B|C|D|null", '
+            '"confidence": 0.0~1.0, "source_text": "근거가 된 초록 문장"}]'
+        )
+
+        result = self._chat(prompt, provider="local")
+        if result:
+            try:
+                import json
+                start = result.find("[")
+                end = result.rfind("]") + 1
+                if start >= 0 and end > start:
+                    items = json.loads(result[start:end])
+                    valid = []
+                    for item in items:
+                        name = item.get("name", "").strip()
+                        if not name:
+                            continue
+                        t_type = item.get("type", "drug")
+                        if t_type not in self.TREATMENT_TYPES:
+                            t_type = "drug"
+                        valid.append({
+                            "name": name,
+                            "name_kr": item.get("name_kr", ""),
+                            "type": t_type,
+                            "allergen": item.get("allergen", allergen_code or ""),
+                            "evidence_level": item.get("evidence_level"),
+                            "confidence": max(0.0, min(1.0, float(item.get("confidence", 0.5)))),
+                            "source_text": (item.get("source_text", "") or "")[:500],
+                        })
+                    return valid
+            except (ValueError, KeyError, TypeError):
+                pass
+
+        # Fallback: 키워드 매칭
+        return self._keyword_treatment_extract(title, abstract, allergen_code)
+
+    def _keyword_treatment_extract(self, title: str, abstract: str, allergen_code: str) -> list[dict]:
+        """키워드 기반 치료법 추출 (LLM fallback)"""
+        text = f"{title} {abstract or ''}".lower()
+        treatments = {
+            "epinephrine": ("drug", "에피네프린"),
+            "antihistamine": ("drug", "항히스타민제"),
+            "corticosteroid": ("drug", "코르티코스테로이드"),
+            "omalizumab": ("biologic", "오말리주맙"),
+            "dupilumab": ("biologic", "두필루맙"),
+            "oral immunotherapy": ("immunotherapy", "경구 면역요법"),
+            "sublingual immunotherapy": ("immunotherapy", "설하 면역요법"),
+            "subcutaneous immunotherapy": ("immunotherapy", "피하 면역요법"),
+            "allergen avoidance": ("avoidance", "알러젠 회피"),
+            "elimination diet": ("dietary", "제거식이"),
+        }
+        found = []
+        for name, (t_type, name_kr) in treatments.items():
+            if name in text:
+                found.append({
+                    "name": name,
+                    "name_kr": name_kr,
+                    "type": t_type,
+                    "allergen": allergen_code,
+                    "evidence_level": None,
+                    "confidence": 0.4,
+                    "source_text": "",
+                })
+        return found
+
     def generate_insight_report(self, allergen_code: str, sources: list[dict]) -> dict | None:
         """알러젠별 인사이트 리포트 생성
 

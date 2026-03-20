@@ -21,12 +21,14 @@ from ..database.analytics_models import AnalyticsSnapshot, KeywordTrend, Patient
 from ..services.analytics_service import AnalyticsService
 from ..services.keyword_trend_service import KeywordTrendService
 from ..services.allergen_trend_service import AllergenTrendService
+from ..services.treatment_extraction_service import TreatmentExtractionService
 
 router = APIRouter()
 
 _analytics_service = AnalyticsService()
 _keyword_trend_service = KeywordTrendService()
 _allergen_trend_service = AllergenTrendService()
+_treatment_service = TreatmentExtractionService()
 
 
 # ============================================================================
@@ -152,6 +154,38 @@ async def get_paper_trend_detail(
     return _allergen_trend_service.get_allergen_paper_trend(
         db, allergen_code, period_type=period, limit=limit
     )
+
+
+# ============================================================================
+# 치료법 추출 및 트렌드 (Module E)
+# ============================================================================
+
+@router.post("/analytics/treatments/extract")
+async def run_treatment_extraction(
+    limit: int = Query(100, ge=1, le=500, description="처리할 논문 수"),
+    current_user: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """논문에서 치료법 엔티티 배치 추출"""
+    return _treatment_service.extract_from_papers(db, limit=limit)
+
+
+@router.post("/analytics/treatments/aggregate")
+async def run_treatment_trend_aggregation(
+    current_user: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """치료법 트렌드 집계 실행"""
+    return _treatment_service.aggregate_trends(db)
+
+
+@router.get("/analytics/treatments/overview")
+async def get_treatment_overview(
+    current_user: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """치료법 트렌드 개요"""
+    return _treatment_service.get_overview(db)
 
 
 # ============================================================================
