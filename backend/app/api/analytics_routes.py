@@ -16,12 +16,14 @@ from ..database.competitor_models import CompetitorNews, CompetitorCompany
 from ..services.analytics_service import AnalyticsService
 from ..services.keyword_trend_service import KeywordTrendService
 from ..services.insight_report_service import InsightReportService
+from ..services.allergen_trend_service import AllergenTrendService
 
 router = APIRouter()
 
 _analytics_service = AnalyticsService()
 _keyword_trend_service = KeywordTrendService()
 _insight_service = InsightReportService()
+_allergen_trend_service = AllergenTrendService()
 
 
 @router.get("/overview")
@@ -166,6 +168,37 @@ def get_insight_detail(report_id: int, db: Session = Depends(get_db)):
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Report not found")
     return report
+
+
+# --- Paper Allergen Trend (논문 기반 알러젠 언급률 트렌드) ---
+
+@router.get("/allergen-trend/overview")
+def get_allergen_trend_overview(db: Session = Depends(get_db)):
+    """논문 기반 알러젠 트렌드 개요 - 최근 연도 전체 알러젠 현황."""
+    return _allergen_trend_service.get_overview(db)
+
+
+@router.get("/allergen-trend/ranking")
+def get_allergen_trend_ranking(
+    direction: str = Query(default="rising", regex="^(rising|declining|stable|new)$"),
+    limit: int = Query(default=10, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    """트렌드 방향별 상위 알러젠 랭킹."""
+    return _allergen_trend_service.get_top_rising_allergens(db, direction=direction, limit=limit)
+
+
+@router.get("/allergen-trend/{allergen_code}")
+def get_allergen_paper_trend(
+    allergen_code: str,
+    period: str = Query(default="yearly", regex="^(yearly|quarterly)$"),
+    limit: int = Query(default=20, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    """특정 알러젠의 논문 언급률 시계열 데이터."""
+    return _allergen_trend_service.get_allergen_paper_trend(
+        db, allergen_code, period_type=period, limit=limit
+    )
 
 
 # --- Public News (전일 수집 뉴스) ---

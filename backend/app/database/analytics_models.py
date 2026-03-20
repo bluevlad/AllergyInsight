@@ -6,6 +6,7 @@ Quick Win 3가지를 위한 테이블 정의:
 3. PatientActivityLog - 환자 행동 로그
 4. AllergenInsightReport - AI 기반 알러젠별 인사이트 리포트
 5. NewsAllergenLink - 뉴스-알러젠 자동 태깅
+6. PaperAllergenTrend - 논문 기반 알러젠 언급률 트렌드
 """
 from datetime import datetime
 from sqlalchemy import (
@@ -127,4 +128,31 @@ class AllergenInsightReport(Base):
         Index('idx_insight_allergen', 'allergen_code'),
         Index('idx_insight_period', 'period_date'),
         Index('idx_insight_unique', 'allergen_code', 'period_date', 'period_type', unique=True),
+    )
+
+
+class PaperAllergenTrend(Base):
+    """논문 기반 알러젠 언급률 트렌드 (연도/분기별 집계)"""
+    __tablename__ = "paper_allergen_trends"
+
+    id = Column(Integer, primary_key=True, index=True)
+    allergen_code = Column(String(30), nullable=False)
+    period_type = Column(String(20), nullable=False, default="yearly")  # 'yearly', 'quarterly'
+    year = Column(Integer, nullable=False)
+    quarter = Column(Integer, nullable=True)  # 1-4 (quarterly일 때만)
+    paper_count = Column(Integer, nullable=False, default=0)  # 해당 알러젠 논문 수
+    total_papers_in_period = Column(Integer, nullable=False, default=0)  # 전체 논문 수
+    mention_rate = Column(Float, nullable=True)  # paper_count / total_papers_in_period
+    source_breakdown = Column(JSON, nullable=True)  # {"pubmed": 10, "semantic_scholar": 5, ...}
+    avg_relevance_score = Column(Float, nullable=True)  # PaperAllergenLink.relevance_score 평균
+    top_link_types = Column(JSON, nullable=True)  # [{"type": "symptom", "count": 5}, ...]
+    trend_direction = Column(String(20), nullable=True)  # 'rising', 'stable', 'declining', 'new'
+    change_rate = Column(Float, nullable=True)  # 전기 대비 변화율 (%)
+    created_at = Column(DateTime, default=utc_now)
+
+    __table_args__ = (
+        Index('idx_paper_trend_allergen', 'allergen_code'),
+        Index('idx_paper_trend_year', 'year'),
+        Index('idx_paper_trend_period', 'period_type', 'year'),
+        Index('idx_paper_trend_unique', 'period_type', 'year', 'quarter', 'allergen_code', unique=True),
     )

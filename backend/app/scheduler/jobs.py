@@ -58,6 +58,31 @@ def process_articles():
         db.close()
 
 
+def aggregate_paper_allergen_trends():
+    """논문 알러젠 트렌드 집계 작업
+
+    전체 연도에 대해 논문-알러젠 언급률을 재집계합니다.
+    """
+    logger.info(f"[{datetime.now().isoformat()}] 논문 알러젠 트렌드 집계 시작")
+    db = SessionLocal()
+    try:
+        from ..services.allergen_trend_service import AllergenTrendService
+
+        service = AllergenTrendService()
+        results = service.aggregate_all_years(db)
+        total_allergens = sum(r["allergens_processed"] for r in results)
+        logger.info(
+            f"논문 알러젠 트렌드 집계 완료: {len(results)}개 연도, "
+            f"총 {total_allergens}건 알러젠 처리"
+        )
+        return results
+    except Exception as e:
+        logger.error(f"논문 알러젠 트렌드 집계 실패: {e}", exc_info=True)
+        return None
+    finally:
+        db.close()
+
+
 def tag_and_generate_insights():
     """뉴스 알러젠 태깅 + 월별 인사이트 리포트 생성
 

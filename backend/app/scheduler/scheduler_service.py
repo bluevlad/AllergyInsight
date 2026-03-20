@@ -47,12 +47,14 @@ class NewsSchedulerService:
         self.add_preprint_trials_job()
         self.add_crawl_job(crawl_hour, crawl_minute)
         self.add_insight_job()
+        self.add_paper_trend_job()
 
         self._scheduler.start()
         self._running = True
         logger.info(
             f"스케줄러 시작: 논문=02:00, 번역=04:00, RAG/보강=05:00, "
-            f"뉴스={crawl_hour:02d}:{crawl_minute:02d}, 인사이트=매월 1일 03:00"
+            f"뉴스={crawl_hour:02d}:{crawl_minute:02d}, 인사이트=매월 1일 03:00, "
+            f"논문트렌드=매월 1일 04:00"
         )
 
     def stop(self):
@@ -160,6 +162,27 @@ class NewsSchedulerService:
             replace_existing=True,
         )
         logger.info("인사이트 리포트 작업 등록: 매월 1일 03:00")
+
+    def add_paper_trend_job(self):
+        """논문 알러젠 트렌드 집계 작업 추가 (매월 1일 04:00)"""
+        from .jobs import aggregate_paper_allergen_trends
+
+        if self._scheduler.get_job("paper_trend_aggregation"):
+            self._scheduler.remove_job("paper_trend_aggregation")
+
+        self._scheduler.add_job(
+            aggregate_paper_allergen_trends,
+            trigger=CronTrigger(day=1, hour=4, minute=0, timezone=self.KST),
+            id="paper_trend_aggregation",
+            name="논문 알러젠 트렌드 집계",
+            replace_existing=True,
+        )
+        logger.info("논문 알러젠 트렌드 집계 작업 등록: 매월 1일 04:00")
+
+    def run_paper_trend_once(self):
+        """논문 알러젠 트렌드 집계 즉시 실행"""
+        from .jobs import aggregate_paper_allergen_trends
+        aggregate_paper_allergen_trends()
 
     def run_paper_search_once(self):
         """논문 검색 즉시 실행"""
