@@ -20,11 +20,13 @@ from ..database.models import User
 from ..database.analytics_models import AnalyticsSnapshot, KeywordTrend, PatientActivityLog
 from ..services.analytics_service import AnalyticsService
 from ..services.keyword_trend_service import KeywordTrendService
+from ..services.allergen_trend_service import AllergenTrendService
 
 router = APIRouter()
 
 _analytics_service = AnalyticsService()
 _keyword_trend_service = KeywordTrendService()
+_allergen_trend_service = AllergenTrendService()
 
 
 # ============================================================================
@@ -108,6 +110,48 @@ async def get_keyword_trend(
     """키워드 트렌드 조회"""
     trend = _keyword_trend_service.get_keyword_trend(db, keyword, category, limit)
     return {"trend": trend}
+
+
+# ============================================================================
+# 논문 알러젠 트렌드 (Module D)
+# ============================================================================
+
+@router.post("/analytics/paper-trend/aggregate")
+async def run_paper_trend_aggregation(
+    year: Optional[int] = Query(None, description="집계 연도 (미지정 시 전체)"),
+    current_user: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """논문 알러젠 언급률 트렌드 집계 실행"""
+    if year:
+        result = _allergen_trend_service.aggregate_yearly(db, year)
+        return {"success": True, "results": [result]}
+    else:
+        results = _allergen_trend_service.aggregate_all_years(db)
+        return {"success": True, "results": results}
+
+
+@router.get("/analytics/paper-trend/overview")
+async def get_paper_trend_overview(
+    current_user: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """논문 알러젠 트렌드 개요"""
+    return _allergen_trend_service.get_overview(db)
+
+
+@router.get("/analytics/paper-trend/{allergen_code}")
+async def get_paper_trend_detail(
+    allergen_code: str,
+    period: str = Query("yearly", regex="^(yearly|quarterly)$"),
+    limit: int = Query(20, ge=1, le=50),
+    current_user: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """특정 알러젠의 논문 언급률 트렌드"""
+    return _allergen_trend_service.get_allergen_paper_trend(
+        db, allergen_code, period_type=period, limit=limit
+    )
 
 
 # ============================================================================
