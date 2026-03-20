@@ -597,4 +597,38 @@ class AllergenTrendService:
                 "total": len(treatments),
                 "items": treatments,
             },
+            "epidemiology": self._get_epidemiology_summary(db, allergen_code),
+        }
+
+    def _get_epidemiology_summary(self, db: Session, allergen_code: str) -> dict:
+        """종합 트렌드용 역학 데이터 요약"""
+        from ..database.analytics_models import EpidemiologyData
+
+        rows = db.query(EpidemiologyData).filter(
+            EpidemiologyData.allergen_code == allergen_code,
+        ).order_by(EpidemiologyData.year.asc().nullslast()).all()
+
+        if not rows:
+            return {
+                "total": 0,
+                "disclaimer": "본 데이터는 논문 abstract에서 자동 추출된 것으로 의료 조언이 아닙니다.",
+                "by_type": {},
+            }
+
+        by_type = {}
+        for r in rows:
+            if r.data_type not in by_type:
+                by_type[r.data_type] = []
+            by_type[r.data_type].append({
+                "year": r.year,
+                "value": r.value,
+                "unit": r.unit,
+                "region": r.region,
+                "confidence_score": r.confidence_score,
+            })
+
+        return {
+            "total": len(rows),
+            "disclaimer": "본 데이터는 논문 abstract에서 자동 추출된 것으로 의료 조언이 아닙니다.",
+            "by_type": by_type,
         }

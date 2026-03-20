@@ -207,3 +207,32 @@ class TreatmentTrend(Base):
         Index('idx_treat_trend_year', 'year'),
         Index('idx_treat_trend_unique', 'treatment_name', 'year', unique=True),
     )
+
+
+class EpidemiologyData(Base):
+    """논문에서 추출된 역학 데이터 (유병률, 발병률, 환자 수 등)"""
+    __tablename__ = "epidemiology_data"
+
+    id = Column(Integer, primary_key=True, index=True)
+    allergen_code = Column(String(30), nullable=False)
+    paper_id = Column(Integer, ForeignKey("papers.id", ondelete="CASCADE"), nullable=False)
+    year = Column(Integer, nullable=True)  # Paper.year
+    region = Column(String(100), nullable=True)  # 'global', 'USA', 'Europe', 'Korea', 'Asia' 등
+    data_type = Column(String(30), nullable=False)  # prevalence, incidence, patient_count, sensitization_rate
+    value = Column(Float, nullable=False)  # 수치 (%, 명 등)
+    unit = Column(String(20), nullable=True)  # '%', 'per_100k', 'count'
+    sample_size = Column(Integer, nullable=True)  # 연구 대상 수
+    age_group = Column(String(50), nullable=True)  # 'children', 'adults', 'all', '0-5', '6-12' 등
+    source_text = Column(Text, nullable=True)  # 추출 근거 문장
+    confidence_score = Column(Float, nullable=True)  # 0.0-1.0
+    is_verified = Column(Boolean, default=False)  # 관리자 검증 여부
+    created_at = Column(DateTime, default=utc_now)
+
+    __table_args__ = (
+        Index('idx_epi_allergen', 'allergen_code'),
+        Index('idx_epi_paper', 'paper_id'),
+        Index('idx_epi_year', 'year'),
+        Index('idx_epi_type', 'data_type'),
+        Index('idx_epi_region', 'region'),
+        Index('idx_epi_unique', 'allergen_code', 'paper_id', 'data_type', 'value', unique=True),
+    )

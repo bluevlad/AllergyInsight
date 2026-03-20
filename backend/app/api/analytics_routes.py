@@ -18,6 +18,7 @@ from ..services.keyword_trend_service import KeywordTrendService
 from ..services.insight_report_service import InsightReportService
 from ..services.allergen_trend_service import AllergenTrendService
 from ..services.treatment_extraction_service import TreatmentExtractionService
+from ..services.epidemiology_extraction_service import EpidemiologyExtractionService
 
 router = APIRouter()
 
@@ -26,6 +27,7 @@ _keyword_trend_service = KeywordTrendService()
 _insight_service = InsightReportService()
 _allergen_trend_service = AllergenTrendService()
 _treatment_service = TreatmentExtractionService()
+_epidemiology_service = EpidemiologyExtractionService()
 
 
 @router.get("/overview")
@@ -260,6 +262,24 @@ def get_treatments_by_allergen(
     return _treatment_service.get_treatments_by_allergen(
         db, allergen_code, period=period, limit=limit
     )
+
+
+# --- Epidemiology (역학 데이터) ---
+
+@router.get("/epidemiology/overview")
+def get_epidemiology_overview(db: Session = Depends(get_db)):
+    """역학 데이터 전체 개요."""
+    return _epidemiology_service.get_overview(db)
+
+
+@router.get("/epidemiology/{allergen_code}")
+def get_epidemiology_by_allergen(
+    allergen_code: str,
+    data_type: str | None = Query(default=None, description="prevalence|incidence|patient_count|sensitization_rate"),
+    db: Session = Depends(get_db),
+):
+    """특정 알러젠의 역학 데이터 (연도별, data_type별)."""
+    return _epidemiology_service.get_by_allergen(db, allergen_code, data_type=data_type)
 
 
 # --- Public News (전일 수집 뉴스) ---

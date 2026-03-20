@@ -22,6 +22,7 @@ from ..services.analytics_service import AnalyticsService
 from ..services.keyword_trend_service import KeywordTrendService
 from ..services.allergen_trend_service import AllergenTrendService
 from ..services.treatment_extraction_service import TreatmentExtractionService
+from ..services.epidemiology_extraction_service import EpidemiologyExtractionService
 
 router = APIRouter()
 
@@ -29,6 +30,7 @@ _analytics_service = AnalyticsService()
 _keyword_trend_service = KeywordTrendService()
 _allergen_trend_service = AllergenTrendService()
 _treatment_service = TreatmentExtractionService()
+_epidemiology_service = EpidemiologyExtractionService()
 
 
 # ============================================================================
@@ -186,6 +188,29 @@ async def get_treatment_overview(
 ):
     """치료법 트렌드 개요"""
     return _treatment_service.get_overview(db)
+
+
+# ============================================================================
+# 역학 데이터 추출 (Module F)
+# ============================================================================
+
+@router.post("/analytics/epidemiology/extract")
+async def run_epidemiology_extraction(
+    limit: int = Query(50, ge=1, le=200, description="처리할 논문 수"),
+    current_user: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """논문에서 역학 데이터 배치 추출 (정규식 선별 + LLM 추출)"""
+    return _epidemiology_service.extract_from_papers(db, limit=limit)
+
+
+@router.get("/analytics/epidemiology/overview")
+async def get_epidemiology_overview(
+    current_user: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """역학 데이터 추출 현황"""
+    return _epidemiology_service.get_overview(db)
 
 
 # ============================================================================

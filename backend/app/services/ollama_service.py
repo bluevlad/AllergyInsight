@@ -632,6 +632,76 @@ class OllamaService:
                 })
         return found
 
+    # --- 역학 데이터 추출 ---
+
+    EPIDEMIOLOGY_TYPES = ["prevalence", "incidence", "patient_count", "sensitization_rate"]
+
+    def extract_epidemiology(self, title: str, abstract: str, allergen_code: str = "") -> list[dict]:
+        """논문 abstract에서 역학 수치(유병률, 발병률, 환자 수 등)를 추출
+
+        Returns:
+            [{"data_type": "prevalence", "value": 8.5, "unit": "%",
+              "region": "USA", "sample_size": 5000, "age_group": "children",
+              "confidence": 0.85, "source_text": "...근거..."}]
+        """
+        if not abstract:
+            return []
+
+        type_list = ", ".join(self.EPIDEMIOLOGY_TYPES)
+        prompt = (
+            "다음 논문 초록에서 알러지 관련 역학 수치를 JSON 배열로 추출하세요.\n"
+            f"데이터 유형: {type_list}\n"
+            "- prevalence: 유병률 (%)\n"
+            "- incidence: 발병률 (% 또는 per 100,000)\n"
+            "- patient_count: 환자 수 (명)\n"
+            "- sensitization_rate: 감작률 (%)\n\n"
+            f"알러젠 힌트: {allergen_code or '(미지정)'}\n"
+            f"제목: {title}\n"
+            f"초록: {abstract[:1500]}\n\n"
+            "역학 수치가 없으면 빈 배열 []을 반환하세요.\n"
+            "수치가 명확하지 않거나 추정치인 경우 confidence를 낮게 설정하세요.\n"
+            '응답 형식(JSON만): [{"data_type": "prevalence|incidence|patient_count|sensitization_rate", '
+            '"value": 숫자, "unit": "%|per_100k|count", '
+            '"region": "지역명(영문)", "sample_size": 숫자|null, '
+            '"age_group": "children|adults|all|연령범위", '
+            '"confidence": 0.0~1.0, "source_text": "근거 문장"}]'
+        )
+
+        result = self._chat(prompt, provider="local")
+        if result:
+            try:
+                import json
+                start = result.find("[")
+                end = result.rfind("]") + 1
+                if start >= 0 and end > start:
+                    items = json.loads(result[start:end])
+                    valid = []
+                    for item in items:
+                        d_type = item.get("data_type", "")
+                        if d_type not in self.EPIDEMIOLOGY_TYPES:
+                            continue
+                        try:
+                            value = float(item.get("value", 0))
+                        except (ValueError, TypeError):
+                            continue
+                        if value <= 0:
+                            continue
+                        valid.append({
+                            "data_type": d_type,
+                            "value": value,
+                            "unit": item.get("unit", "%"),
+                            "region": item.get("region", ""),
+                            "sample_size": item.get("sample_size"),
+                            "age_group": item.get("age_group", ""),
+                            "confidence": max(0.0, min(1.0, float(item.get("confidence", 0.5)))),
+                            "source_text": (item.get("source_text", "") or "")[:500],
+                        })
+                    return valid
+            except (ValueError, KeyError, TypeError):
+                pass
+
+        return []
+
     def generate_insight_report(self, allergen_code: str, sources: list[dict]) -> dict | None:
         """알러젠별 인사이트 리포트 생성
 
