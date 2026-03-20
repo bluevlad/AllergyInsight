@@ -1,9 +1,7 @@
-"""논문 기반 알러젠 언급률 트렌드 서비스
+"""알러젠 트렌드 분석 서비스
 
-Phase 1: 알러젠 트렌드 분석
-- Paper + PaperAllergenLink 데이터를 연도/분기별로 집계
-- 언급 비율(mention_rate) 기반 상대적 관심도 추적
-- 트렌드 방향 계산 (KeywordTrendService ±20% 패턴 재사용)
+Phase 1: 논문 기반 알러젠 언급률 트렌드
+Phase 3: 뉴스 기반 트렌드 강화 + 논문/뉴스/진단 통합 API
 """
 import logging
 from datetime import date
@@ -11,10 +9,13 @@ from collections import Counter
 from typing import Optional
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, extract
 
 from ..database.models import Paper, PaperAllergenLink
-from ..database.analytics_models import PaperAllergenTrend
+from ..database.analytics_models import (
+    PaperAllergenTrend, AnalyticsSnapshot, NewsAllergenLink,
+)
+from ..database.competitor_models import CompetitorNews
 
 logger = logging.getLogger(__name__)
 
@@ -423,4 +424,177 @@ class AllergenTrendService:
                 }
                 for t in trends[:15]
             ],
+        }
+
+    # =========================================================================
+    # Phase 3: 뉴스 기반 알러젠 트렌드
+    # =========================================================================
+
+    def get_news_allergen_trend(
+        self,
+        db: Session,
+        allergen_code: str,
+        limit: int = 12,
+    ) -> dict:
+        """특정 알러젠의 뉴스 언급 추이 (월별)
+
+        NewsAllergenLink + CompetitorNews를 JOIN하여
+        content_category별 월간 뉴스 수를 집계.
+        """
+        rows = (
+            db.query(
+                func.date_trunc("month", CompetitorNews.created_at).label("month"),
+                NewsAllergenLink.content_category,
+                func.count(NewsAllergenLink.id).label("count"),
+            )
+            .join(CompetitorNews, NewsAllergenLink.news_id == CompetitorNews.id)
+            .filter(
+                NewsAllergenLink.allergen_code == allergen_code,
+                CompetitorNews.is_duplicate == False,
+            )
+            .group_by("month", NewsAllergenLink.content_category)
+            .order_by(func.date_trunc("month", CompetitorNews.created_at).desc())
+            .limit(limit * 5)  # category별로 나뉘므로 여유있게
+            .all()
+        )
+
+        # 월별 그룹핑
+        monthly = {}
+        for month_dt, category, count in rows:
+            period = month_dt.strftime("%Y-%m") if month_dt else "unknown"
+            if period not in monthly:
+                monthly[period] = {"period": period, "total": 0, "by_category": {}}
+            monthly[period]["total"] += count
+            monthly[period]["by_category"][category or "general"] = count
+
+        # 최근 limit개월만 반환
+        sorted_months = sorted(monthly.values(), key=lambda x: x["period"])
+        data = sorted_months[-limit:]
+
+        return {
+            "allergen_code": allergen_code,
+            "data_points": len(data),
+            "trends": data,
+        }
+
+    def get_news_allergen_overview(self, db: Session) -> dict:
+        """뉴스 기반 알러젠 언급 개요 (전체 알러젠별 뉴스 수)"""
+        rows = (
+            db.query(
+                NewsAllergenLink.allergen_code,
+                func.count(NewsAllergenLink.id).label("news_count"),
+            )
+            .join(CompetitorNews, NewsAllergenLink.news_id == CompetitorNews.id)
+            .filter(CompetitorNews.is_duplicate == False)
+            .group_by(NewsAllergenLink.allergen_code)
+            .order_by(func.count(NewsAllergenLink.id).desc())
+            .all()
+        )
+
+        # 카테고리별 분포
+        cat_rows = (
+            db.query(
+                NewsAllergenLink.content_category,
+                func.count(NewsAllergenLink.id),
+            )
+            .group_by(NewsAllergenLink.content_category)
+            .all()
+        )
+
+        return {
+            "total_links": sum(r.news_count for r in rows),
+            "total_allergens": len(rows),
+            "by_category": {cat or "general": cnt for cat, cnt in cat_rows},
+            "top_allergens": [
+                {"allergen_code": r.allergen_code, "news_count": r.news_count}
+                for r in rows[:15]
+            ],
+        }
+
+    # =========================================================================
+    # Phase 3: 논문 + 뉴스 + 진단 통합 API
+    # =========================================================================
+
+    def get_comprehensive_trend(
+        self,
+        db: Session,
+        allergen_code: str,
+    ) -> dict:
+        """알러젠 종합 트렌드 — 논문 언급률 + 뉴스 언급량 + 진단 양성률 통합
+
+        세 가지 데이터 소스를 단일 응답으로 제공:
+        1. 논문 트렌드 (PaperAllergenTrend — 연도별)
+        2. 뉴스 트렌드 (NewsAllergenLink — 월별)
+        3. 진단 트렌드 (AnalyticsSnapshot — 월별)
+        + 치료법 요약 (TreatmentEntity)
+        """
+        # 1. 논문 트렌드
+        paper_trend = self.get_allergen_paper_trend(
+            db, allergen_code, period_type="yearly", limit=20
+        )
+
+        # 2. 뉴스 트렌드
+        news_trend = self.get_news_allergen_trend(db, allergen_code, limit=12)
+
+        # 3. 진단 양성률 트렌드
+        diagnosis_snapshots = db.query(AnalyticsSnapshot).filter(
+            AnalyticsSnapshot.allergen_code == allergen_code,
+            AnalyticsSnapshot.period_type == "monthly",
+        ).order_by(
+            AnalyticsSnapshot.snapshot_date.desc()
+        ).limit(12).all()
+
+        diagnosis_trend = [
+            {
+                "period": s.snapshot_date.isoformat(),
+                "total_tests": s.total_tests,
+                "positive_count": s.positive_count,
+                "positive_rate": s.positive_rate,
+                "avg_grade": s.avg_grade,
+            }
+            for s in reversed(diagnosis_snapshots)
+        ]
+
+        # 4. 치료법 요약
+        from ..database.analytics_models import TreatmentEntity
+        treatment_rows = (
+            db.query(
+                TreatmentEntity.treatment_name,
+                TreatmentEntity.treatment_type,
+                TreatmentEntity.treatment_name_kr,
+                func.count(TreatmentEntity.id).label("count"),
+            )
+            .filter(TreatmentEntity.allergen_code == allergen_code)
+            .group_by(
+                TreatmentEntity.treatment_name,
+                TreatmentEntity.treatment_type,
+                TreatmentEntity.treatment_name_kr,
+            )
+            .order_by(func.count(TreatmentEntity.id).desc())
+            .limit(10)
+            .all()
+        )
+
+        treatments = [
+            {
+                "name": r.treatment_name,
+                "name_kr": r.treatment_name_kr,
+                "type": r.treatment_type,
+                "paper_count": r.count,
+            }
+            for r in treatment_rows
+        ]
+
+        return {
+            "allergen_code": allergen_code,
+            "paper_trend": paper_trend,
+            "news_trend": news_trend,
+            "diagnosis_trend": {
+                "data_points": len(diagnosis_trend),
+                "trends": diagnosis_trend,
+            },
+            "treatments": {
+                "total": len(treatments),
+                "items": treatments,
+            },
         }

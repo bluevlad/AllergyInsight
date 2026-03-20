@@ -203,6 +203,35 @@ def get_allergen_paper_trend(
     )
 
 
+# --- News Allergen Trend + Comprehensive (뉴스 알러젠 트렌드 + 종합) ---
+
+@router.get("/news-allergen/overview")
+def get_news_allergen_overview(db: Session = Depends(get_db)):
+    """뉴스 기반 알러젠 언급 개요."""
+    return _allergen_trend_service.get_news_allergen_overview(db)
+
+
+@router.get("/news-allergen/{allergen_code}")
+def get_news_allergen_trend(
+    allergen_code: str,
+    limit: int = Query(default=12, ge=1, le=24),
+    db: Session = Depends(get_db),
+):
+    """특정 알러젠의 뉴스 언급 추이 (월별, content_category별)."""
+    return _allergen_trend_service.get_news_allergen_trend(
+        db, allergen_code, limit=limit
+    )
+
+
+@router.get("/allergen-comprehensive/{allergen_code}")
+def get_allergen_comprehensive_trend(
+    allergen_code: str,
+    db: Session = Depends(get_db),
+):
+    """알러젠 종합 트렌드 — 논문 + 뉴스 + 진단 + 치료법 통합 데이터."""
+    return _allergen_trend_service.get_comprehensive_trend(db, allergen_code)
+
+
 # --- Treatment Trend (치료법 트렌드) ---
 
 @router.get("/treatments/overview")
