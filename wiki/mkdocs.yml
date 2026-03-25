@@ -1,0 +1,96 @@
+site_name: AllergyInsight Wiki
+site_description: AllergyInsight — 알러지 진단 및 처방 권고 시스템 위키
+site_url: https://insight.unmong.com/wiki/
+
+theme:
+  name: material
+  language: ko
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: purple
+      toggle:
+        icon: material/brightness-7
+        name: 다크 모드로 전환
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: purple
+      toggle:
+        icon: material/brightness-4
+        name: 라이트 모드로 전환
+  font:
+    text: Noto Sans KR
+    code: JetBrains Mono
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - toc.follow
+  icon:
+    logo: material/allergy
+    repo: fontawesome/brands/github
+
+repo_url: https://github.com/bluevlad/AllergyInsight
+repo_name: bluevlad/AllergyInsight
+
+nav:
+  - Home: index.md
+  - 프로젝트 개요: project-overview.md
+  - 아키텍처: architecture.md
+  - 도메인 모델: domain-model.md
+  - API 명세: api-specification.md
+  - 개발 가이드: development-guide.md
+  - 배포: deployment.md
+  - 로드맵: roadmap.md
+  - 사용자 가이드: user-guide.md
+
+plugins:
+  - search:
+      lang:
+        - ko
+        - en
+  - minify:
+      minify_html: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.mark
+  - pymdownx.critic
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/bluevlad/AllergyInsight
+
+extra_css:
+  - stylesheets/extra.css
+
+copyright: "&copy; 2024-2026 AllergyInsight. All rights reserved."

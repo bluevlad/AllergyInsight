@@ -102,8 +102,8 @@ services:
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: frontend/Dockerfile
       args:
         - VITE_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
     container_name: allergyinsight-frontend

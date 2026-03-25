@@ -60,6 +60,10 @@ frontend/build/
 .next/
 out/
 
+# Wiki build output
+wiki/site/
+wiki/.venv/
+
 # -------------------------------------------
 # Claude Code
 # -------------------------------------------
