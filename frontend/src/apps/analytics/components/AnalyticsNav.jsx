@@ -6,10 +6,10 @@ import { NavLink } from 'react-router-dom';
 
 const AnalyticsNav = () => {
   const navItems = [
+    { to: '/analytics/comprehensive-trend', label: '종합 트렌드', icon: '📈' },
     { to: '/analytics/allergen-analysis', label: '알러젠 분석', icon: '🧬' },
     { to: '/analytics/paper-collection', label: '논문 수집정보', icon: '📄' },
     { to: '/analytics/allergen-news', label: '알러젠뉴스 정보', icon: '📰' },
-    { to: '/analytics/comprehensive-trend', label: '종합 트렌드', icon: '📈' },
   ];
 
   return (

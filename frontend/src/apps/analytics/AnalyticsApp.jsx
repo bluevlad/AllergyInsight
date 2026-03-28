@@ -4,7 +4,7 @@
  * /analytics/* 경로에서 라우팅됩니다.
  * 인증 불필요 - 누구나 접근 가능합니다.
  *
- * 3개 메뉴: 알러젠 분석, 논문 수집정보, 알러젠뉴스 정보
+ * 4개 메뉴: 종합 트렌드, 알러젠 분석, 논문 수집정보, 알러젠뉴스 정보
  */
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
@@ -27,11 +27,11 @@ const AnalyticsApp = () => {
 
       <main className="main-content">
         <Routes>
-          <Route path="/" element={<AllergenAnalysisPage />} />
+          <Route path="/" element={<ComprehensiveTrendPage />} />
+          <Route path="/comprehensive-trend" element={<ComprehensiveTrendPage />} />
           <Route path="/allergen-analysis" element={<AllergenAnalysisPage />} />
           <Route path="/paper-collection" element={<PaperCollectionPage />} />
           <Route path="/allergen-news" element={<AllergenNewsPage />} />
-          <Route path="/comprehensive-trend" element={<ComprehensiveTrendPage />} />
           <Route path="*" element={<Navigate to="/analytics" replace />} />
         </Routes>
       </main>

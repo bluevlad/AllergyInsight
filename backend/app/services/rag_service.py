@@ -20,6 +20,7 @@ _CHROMA_PERSIST_DIR = os.getenv(
 _COLLECTION_NAME = "allergy_papers"
 _CHUNK_SIZE = 800
 _CHUNK_OVERLAP = 100
+_MIN_RELEVANCE_SCORE = 0.4  # 최소 관련도 임계값 (40% 미만 논문 제외)
 
 
 def _chunk_text(text: str, chunk_size: int = _CHUNK_SIZE, overlap: int = _CHUNK_OVERLAP) -> list[str]:
@@ -393,60 +394,111 @@ class RAGService:
         """
         from .ollama_service import get_ollama_service
 
-        # 1) 관련 논문 검색
-        search_results = self.search(
+        # 1) 관련 논문 검색 + 최소 관련도 필터링
+        raw_results = self.search(
             query=question,
-            n_results=n_context,
+            n_results=n_context * 2,  # 필터링 여유분 확보
             allergen_filter=allergen,
         )
+        search_results = [
+            r for r in raw_results if r["score"] >= _MIN_RELEVANCE_SCORE
+        ][:n_context]
 
-        if not search_results:
-            return {
-                "answer": "관련 논문을 찾을 수 없습니다. 다른 질문을 시도해 주세요.",
-                "sources": [],
-                "confidence": 0.0,
-            }
+        has_strong_context = len(search_results) > 0 and any(
+            r["score"] >= 0.6 for r in search_results
+        )
 
         # 2) 컨텍스트 구성
         context_parts = []
-        for i, result in enumerate(search_results, 1):
-            year_str = f" ({result['year']})" if result.get("year") else ""
-            context_parts.append(
-                f"[{i}] {result['title']}{year_str}\n{result['text']}"
-            )
+        if search_results:
+            for i, result in enumerate(search_results, 1):
+                year_str = f" ({result['year']})" if result.get("year") else ""
+                context_parts.append(
+                    f"[{i}] {result['title']}{year_str}\n{result['text']}"
+                )
         context = "\n\n".join(context_parts)
 
         # 3) LLM 답변 생성
         llm = get_ollama_service()
-        if not llm.is_available:
-            # LLM 미가용 시 검색 결과만 반환
+        if not llm.is_available and not llm.is_gemini_available:
+            if not search_results:
+                return {
+                    "answer": "관련 논문을 찾을 수 없습니다. 다른 질문을 시도해 주세요.",
+                    "sources": [],
+                    "confidence": 0.0,
+                }
             return {
                 "answer": "LLM 서버에 연결할 수 없어 검색 결과만 표시합니다.",
                 "sources": search_results,
                 "confidence": 0.3,
             }
 
-        prompt = (
-            "아래 학술 논문 자료를 참고하여 질문에 정확하고 근거 있게 답변하세요.\n"
-            "규칙:\n"
-            "- 반드시 한국어로만 답변하세요\n"
-            "- 출처 번호 [1], [2] 등을 인용하세요\n"
-            "- 논문에 없는 내용은 추측하지 마세요\n"
-            "- 의학 용어는 한국어 표기 우선, 영문 약어 괄호 병기\n\n"
-            f"=== 참고 논문 ===\n{context}\n\n"
-            f"=== 질문 ===\n{question}\n\n"
-            "=== 답변 ==="
-        )
+        # 논문 컨텍스트 충분 여부에 따라 프롬프트 전략 분기
+        if has_strong_context:
+            prompt = (
+                "아래 학술 논문 자료를 참고하여 질문에 정확하고 근거 있게 답변하세요.\n"
+                "규칙:\n"
+                "- 반드시 한국어로만 답변하세요\n"
+                "- 출처 번호 [1], [2] 등을 인용하세요\n"
+                "- 논문에 없는 내용은 추측하지 마세요\n"
+                "- 의학 용어는 한국어 표기 우선, 영문 약어 괄호 병기\n\n"
+                f"=== 참고 논문 ===\n{context}\n\n"
+                f"=== 질문 ===\n{question}\n\n"
+                "=== 답변 ==="
+            )
+        else:
+            # 논문 컨텍스트가 부족하거나 없을 때: 일반 의학 지식으로 보완
+            context_section = (
+                f"\n\n=== 참고 논문 (관련도 낮음) ===\n{context}\n"
+                if context else ""
+            )
+            prompt = (
+                "당신은 알러지 및 면역학 전문 의학 AI입니다.\n"
+                "아래 질문에 대해 일반적인 의학 지식을 기반으로 답변하세요.\n"
+                "규칙:\n"
+                "- 반드시 한국어로만 답변하세요\n"
+                "- 의학 용어는 한국어 표기 우선, 영문 약어 괄호 병기\n"
+                "- 일반적으로 알려진 의학 지식을 바탕으로 구체적이고 유용한 답변을 제공하세요\n"
+                "- 답변 마지막에 '정확한 진단과 치료는 전문 의료진과 상담하세요.'를 포함하세요\n"
+                f"{context_section}\n"
+                f"=== 질문 ===\n{question}\n\n"
+                "=== 답변 ==="
+            )
 
-        answer = llm._chat(prompt, max_tokens=1000)
+        answer = llm._chat(prompt, max_tokens=1000, provider="rag")
+
+        # 4) 답변 품질 검증 — "답변 불가" 패턴 감지 시 보완 프롬프트로 재시도
+        if answer and self._is_insufficient_answer(answer):
+            retry_prompt = (
+                "당신은 알러지 및 면역학 전문 의학 AI입니다.\n"
+                "이전 답변이 충분하지 않았습니다. "
+                "논문 자료가 부족하더라도 일반적인 의학 지식을 활용하여 "
+                "사용자에게 도움이 되는 구체적인 답변을 제공하세요.\n"
+                "규칙:\n"
+                "- 반드시 한국어로만 답변하세요\n"
+                "- 의학 용어는 한국어 표기 우선, 영문 약어 괄호 병기\n"
+                "- 일반적으로 알려진 증상, 원인, 대처법 등을 구체적으로 설명하세요\n"
+                "- 답변 마지막에 '정확한 진단과 치료는 전문 의료진과 상담하세요.'를 포함하세요\n\n"
+                f"=== 질문 ===\n{question}\n\n"
+                "=== 답변 ==="
+            )
+            retry_answer = llm._chat(retry_prompt, max_tokens=1000, provider="rag")
+            if retry_answer and not self._is_insufficient_answer(retry_answer):
+                answer = retry_answer
+
         if not answer:
-            answer = "답변을 생성할 수 없습니다."
+            answer = "답변을 생성할 수 없습니다. 잠시 후 다시 시도해 주세요."
 
-        # 4) 신뢰도 계산
-        avg_score = sum(r["score"] for r in search_results) / len(search_results)
-        confidence = min(1.0, avg_score * 1.2)
+        # 5) 신뢰도 계산
+        if search_results:
+            avg_score = sum(r["score"] for r in search_results) / len(search_results)
+            confidence = min(1.0, avg_score * 1.2)
+            if not has_strong_context:
+                confidence = min(confidence, 0.5)  # 보완 답변은 최대 50%
+        else:
+            confidence = 0.35  # 논문 없이 일반 지식으로 답변
 
-        # 5) 소스 정보
+        # 6) 소스 정보
         sources = [
             {
                 "paper_id": r["paper_id"],
@@ -463,6 +515,26 @@ class RAGService:
             "sources": sources,
             "confidence": round(confidence, 3),
         }
+
+    @staticmethod
+    def _is_insufficient_answer(answer: str) -> bool:
+        """LLM 답변이 '답변 불가' 패턴인지 검사"""
+        insufficient_patterns = [
+            "찾을 수 없습니다",
+            "언급되어 있지 않습니다",
+            "포함되어 있지 않습니다",
+            "다루고 있지 않습니다",
+            "확인할 수 없습니다",
+            "제공되어 있지 않습니다",
+            "나와 있지 않습니다",
+            "없는 것으로 보입니다",
+            "관련 정보가 없습니다",
+            "직접적인 정보는 없",
+            "구체적인 내용은 없",
+            "직접적으로 다루지",
+        ]
+        answer_lower = answer.strip()
+        return any(pattern in answer_lower for pattern in insufficient_patterns)
 
     def get_stats(self) -> dict:
         """RAG 인덱스 통계"""
