@@ -1,4 +1,12 @@
-# === Stage 1: Frontend 빌드 (React + Vite) ===
+# === Stage 1: Wiki 빌드 (MkDocs Material) ===
+FROM python:3.12-alpine AS wiki-builder
+WORKDIR /wiki
+COPY wiki/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY wiki/ .
+RUN mkdocs build
+
+# === Stage 2: Frontend 빌드 (React + Vite) ===
 FROM node:20-alpine AS builder
 
 WORKDIR /app
@@ -19,7 +27,7 @@ ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 # 빌드
 RUN npm run build
 
-# === Stage 2: Production (Nginx) ===
+# === Stage 3: Production (Nginx) ===
 FROM nginx:alpine
 
 # nginx 설정 복사
@@ -27,6 +35,9 @@ COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Frontend 빌드 결과물 복사
 COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Wiki 빌드 결과물 복사
+COPY --from=wiki-builder /wiki/site /usr/share/nginx/html/wiki
 
 # 포트 노출
 EXPOSE 4040
