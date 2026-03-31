@@ -99,7 +99,7 @@ const AllergenNewsPage = () => {
   const loadRecentNews = async () => {
     try {
       setNewsLoading(true);
-      const params = { days: newsDays, limit: 30 };
+      const params = { days: newsDays, max_age_days: 2, limit: 30 };
       if (newsCategoryFilter) params.category = newsCategoryFilter;
       const result = await analyticsApi.getRecentNews(params);
       setNewsData(result);

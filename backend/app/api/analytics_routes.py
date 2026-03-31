@@ -6,7 +6,7 @@ Never returns individual patient data or PII.
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -286,29 +286,47 @@ def get_epidemiology_by_allergen(
 
 @router.get("/news/recent")
 def get_recent_news(
-    days: int = Query(default=1, ge=1, le=7, description="최근 N일 뉴스"),
+    days: int = Query(default=1, ge=1, le=7, description="수집 기간(일)"),
+    max_age_days: int = Query(default=2, ge=1, le=7, description="기사 최대 경과일"),
     category: Optional[str] = Query(default=None, description="카테고리 필터"),
     limit: int = Query(default=30, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
-    """최근 수집된 뉴스 목록 (공개, read-only). 중복 제외, 중요도순 정렬."""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    """최근 수집된 뉴스 목록 (공개, read-only).
+
+    - 분석 완료 + 관련 기사만 노출
+    - published_at 기준 max_age_days 초과 기사 제외 (NULL이면 created_at 기준)
+    - 최신 기사 우선, 동일 날짜 내 중요도순 정렬
+    """
+    collect_cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    publish_cutoff = datetime.now(timezone.utc) - timedelta(days=max_age_days)
+
+    # 기본 필터: 중복 제외 + 분석 완료 + 관련 기사 + 수집 기간 내
+    base_filter = [
+        CompetitorNews.is_duplicate == False,
+        CompetitorNews.is_processed == True,
+        CompetitorNews.is_relevant == True,
+        CompetitorNews.created_at >= collect_cutoff,
+        # published_at이 있으면 경과일 체크, NULL이면 통과 (created_at로 이미 필터됨)
+        or_(
+            CompetitorNews.published_at >= publish_cutoff,
+            CompetitorNews.published_at.is_(None),
+        ),
+    ]
 
     query = (
         db.query(CompetitorNews)
         .join(CompetitorCompany, isouter=True)
-        .filter(
-            CompetitorNews.is_duplicate == False,
-            CompetitorNews.created_at >= cutoff,
-        )
+        .filter(*base_filter)
     )
 
     if category:
         query = query.filter(CompetitorNews.category == category)
 
+    # 정렬: 최신 기사 우선 → 동일 시점 내 중요도순
     news_items = query.order_by(
-        CompetitorNews.importance_score.desc().nullslast(),
         CompetitorNews.published_at.desc().nullslast(),
+        CompetitorNews.importance_score.desc().nullslast(),
         CompetitorNews.created_at.desc(),
     ).limit(limit).all()
 
@@ -328,13 +346,10 @@ def get_recent_news(
             "importance_score": news.importance_score,
         })
 
-    # 카테고리별 건수
+    # 카테고리별 건수 (동일 필터 적용)
     cat_counts_query = (
         db.query(CompetitorNews.category, func.count(CompetitorNews.id))
-        .filter(
-            CompetitorNews.is_duplicate == False,
-            CompetitorNews.created_at >= cutoff,
-        )
+        .filter(*base_filter)
         .group_by(CompetitorNews.category)
         .all()
     )
@@ -347,4 +362,5 @@ def get_recent_news(
         "total": total,
         "by_category": by_category,
         "days": days,
+        "max_age_days": max_age_days,
     }
