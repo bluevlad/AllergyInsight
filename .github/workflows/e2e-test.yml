@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  BASE_URL: ${{ vars.BASE_URL || 'http://www.unmong.com:4040' }}
+  BASE_URL: ${{ vars.BASE_URL || 'https://allergy.unmong.com' }}
 
 jobs:
   e2e-test:

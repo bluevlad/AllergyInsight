@@ -137,7 +137,7 @@ GMAIL_ADDRESS=
 GMAIL_APP_PASSWORD=
 
 # Subscription
-SUBSCRIPTION_BASE_URL=https://insight.unmong.com/subscribe
+SUBSCRIPTION_BASE_URL=https://allergy.unmong.com/subscribe
 
 # News quality gate
 NEWS_RELEVANCE_THRESHOLD=0.3

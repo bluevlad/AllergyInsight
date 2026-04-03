@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const BASE_URL = process.env.BASE_URL || 'http://www.unmong.com:4040';
+const BASE_URL = process.env.BASE_URL || 'https://allergy.unmong.com';
 
 test.describe('Health Check API', () => {
   test('GET /api/health - 서버 상태 확인', async ({ request }) => {

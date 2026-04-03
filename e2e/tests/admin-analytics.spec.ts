@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const BASE_URL = process.env.BASE_URL || 'http://www.unmong.com:4040';
+const BASE_URL = process.env.BASE_URL || 'https://allergy.unmong.com';
 
 test.describe('Admin Analytics API - 인증 검증', () => {
   test('GET /api/admin/analytics/overview - 인증 없이 401/403 응답', async ({ request }) => {

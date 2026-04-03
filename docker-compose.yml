@@ -46,7 +46,7 @@ services:
       - GMAIL_ADDRESS=${GMAIL_ADDRESS:-}
       - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD:-}
       # Subscription
-      - SUBSCRIPTION_BASE_URL=${SUBSCRIPTION_BASE_URL:-https://insight.unmong.com/subscribe}
+      - SUBSCRIPTION_BASE_URL=${SUBSCRIPTION_BASE_URL:-https://allergy.unmong.com/subscribe}
     volumes:
       - backend_downloads:/app/downloads
       - chromadb_data:/app/data/chromadb
@@ -92,7 +92,7 @@ services:
       - NEWS_IMPORTANCE_THRESHOLD=${NEWS_IMPORTANCE_THRESHOLD:-0.2}
       - GMAIL_ADDRESS=${GMAIL_ADDRESS:-}
       - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD:-}
-      - SUBSCRIPTION_BASE_URL=${SUBSCRIPTION_BASE_URL:-https://insight.unmong.com/subscribe}
+      - SUBSCRIPTION_BASE_URL=${SUBSCRIPTION_BASE_URL:-https://allergy.unmong.com/subscribe}
     depends_on:
       - backend
     networks:

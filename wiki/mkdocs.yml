@@ -1,6 +1,6 @@
 site_name: AllergyInsight Wiki
 site_description: AllergyInsight — 알러지 진단 및 처방 권고 시스템 위키
-site_url: https://insight.unmong.com/wiki/
+site_url: https://allergy.unmong.com/wiki/
 
 theme:
   name: material
