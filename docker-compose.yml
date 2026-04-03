@@ -8,6 +8,8 @@ services:
       - "9040:9040"
     environment:
       - TZ=Asia/Seoul
+      # CORS
+      - CORS_ALLOWED_ORIGINS=https://allergy.unmong.com,https://insight.unmong.com,http://localhost:4040,http://localhost:3000
       # Database (using shared postgresql container)
       - DATABASE_URL=postgresql://allergyinsight_svc:${DB_PASSWORD:?DB_PASSWORD is required}@postgresql:5432/allergyinsight
       # Google OAuth (ID 토큰 방식 - CLIENT_SECRET 불필요)
