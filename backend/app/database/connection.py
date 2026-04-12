@@ -58,6 +58,7 @@ def init_db():
     from . import newsletter_models  # 뉴스레터 발송 이력
     from . import subscriber_models  # 구독자 모델
     from . import allergen_models  # 알러젠 마스터 데이터
+    from . import drug_models  # 약물/병태생리 — 학술 전용 알러지 Agent (allergen_master 이후 로드 필수)
     from ..services.diagnosis_repository import StoredDiagnosisModel, StoredPrescriptionModel  # noqa: F401
     Base.metadata.create_all(bind=engine)
     run_migrations()
