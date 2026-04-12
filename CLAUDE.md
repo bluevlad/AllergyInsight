@@ -159,7 +159,9 @@ OPENAI_API_KEY=         # OpenAI API
 | 저장소 | 역할 | 원칙 |
 |--------|------|------|
 | `AllergyInsight/docs/` | 구현 문서 | **"어떻게(How)"** — 코드와 함께 버전 관리되는 운영/개발 문서 |
-| `Claude-Opus-bluevlad/docs/AllergyInsight/` | 전략 문서 | **"왜(Why) + 무엇을(What)"** — 의사결정, 분석, 보안, 계획 |
+| `Claude-Opus-bluevlad/services/allergyinsight/` | 전략 문서 | **"왜(Why) + 무엇을(What)"** — 의사결정, 분석, 보안, 계획 |
+
+> 📘 **표준 문서**: [SERVICE_FOLDER_STRUCTURE.md](https://github.com/bluevlad/Claude-Opus-bluevlad/blob/main/standards/documentation/SERVICE_FOLDER_STRUCTURE.md) — `services/{project}/` 하위 폴더·파일 표준 (필수/권장/해당 시, 네이밍 규칙, 배치 결정 트리)
 
 ### 문서 분류 Decision Tree
 
@@ -167,19 +169,19 @@ OPENAI_API_KEY=         # OpenAI API
 
 ```
 1. 보안 정보(키 관리, 계정 체계, 인증 설계)를 포함하는가?
-   → Claude-Opus-bluevlad/docs/AllergyInsight/security/
+   → Claude-Opus-bluevlad/services/allergyinsight/security/
 
 2. 비즈니스 분석(경쟁사, 시장, 타당성, 비용)인가?
-   → Claude-Opus-bluevlad/docs/AllergyInsight/analysis/
+   → Claude-Opus-bluevlad/services/allergyinsight/analysis/
 
 3. 아키텍처 의사결정(왜 이 기술을 선택했는가)인가?
-   → Claude-Opus-bluevlad/docs/AllergyInsight/adr/
+   → Claude-Opus-bluevlad/services/allergyinsight/adr/
 
 4. 구현 전 계획(무엇을 만들 것인가, 단계별 플랜)인가?
-   → Claude-Opus-bluevlad/docs/AllergyInsight/plans/
+   → Claude-Opus-bluevlad/services/allergyinsight/plans/
 
 5. 기능 로드맵(중장기 발전 계획)인가?
-   → Claude-Opus-bluevlad/docs/AllergyInsight/roadmap/
+   → Claude-Opus-bluevlad/services/allergyinsight/roadmap/
 
 6. 구현 후 결과(어떻게 사용하는가, 설정값, 엔드포인트)인가?
    → AllergyInsight/docs/
@@ -192,26 +194,32 @@ OPENAI_API_KEY=         # OpenAI API
 
 - **AllergyInsight → Claude-Opus-bluevlad 참조**: GitHub URL 사용
   ```markdown
-  > **설계 문서**: [plans/allergen-trend-analysis-plan.md](https://github.com/bluevlad/Claude-Opus-bluevlad/blob/main/docs/AllergyInsight/plans/allergen-trend-analysis-plan.md)
+  > **설계 문서**: [plans/allergen-trend-analysis-plan.md](https://github.com/bluevlad/Claude-Opus-bluevlad/blob/main/services/allergyinsight/plans/allergen-trend-analysis-plan.md)
   ```
-- **Claude-Opus-bluevlad → AllergyInsight 참조**: 상대 경로 표기
+- **Claude-Opus-bluevlad → AllergyInsight 참조**: GitHub URL 사용
   ```markdown
-  > **구현 코드**: AllergyInsight/backend/app/services/allergen_trend_service.py
+  > **구현 코드**: [backend/app/services/allergen_trend_service.py](https://github.com/bluevlad/AllergyInsight/blob/main/backend/app/services/allergen_trend_service.py)
   ```
 - **구현 완료 시**: 양쪽 문서를 동시에 업데이트 (플랜에 구현 상태 표기, 코드 repo에 가이드 추가)
 
 ### 문서 저장소 구조
 
 ```
-Claude-Opus-bluevlad/docs/AllergyInsight/
-├── adr/          # 아키텍처 결정 기록 (기술 선택 이유, 대안 비교)
-├── plans/        # 구현 플랜 (단계, 우선순위, 설계 상세)
-├── analysis/     # 비즈니스/기술 분석 (타당성, 데이터 품질, 비용)
-├── security/     # 보안 설계 (인증, 키 관리, 개인정보)
-├── roadmap/      # 중장기 로드맵
-├── dev/          # 아키텍처 분석/기획 문서
-└── wiki/         # 프로젝트 Wiki
+Claude-Opus-bluevlad/services/allergyinsight/
+├── README.md               # ✅ 필수 — 서비스 메인 문서
+├── CLAUDE.service.md       # ✅ 필수 — Claude Code 진입점
+├── VERIFICATION_CRITERIA.md # ✅ 필수 — 검증 기준
+├── overview.md             # 🟢 권장 — 배경·목적·범위
+├── adr/                    # 🟢 권장 — 아키텍처 결정 기록
+├── plans/                  # 🟢 권장 — 구현 플랜
+├── roadmap/                # 🟢 권장 — 중장기 로드맵
+├── analysis/               # 🟢 권장 — 비즈니스/기술 분석
+├── security/               # 🟡 해당 시 — 보안 설계
+├── dev/                    # 🟡 해당 시 — 전략성 가이드
+└── wiki/                   # 🟡 해당 시 — 프로젝트 Wiki
 ```
+
+> 상세 표준·네이밍 규칙·마이그레이션 가이드는 [SERVICE_FOLDER_STRUCTURE.md](https://github.com/bluevlad/Claude-Opus-bluevlad/blob/main/standards/documentation/SERVICE_FOLDER_STRUCTURE.md) 참조.
 
 ## Deployment
 
