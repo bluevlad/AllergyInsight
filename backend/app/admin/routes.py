@@ -8,6 +8,7 @@ from .news_routes import router as news_router
 from .analytics_routes import router as analytics_router
 from .subscriber_routes import router as subscriber_router
 from .drug_ingest_routes import router as drug_ingest_router
+from .drug_admin_routes import router as drug_admin_router
 from typing import Optional, List
 
 from .dependencies import require_super_admin
@@ -700,3 +701,4 @@ router.include_router(news_router)
 router.include_router(analytics_router)
 router.include_router(subscriber_router)
 router.include_router(drug_ingest_router)
+router.include_router(drug_admin_router)

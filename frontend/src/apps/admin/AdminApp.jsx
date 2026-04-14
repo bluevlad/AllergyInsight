@@ -19,6 +19,7 @@ import PapersPage from './pages/PapersPage';
 import OrganizationsPage from './pages/OrganizationsPage';
 import CompetitorNewsPage from './pages/CompetitorNewsPage';
 import SubscribersPage from './pages/SubscribersPage';
+import DrugsPage from './pages/DrugsPage';
 
 const AdminLoginForm = () => {
   const { loginAdmin } = useAuth();
@@ -215,6 +216,9 @@ const AdminApp = () => {
 
           {/* Subscribers */}
           <Route path="/subscribers" element={<SubscribersPage />} />
+
+          {/* Drugs (Phase 1) */}
+          <Route path="/drugs" element={<DrugsPage />} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/admin" replace />} />
