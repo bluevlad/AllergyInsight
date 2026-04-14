@@ -117,6 +117,39 @@ def extract_and_aggregate_treatments():
         db.close()
 
 
+def ingest_drugs(source: str | None = None, limit: int | None = None):
+    """약물 정보 증분 수집 작업.
+
+    파이프라인(DrugIngestPipeline)으로 openFDA · MFDS 어댑터를 순차 실행한다.
+    source=None 이면 등록된 모든 소스, 지정하면 단일 소스만 실행.
+    """
+    logger.info(
+        f"[{datetime.now().isoformat()}] 약물 수집 시작 source={source or 'all'} limit={limit}"
+    )
+    db = SessionLocal()
+    try:
+        from ..services.drug_ingest.factory import build_default_pipeline
+
+        pipeline = build_default_pipeline()
+        if source:
+            results = [pipeline.run_source(db, source, limit=limit)]
+        else:
+            results = pipeline.run_all(db, limit=limit)
+
+        for r in results:
+            status = "ok" if r.ok else f"FATAL:{r.fatal_error}"
+            logger.info(
+                f"약물 수집[{r.source}] {status} "
+                f"success={r.success_count} failed={len(r.failed_items)}"
+            )
+        return results
+    except Exception as e:
+        logger.error(f"약물 수집 실패: {e}", exc_info=True)
+        return None
+    finally:
+        db.close()
+
+
 def tag_and_generate_insights():
     """뉴스 알러젠 태깅 + 월별 인사이트 리포트 생성
 

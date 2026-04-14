@@ -49,6 +49,7 @@ class NewsSchedulerService:
         self.add_insight_job()
         self.add_paper_trend_job()
         self.add_treatment_extraction_job()
+        self.add_drug_ingest_job()
 
         self._scheduler.start()
         self._running = True
@@ -205,6 +206,31 @@ class NewsSchedulerService:
         """치료법 추출 즉시 실행"""
         from .jobs import extract_and_aggregate_treatments
         extract_and_aggregate_treatments()
+
+    def add_drug_ingest_job(self, hour: int = 1, minute: int = 0):
+        """약물 정보 수집 작업 추가 (매일 01:00 KST).
+
+        openFDA · MFDS 어댑터를 증분 수집한다. 외부 API 부하를 피해
+        다른 작업보다 이른 시간대 배치.
+        """
+        from .jobs import ingest_drugs
+
+        if self._scheduler.get_job("drug_ingest"):
+            self._scheduler.remove_job("drug_ingest")
+
+        self._scheduler.add_job(
+            ingest_drugs,
+            trigger=CronTrigger(hour=hour, minute=minute, timezone=self.KST),
+            id="drug_ingest",
+            name="약물 정보 수집",
+            replace_existing=True,
+        )
+        logger.info(f"약물 수집 작업 등록: {hour:02d}:{minute:02d}")
+
+    def run_drug_ingest_once(self, source: str | None = None, limit: int | None = None):
+        """약물 수집 즉시 실행"""
+        from .jobs import ingest_drugs
+        return ingest_drugs(source=source, limit=limit)
 
     def run_paper_search_once(self):
         """논문 검색 즉시 실행"""
