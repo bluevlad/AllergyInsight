@@ -93,7 +93,14 @@ def run_migrations():
 
     create_all()은 이미 존재하는 테이블에 컬럼을 추가하지 않으므로
     ALTER TABLE로 직접 추가합니다.
+
+    SQLite(테스트 환경)에서는 information_schema 가 없고 create_all 이
+    최신 스키마를 생성하므로 마이그레이션 전체를 스킵한다.
     """
+    if engine.dialect.name == "sqlite":
+        logger.info("Database migration skipped on SQLite")
+        return
+
     # papers 테이블에 추가할 컬럼 목록: (column_name, column_def)
     papers_new_columns = [
         ("source", "VARCHAR(30)"),
