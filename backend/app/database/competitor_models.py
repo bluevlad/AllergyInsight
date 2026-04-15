@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float, ForeignKey, JSON, Index
 from sqlalchemy.orm import relationship
 from .connection import Base
+from ..utils.timezone import utc_now
 
 
 class CompetitorCompany(Base):
@@ -17,7 +18,7 @@ class CompetitorCompany(Base):
     keywords = Column(JSON, nullable=False, default=list)
     homepage_url = Column(String(500), nullable=True)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     # Relationships
     news_articles = relationship("CompetitorNews", back_populates="company")
@@ -44,11 +45,13 @@ class CompetitorNews(Base):
     category = Column(String(50), default="general")  # 'product', 'regulatory', 'financial', 'partnership', 'general'
     is_read = Column(Boolean, default=False)
     is_important = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
-    # AI 분석 컬럼 (Phase 2)
+    # AI 분석 컬럼
     summary = Column(Text, nullable=True)
     importance_score = Column(Float, nullable=True)
+    relevance_score = Column(Float, nullable=True)
+    is_relevant = Column(Boolean, default=True)
     content_hash = Column(String(64), nullable=True)
     is_duplicate = Column(Boolean, default=False)
     is_processed = Column(Boolean, default=False)

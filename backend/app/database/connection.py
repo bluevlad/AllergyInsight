@@ -57,6 +57,8 @@ def init_db():
     from . import organization_models  # 조직 모델
     from . import newsletter_models  # 뉴스레터 발송 이력
     from . import subscriber_models  # 구독자 모델
+    from . import allergen_models  # 알러젠 마스터 데이터
+    from . import drug_models  # 약물/병태생리 — 학술 전용 알러지 Agent (allergen_master 이후 로드 필수)
     from ..services.diagnosis_repository import StoredDiagnosisModel, StoredPrescriptionModel  # noqa: F401
     Base.metadata.create_all(bind=engine)
     run_migrations()
@@ -91,7 +93,14 @@ def run_migrations():
 
     create_all()은 이미 존재하는 테이블에 컬럼을 추가하지 않으므로
     ALTER TABLE로 직접 추가합니다.
+
+    SQLite(테스트 환경)에서는 information_schema 가 없고 create_all 이
+    최신 스키마를 생성하므로 마이그레이션 전체를 스킵한다.
     """
+    if engine.dialect.name == "sqlite":
+        logger.info("Database migration skipped on SQLite")
+        return
+
     # papers 테이블에 추가할 컬럼 목록: (column_name, column_def)
     papers_new_columns = [
         ("source", "VARCHAR(30)"),
@@ -103,6 +112,12 @@ def run_migrations():
     ]
 
     with engine.begin() as conn:
+        # users 테이블 마이그레이션: password_hash 컬럼 추가
+        if _table_exists(conn, "users"):
+            if not _column_exists(conn, "users", "password_hash"):
+                conn.execute(text("ALTER TABLE users ADD COLUMN password_hash VARCHAR(255)"))
+                logger.info("Migration: users.password_hash 컬럼 추가")
+
         # papers 테이블 마이그레이션
         if _table_exists(conn, "papers"):
             for col_name, col_def in papers_new_columns:
@@ -111,11 +126,35 @@ def run_migrations():
                     conn.execute(text(stmt))
                     logger.info(f"Migration: papers.{col_name} 컬럼 추가")
 
+            # abstract/abstract_kr 컬럼 VARCHAR→TEXT 변환 (긴 초록 지원)
+            for col_name in ("abstract", "abstract_kr"):
+                result = conn.execute(text(
+                    "SELECT data_type FROM information_schema.columns "
+                    "WHERE table_name = 'papers' AND column_name = :col"
+                ), {"col": col_name})
+                row = result.fetchone()
+                if row and row[0] == "character varying":
+                    conn.execute(text(f"ALTER TABLE papers ALTER COLUMN {col_name} TYPE TEXT"))
+                    logger.info(f"Migration: papers.{col_name} VARCHAR→TEXT 변환")
+
             # 인덱스 추가 (이미 있으면 무시)
             for idx_name, idx_def in [
                 ("idx_papers_source", "CREATE INDEX IF NOT EXISTS idx_papers_source ON papers (source)"),
                 ("idx_papers_source_id", "CREATE INDEX IF NOT EXISTS idx_papers_source_id ON papers (source_id)"),
             ]:
                 conn.execute(text(idx_def))
+
+        # competitor_news 테이블 마이그레이션: 관련성 컬럼 추가
+        if _table_exists(conn, "competitor_news"):
+            cn_new_columns = [
+                ("relevance_score", "FLOAT"),
+                ("is_relevant", "BOOLEAN DEFAULT TRUE"),
+            ]
+            for col_name, col_def in cn_new_columns:
+                if not _column_exists(conn, "competitor_news", col_name):
+                    conn.execute(text(
+                        f"ALTER TABLE competitor_news ADD COLUMN {col_name} {col_def}"
+                    ))
+                    logger.info(f"Migration: competitor_news.{col_name} 컬럼 추가")
 
     logger.info("Database migration completed")

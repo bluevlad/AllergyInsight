@@ -72,6 +72,27 @@ class AdminLoginRequest(BaseModel):
 
 
 # ============================================================================
+# Email + Password Auth Schemas
+# ============================================================================
+
+class EmailRegisterRequest(BaseModel):
+    """Email registration - step 1: send verification code"""
+    email: EmailStr
+    name: str
+
+class EmailVerifyAndRegisterRequest(BaseModel):
+    """Email registration - step 2: verify code and set password"""
+    email: EmailStr
+    code: str
+    password: str
+
+class EmailLoginRequest(BaseModel):
+    """Email + password login"""
+    email: EmailStr
+    password: str
+
+
+# ============================================================================
 # Diagnosis Kit Schemas
 # ============================================================================
 

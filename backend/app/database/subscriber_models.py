@@ -2,6 +2,7 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, JSON, ForeignKey, Index
 from .connection import Base
+from ..utils.timezone import utc_now
 
 
 class NewsletterSubscriber(Base):
@@ -16,7 +17,7 @@ class NewsletterSubscriber(Base):
     keywords = Column(JSON, nullable=True, default=list)  # 관심 키워드 목록
     group_name = Column(String(50), default="general")  # 구독 그룹
     is_active = Column(Boolean, default=True)
-    subscribed_at = Column(DateTime, default=datetime.utcnow)
+    subscribed_at = Column(DateTime, default=utc_now)
     verified_at = Column(DateTime, nullable=True)
     unsubscribed_at = Column(DateTime, nullable=True)
 
@@ -38,7 +39,7 @@ class EmailVerification(Base):
     max_attempts = Column(Integer, default=5)
     expires_at = Column(DateTime, nullable=False)
     is_used = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     __table_args__ = (
         Index('idx_verification_email', 'email'),

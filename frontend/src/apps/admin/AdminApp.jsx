@@ -18,9 +18,8 @@ import AllergensPage from './pages/AllergensPage';
 import PapersPage from './pages/PapersPage';
 import OrganizationsPage from './pages/OrganizationsPage';
 import CompetitorNewsPage from './pages/CompetitorNewsPage';
-import NewsletterPage from './pages/NewsletterPage';
 import SubscribersPage from './pages/SubscribersPage';
-import AnalyticsPage from './pages/AnalyticsPage';
+import DrugsPage from './pages/DrugsPage';
 
 const AdminLoginForm = () => {
   const { loginAdmin } = useAuth();
@@ -215,14 +214,11 @@ const AdminApp = () => {
           {/* Competitor News */}
           <Route path="/news" element={<CompetitorNewsPage />} />
 
-          {/* Newsletter */}
-          <Route path="/newsletter" element={<NewsletterPage />} />
-
-          {/* Analytics */}
-          <Route path="/analytics" element={<AnalyticsPage />} />
-
           {/* Subscribers */}
           <Route path="/subscribers" element={<SubscribersPage />} />
+
+          {/* Drugs (Phase 1) */}
+          <Route path="/drugs" element={<DrugsPage />} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/admin" replace />} />

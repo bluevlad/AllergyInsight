@@ -13,7 +13,6 @@ from .news_schemas import (
     NewsStatsResponse,
     AnalyzeRequest, AnalyzeResponse, ArticleAnalysisDetail,
     SchedulerStatusResponse, SchedulerTriggerRequest, SchedulerConfigRequest,
-    NewsletterSendRequest, NewsletterSendResponse, NewsletterStatsResponse,
 )
 from ..database.connection import get_db
 from ..database.models import User
@@ -451,15 +450,8 @@ async def trigger_scheduler(
     if request.job_type == "crawl":
         scheduler.trigger_job("news_pipeline")
         return {"message": "뉴스 수집이 실행되었습니다."}
-    elif request.job_type == "send":
-        scheduler.trigger_job("newsletter_send")
-        return {"message": "뉴스레터 발송이 실행되었습니다."}
-    elif request.job_type == "all":
-        scheduler.trigger_job("news_pipeline")
-        scheduler.trigger_job("newsletter_send")
-        return {"message": "뉴스 수집 및 발송이 실행되었습니다."}
     else:
-        raise HTTPException(status_code=400, detail="유효하지 않은 job_type입니다. (crawl, send, all)")
+        raise HTTPException(status_code=400, detail="유효하지 않은 job_type입니다. (crawl)")
 
 
 @router.put("/scheduler/config")
@@ -474,68 +466,4 @@ async def update_scheduler_config(
     if scheduler is None:
         raise HTTPException(status_code=503, detail="스케줄러가 비활성화되어 있습니다.")
 
-    return {"message": "스케줄러 설정은 환경변수(CRAWL_HOUR, CRAWL_MINUTE, SEND_HOUR, SEND_MINUTE)로 관리됩니다. 컨테이너 재시작이 필요합니다."}
-
-
-# ============================================================================
-# 뉴스레터
-# ============================================================================
-
-@router.get("/newsletter/preview")
-async def preview_newsletter(
-    days: int = Query(1, ge=1, le=7),
-    current_user: User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
-):
-    """뉴스레터 미리보기"""
-    from ..services.newsletter_service import NewsletterService
-    from fastapi.responses import HTMLResponse
-
-    service = NewsletterService()
-    html = service.preview_newsletter(db, days=days)
-    return HTMLResponse(content=html)
-
-
-@router.post("/newsletter/send", response_model=NewsletterSendResponse)
-async def send_newsletter(
-    request: NewsletterSendRequest,
-    current_user: User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
-):
-    """뉴스레터 발송"""
-    from ..services.newsletter_service import NewsletterService
-
-    service = NewsletterService()
-    result = service.send_newsletter(
-        db=db,
-        recipients=request.recipients,
-        days=request.days,
-        subject=request.subject,
-    )
-    return NewsletterSendResponse(**result)
-
-
-@router.get("/newsletter/history")
-async def get_newsletter_history(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
-):
-    """뉴스레터 발송 이력"""
-    from ..services.newsletter_service import NewsletterService
-
-    service = NewsletterService()
-    return service.get_send_history(db, page=page, page_size=page_size)
-
-
-@router.get("/newsletter/stats", response_model=NewsletterStatsResponse)
-async def get_newsletter_stats(
-    current_user: User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
-):
-    """뉴스레터 발송 통계"""
-    from ..services.newsletter_service import NewsletterService
-
-    service = NewsletterService()
-    return NewsletterStatsResponse(**service.get_send_stats(db))
+    return {"message": "스케줄러 설정은 환경변수(CRAWL_HOUR, CRAWL_MINUTE)로 관리됩니다. 컨테이너 재시작이 필요합니다."}

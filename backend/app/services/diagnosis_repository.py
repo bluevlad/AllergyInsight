@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey, Index
 from sqlalchemy.orm import Session
 
+from ..utils.timezone import utc_now
 from ..database.connection import Base, SessionLocal
 
 
@@ -24,7 +25,7 @@ class StoredDiagnosisModel(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     diagnosis_id = Column(String(36), unique=True, nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
     diagnosis_date = Column(DateTime, nullable=True)
     patient_info = Column(JSON, default=dict)
     diagnosis_results = Column(JSON, nullable=False)
@@ -42,7 +43,7 @@ class StoredPrescriptionModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     prescription_id = Column(String(36), unique=True, nullable=False, index=True)
     diagnosis_id = Column(String(36), nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
     prescription_data = Column(JSON, nullable=False)
 
 

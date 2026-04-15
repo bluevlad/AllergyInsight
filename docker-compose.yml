@@ -7,22 +7,23 @@ services:
     ports:
       - "9040:9040"
     environment:
+      - TZ=Asia/Seoul
+      # CORS
+      - CORS_ALLOWED_ORIGINS=https://allergy.unmong.com,https://insight.unmong.com,http://localhost:4040,http://localhost:3000
       # Database (using shared postgresql container)
       - DATABASE_URL=postgresql://allergyinsight_svc:${DB_PASSWORD:?DB_PASSWORD is required}@postgresql:5432/allergyinsight
-      # Google OAuth
+      # Google OAuth (ID 토큰 방식 - CLIENT_SECRET 불필요)
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - SUPER_ADMIN_EMAILS=${SUPER_ADMIN_EMAILS:-}
       # JWT
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT_SECRET_KEY is required}
       - JWT_ALGORITHM=HS256
       - JWT_EXPIRE_MINUTES=1440
-      # URLs (for OAuth redirect)
-      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:4040}
-      - BACKEND_URL=${BACKEND_URL:-http://localhost:9040}
       # Existing
       - PUBMED_API_KEY=${PUBMED_API_KEY:-}
       - PUBMED_EMAIL=${PUBMED_EMAIL:-}
       - SEMANTIC_SCHOLAR_API_KEY=${SEMANTIC_SCHOLAR_API_KEY:-}
+      - CORE_API_KEY=${CORE_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - DOWNLOAD_DIR=/app/downloads/papers
       - DEFAULT_MAX_RESULTS=20
@@ -33,16 +34,24 @@ services:
       - CRAWL_MINUTE=${CRAWL_MINUTE:-0}
       - SEND_HOUR=${SEND_HOUR:-8}
       - SEND_MINUTE=${SEND_MINUTE:-0}
-      # AI (Ollama)
-      - OLLAMA_HOST=${OLLAMA_HOST:-http://172.30.1.72:11434}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
+      # AI - Gemini (뉴스 분석, RAG 답변)
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - NEWS_LLM_PROVIDER=${NEWS_LLM_PROVIDER:-gemini}
+      - RAG_LLM_PROVIDER=${RAG_LLM_PROVIDER:-gemini}
+      # AI - Local LLM (번역, 알러젠 추출)
+      - LLM_API_URL=${LLM_API_URL:-http://host.docker.internal:11435/v1}
+      - LLM_MODEL=${LLM_MODEL:-mlx-community/EXAONE-3.5-7.8B-Instruct-4bit}
+      # News quality gate
+      - NEWS_RELEVANCE_THRESHOLD=${NEWS_RELEVANCE_THRESHOLD:-0.3}
+      - NEWS_IMPORTANCE_THRESHOLD=${NEWS_IMPORTANCE_THRESHOLD:-0.2}
       # Email
       - GMAIL_ADDRESS=${GMAIL_ADDRESS:-}
       - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD:-}
       # Subscription
-      - SUBSCRIPTION_BASE_URL=${SUBSCRIPTION_BASE_URL:-http://localhost:4040/subscribe}
+      - SUBSCRIPTION_BASE_URL=${SUBSCRIPTION_BASE_URL:-https://allergy.unmong.com/subscribe}
     volumes:
       - backend_downloads:/app/downloads
+      - chromadb_data:/app/data/chromadb
     networks:
       - database-network
       - allergyinsight-network
@@ -61,17 +70,31 @@ services:
     container_name: allergyinsight-scheduler
     command: ["python", "-m", "app.scheduler.cli"]
     environment:
+      - TZ=Asia/Seoul
       - DATABASE_URL=postgresql://allergyinsight_svc:${DB_PASSWORD:?DB_PASSWORD is required}@postgresql:5432/allergyinsight
       - ENABLE_SCHEDULER=true
       - CRAWL_HOUR=${CRAWL_HOUR:-7}
       - CRAWL_MINUTE=${CRAWL_MINUTE:-0}
       - SEND_HOUR=${SEND_HOUR:-8}
       - SEND_MINUTE=${SEND_MINUTE:-0}
-      - OLLAMA_HOST=${OLLAMA_HOST:-http://172.30.1.72:11434}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
+      # Paper search APIs
+      - PUBMED_API_KEY=${PUBMED_API_KEY:-}
+      - PUBMED_EMAIL=${PUBMED_EMAIL:-}
+      - SEMANTIC_SCHOLAR_API_KEY=${SEMANTIC_SCHOLAR_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # AI - Gemini (뉴스 분석, RAG 답변)
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - NEWS_LLM_PROVIDER=${NEWS_LLM_PROVIDER:-gemini}
+      - RAG_LLM_PROVIDER=${RAG_LLM_PROVIDER:-gemini}
+      # AI - Local LLM (번역, 알러젠 추출)
+      - LLM_API_URL=${LLM_API_URL:-http://host.docker.internal:11435/v1}
+      - LLM_MODEL=${LLM_MODEL:-mlx-community/EXAONE-3.5-7.8B-Instruct-4bit}
+      # News quality gate
+      - NEWS_RELEVANCE_THRESHOLD=${NEWS_RELEVANCE_THRESHOLD:-0.3}
+      - NEWS_IMPORTANCE_THRESHOLD=${NEWS_IMPORTANCE_THRESHOLD:-0.2}
       - GMAIL_ADDRESS=${GMAIL_ADDRESS:-}
       - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD:-}
-      - SUBSCRIPTION_BASE_URL=${SUBSCRIPTION_BASE_URL:-http://localhost:4040/subscribe}
+      - SUBSCRIPTION_BASE_URL=${SUBSCRIPTION_BASE_URL:-https://allergy.unmong.com/subscribe}
     depends_on:
       - backend
     networks:
@@ -81,9 +104,13 @@ services:
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        - VITE_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
     container_name: allergyinsight-frontend
+    environment:
+      - TZ=Asia/Seoul
     ports:
       - "4040:4040"
     depends_on:
@@ -100,3 +127,4 @@ networks:
 
 volumes:
   backend_downloads:
+  chromadb_data:

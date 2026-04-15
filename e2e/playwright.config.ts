@@ -17,7 +17,7 @@ export default defineConfig({
   ],
 
   use: {
-    baseURL: process.env.BASE_URL || 'http://www.unmong.com:4040',
+    baseURL: process.env.BASE_URL || 'https://allergy.unmong.com',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

@@ -58,6 +58,98 @@ def process_articles():
         db.close()
 
 
+def aggregate_paper_allergen_trends():
+    """논문 알러젠 트렌드 집계 작업
+
+    전체 연도에 대해 논문-알러젠 언급률을 재집계합니다.
+    """
+    logger.info(f"[{datetime.now().isoformat()}] 논문 알러젠 트렌드 집계 시작")
+    db = SessionLocal()
+    try:
+        from ..services.allergen_trend_service import AllergenTrendService
+
+        service = AllergenTrendService()
+        results = service.aggregate_all_years(db)
+        total_allergens = sum(r["allergens_processed"] for r in results)
+        logger.info(
+            f"논문 알러젠 트렌드 집계 완료: {len(results)}개 연도, "
+            f"총 {total_allergens}건 알러젠 처리"
+        )
+        return results
+    except Exception as e:
+        logger.error(f"논문 알러젠 트렌드 집계 실패: {e}", exc_info=True)
+        return None
+    finally:
+        db.close()
+
+
+def extract_and_aggregate_treatments():
+    """치료법 추출 + 트렌드 집계 작업
+
+    미처리 논문에서 치료법을 추출하고 연도별 트렌드를 집계합니다.
+    """
+    logger.info(f"[{datetime.now().isoformat()}] 치료법 추출 시작")
+    db = SessionLocal()
+    try:
+        from ..services.treatment_extraction_service import TreatmentExtractionService
+
+        service = TreatmentExtractionService()
+
+        # 1단계: 미처리 논문에서 치료법 추출 (100건 배치)
+        extract_result = service.extract_from_papers(db, limit=100)
+        logger.info(
+            f"치료법 추출: 처리={extract_result['processed']}, "
+            f"추출={extract_result['extracted']}, 스킵={extract_result['skipped']}"
+        )
+
+        # 2단계: 트렌드 집계
+        trend_result = service.aggregate_trends(db)
+        logger.info(f"치료법 트렌드 집계: {trend_result['trends_created']}건")
+
+        return {
+            "extraction": extract_result,
+            "aggregation": trend_result,
+        }
+    except Exception as e:
+        logger.error(f"치료법 추출 실패: {e}", exc_info=True)
+        return None
+    finally:
+        db.close()
+
+
+def ingest_drugs(source: str | None = None, limit: int | None = None):
+    """약물 정보 증분 수집 작업.
+
+    파이프라인(DrugIngestPipeline)으로 openFDA · MFDS 어댑터를 순차 실행한다.
+    source=None 이면 등록된 모든 소스, 지정하면 단일 소스만 실행.
+    """
+    logger.info(
+        f"[{datetime.now().isoformat()}] 약물 수집 시작 source={source or 'all'} limit={limit}"
+    )
+    db = SessionLocal()
+    try:
+        from ..services.drug_ingest.factory import build_default_pipeline
+
+        pipeline = build_default_pipeline()
+        if source:
+            results = [pipeline.run_source(db, source, limit=limit)]
+        else:
+            results = pipeline.run_all(db, limit=limit)
+
+        for r in results:
+            status = "ok" if r.ok else f"FATAL:{r.fatal_error}"
+            logger.info(
+                f"약물 수집[{r.source}] {status} "
+                f"success={r.success_count} failed={len(r.failed_items)}"
+            )
+        return results
+    except Exception as e:
+        logger.error(f"약물 수집 실패: {e}", exc_info=True)
+        return None
+    finally:
+        db.close()
+
+
 def tag_and_generate_insights():
     """뉴스 알러젠 태깅 + 월별 인사이트 리포트 생성
 
@@ -89,20 +181,3 @@ def tag_and_generate_insights():
         db.close()
 
 
-def generate_and_send_reports():
-    """뉴스레터 생성 및 발송
-
-    인증된 구독자에게 키워드 매칭 기반 뉴스레터를 발송합니다.
-    """
-    logger.info(f"[{datetime.now().isoformat()}] 뉴스레터 발송 시작")
-    db = SessionLocal()
-    try:
-        from ..services.newsletter_service import NewsletterService
-
-        service = NewsletterService()
-        result = service.send_to_subscribers(db=db, days=1)
-        logger.info(f"뉴스레터 발송 완료: {result['message']}")
-    except Exception as e:
-        logger.error(f"뉴스레터 발송 실패: {e}", exc_info=True)
-    finally:
-        db.close()

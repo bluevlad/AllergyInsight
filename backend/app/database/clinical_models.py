@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Index
 from sqlalchemy.orm import relationship
 from .connection import Base
+from ..utils.timezone import utc_now
 
 
 class ClinicalStatement(Base):
@@ -29,7 +30,7 @@ class ClinicalStatement(Base):
 
     # 메타데이터
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     # Relationships

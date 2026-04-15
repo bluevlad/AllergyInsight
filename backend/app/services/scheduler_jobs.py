@@ -4,8 +4,8 @@
 - job_daily_paper_search: 매일 02:00 KST 알레르겐 로테이션 논문 검색
 - job_newsletter_sync: 매일 03:00 KST AllergyNewsLetter DB 증분 동기화
 - job_korean_translation: 매일 04:00 KST 미번역 논문 한국어 번역
+- job_analytics_aggregation: 매일 05:00 KST 분석 집계 (알러젠 양성률 + 키워드 트렌드)
 - job_news_pipeline: 매일 07:00 KST 뉴스 수집 파이프라인 (수집→중복제거→AI분석)
-- job_newsletter_send: 매일 08:00 KST 구독자 뉴스레터 발송
 """
 import logging
 import os
@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Optional
 
 from ..config import settings
+from ..utils.timezone import utc_now
 from ..database.connection import SessionLocal
 from ..database.scheduler_models import SchedulerExecutionLog
 
@@ -56,7 +57,7 @@ def _log_start(db, job_id: str, trigger_type: str = "scheduled") -> SchedulerExe
     log = SchedulerExecutionLog(
         job_id=job_id,
         status="running",
-        started_at=datetime.utcnow(),
+        started_at=utc_now(),
         trigger_type=trigger_type,
     )
     db.add(log)
@@ -67,7 +68,7 @@ def _log_start(db, job_id: str, trigger_type: str = "scheduled") -> SchedulerExe
 
 def _log_complete(db, log: SchedulerExecutionLog, result_summary: dict) -> None:
     """실행 로그 성공 기록"""
-    now = datetime.utcnow()
+    now = utc_now()
     log.status = "success"
     log.completed_at = now
     log.duration_seconds = (now - log.started_at).total_seconds()
@@ -77,7 +78,7 @@ def _log_complete(db, log: SchedulerExecutionLog, result_summary: dict) -> None:
 
 def _log_fail(db, log: SchedulerExecutionLog, error: str) -> None:
     """실행 로그 실패 기록"""
-    now = datetime.utcnow()
+    now = utc_now()
     log.status = "failed"
     log.completed_at = now
     log.duration_seconds = (now - log.started_at).total_seconds()
@@ -102,7 +103,7 @@ def job_daily_paper_search(trigger_type: str = "scheduled") -> None:
         from .paper_search_service import PaperSearchService
 
         service = PaperSearchService()
-        day_number = (datetime.utcnow() - datetime(2024, 1, 1)).days
+        day_number = (utc_now() - datetime(2024, 1, 1)).days
         allergens = get_allergens_for_day(day_number)
 
         logger.info(f"[daily_paper_search] 대상 알레르겐: {allergens}")
@@ -411,31 +412,226 @@ def job_news_pipeline(trigger_type: str = "scheduled") -> None:
 # Job 5: 뉴스레터 발송 (HealthPulse 통합)
 # ============================================================================
 
-def job_newsletter_send(trigger_type: str = "scheduled") -> None:
-    """인증된 구독자에게 키워드 매칭 기반 뉴스레터 발송
+def job_analytics_aggregation(trigger_type: str = "scheduled") -> None:
+    """월별 알러젠 양성률 집계 + 키워드 트렌드 추출
 
-    NewsletterService를 사용하여 최근 1일간 수집된
-    뉴스를 구독자에게 이메일로 발송합니다.
+    AnalyticsService.aggregate_all_months()로 미집계 월을 집계하고,
+    KeywordTrendService.extract_all_months()로 키워드를 추출합니다.
     """
     db = SessionLocal()
-    log = _log_start(db, "newsletter_send", trigger_type)
+    log = _log_start(db, "analytics_aggregation", trigger_type)
 
     try:
-        from .newsletter_service import NewsletterService
+        from .analytics_service import AnalyticsService
+        from .keyword_trend_service import KeywordTrendService
 
-        service = NewsletterService()
-        result = service.send_to_subscribers(db=db, days=1)
+        analytics_svc = AnalyticsService()
+        keyword_svc = KeywordTrendService()
+
+        # 1) 알러젠 양성률 집계
+        agg_results = analytics_svc.aggregate_all_months(db)
+        logger.info(f"[analytics_aggregation] 알러젠 집계: {len(agg_results)}개월 처리")
+
+        # 2) 키워드 트렌드 추출
+        kw_results = keyword_svc.extract_all_months(db)
+        logger.info(f"[analytics_aggregation] 키워드 추출: {len(kw_results)}개월 처리")
 
         summary = {
-            "message": result.get("message", ""),
-            "sent_count": result.get("sent_count", 0),
-            "failed_count": result.get("failed_count", 0),
+            "allergen_months_processed": len(agg_results),
+            "keyword_months_processed": len(kw_results),
+            "allergen_details": agg_results[:5] if agg_results else [],
+            "keyword_details": kw_results[:5] if kw_results else [],
         }
         _log_complete(db, log, summary)
-        logger.info(f"[newsletter_send] 완료: {summary['message']}")
+        logger.info(
+            f"[analytics_aggregation] 완료: 알러젠 {len(agg_results)}개월, "
+            f"키워드 {len(kw_results)}개월"
+        )
 
     except Exception as e:
         _log_fail(db, log, str(e))
-        logger.error(f"[newsletter_send] 실패: {e}")
+        logger.error(f"[analytics_aggregation] 실패: {e}")
     finally:
         db.close()
+
+
+# ============================================================================
+# Job 6: RAG 인덱싱 + Unpaywall PDF 보강
+# ============================================================================
+
+def job_rag_and_enrich(trigger_type: str = "scheduled") -> None:
+    """신규 논문 RAG 인덱싱 + Unpaywall PDF URL 보강
+
+    1) 미인덱싱 논문을 ChromaDB에 배치 인덱싱
+    2) pdf_url이 없는 논문에 Unpaywall로 PDF URL 보강
+    """
+    db = SessionLocal()
+    log = _log_start(db, "rag_and_enrich", trigger_type)
+
+    try:
+        rag_result = {"indexed": 0, "skipped": 0, "total_chunks": 0}
+        unpaywall_result = {"checked": 0, "enriched": 0, "failed": 0}
+
+        # 1) RAG 인덱싱
+        try:
+            from .rag_service import get_rag_service
+
+            rag = get_rag_service()
+            if rag.is_available:
+                rag_result = rag.index_papers_from_db(db, batch_size=200)
+                logger.info(
+                    f"[rag_and_enrich] RAG: {rag_result['indexed']}건 인덱싱, "
+                    f"{rag_result['total_chunks']}개 청크"
+                )
+            else:
+                logger.warning("[rag_and_enrich] ChromaDB 미가용, RAG 인덱싱 건너뜀")
+        except Exception as e:
+            logger.warning(f"[rag_and_enrich] RAG 인덱싱 실패: {e}")
+
+        # 2) Unpaywall PDF URL 보강
+        try:
+            from .unpaywall_service import UnpaywallService
+
+            unpaywall = UnpaywallService()
+            try:
+                unpaywall_result = unpaywall.enrich_papers(db, batch_size=50)
+                logger.info(
+                    f"[rag_and_enrich] Unpaywall: {unpaywall_result['enriched']}/"
+                    f"{unpaywall_result['checked']}건 PDF URL 확보"
+                )
+            finally:
+                unpaywall.close()
+        except Exception as e:
+            logger.warning(f"[rag_and_enrich] Unpaywall 보강 실패: {e}")
+
+        # 3) CORE Full-text RAG 보강 (API 키 설정 시에만)
+        fulltext_result = {"enriched": 0, "failed": 0}
+        try:
+            from .rag_service import get_rag_service
+
+            rag = get_rag_service()
+            if rag.is_available:
+                fulltext_result = rag.enrich_with_fulltext(db, batch_size=10)
+                logger.info(
+                    f"[rag_and_enrich] Full-text: {fulltext_result['enriched']}건 보강"
+                )
+        except Exception as e:
+            logger.warning(f"[rag_and_enrich] Full-text 보강 실패: {e}")
+
+        summary = {
+            "rag_indexed": rag_result.get("indexed", 0),
+            "rag_chunks": rag_result.get("total_chunks", 0),
+            "unpaywall_checked": unpaywall_result.get("checked", 0),
+            "unpaywall_enriched": unpaywall_result.get("enriched", 0),
+            "fulltext_enriched": fulltext_result.get("enriched", 0),
+        }
+        _log_complete(db, log, summary)
+        logger.info(f"[rag_and_enrich] 완료: {summary}")
+
+    except Exception as e:
+        _log_fail(db, log, str(e))
+        logger.error(f"[rag_and_enrich] 실패: {e}")
+    finally:
+        db.close()
+
+
+# ============================================================================
+# Job 7: 프리프린트 수집 + 임상시험 검색
+# ============================================================================
+
+def job_preprint_and_trials(trigger_type: str = "scheduled") -> None:
+    """최신 프리프린트 수집 + 알러젠별 임상시험 검색
+
+    1) bioRxiv/medRxiv에서 최근 7일간 프리프린트 수집
+    2) ClinicalTrials.gov에서 주요 알러젠 임상시험 검색
+    """
+    db = SessionLocal()
+    log = _log_start(db, "preprint_and_trials", trigger_type)
+
+    try:
+        preprint_count = 0
+        trial_count = 0
+
+        # 1) 프리프린트 수집 (최근 7일)
+        try:
+            from .biorxiv_service import BiorxivService
+            from .paper_persistence_service import PaperPersistenceService
+            from datetime import timedelta
+
+            biorxiv = BiorxivService()
+            persistence = PaperPersistenceService()
+            today = utc_now()
+            week_ago = today - timedelta(days=7)
+
+            try:
+                result = biorxiv.collect_recent(
+                    date_from=week_ago.strftime("%Y-%m-%d"),
+                    date_to=today.strftime("%Y-%m-%d"),
+                    server="medrxiv",
+                    max_results=50,
+                )
+                for paper in result.papers:
+                    # 알러지 관련 키워드 필터
+                    text = f"{paper.title} {paper.abstract}".lower()
+                    if any(kw in text for kw in ["allergy", "allergen", "anaphylaxis", "immunotherapy", "ige"]):
+                        saved = persistence.save_paper(paper, db)
+                        if saved:
+                            preprint_count += 1
+            finally:
+                biorxiv.close()
+
+            logger.info(f"[preprint_and_trials] 프리프린트: {preprint_count}건 신규 저장")
+        except Exception as e:
+            logger.warning(f"[preprint_and_trials] 프리프린트 수집 실패: {e}")
+
+        # 2) 임상시험 검색 (주요 알러젠 3종 로테이션)
+        try:
+            from .clinicaltrials_service import ClinicalTrialsService
+            from .paper_persistence_service import PaperPersistenceService
+
+            ct = ClinicalTrialsService()
+            persistence = PaperPersistenceService()
+
+            # 요일 기반 로테이션 (7요일 × 3알러젠)
+            allergen_groups = [
+                ["peanut", "milk", "egg"],
+                ["wheat", "soy", "shellfish"],
+                ["tree_nut", "fish", "sesame"],
+                ["dust_mite", "cat", "dog"],
+                ["peanut", "milk", "egg"],
+                ["wheat", "soy", "shellfish"],
+                ["tree_nut", "fish", "sesame"],
+            ]
+            day_of_week = utc_now().weekday()
+            target_allergens = allergen_groups[day_of_week]
+
+            try:
+                for allergen in target_allergens:
+                    result = ct.search_allergy(allergen, max_results=5)
+                    for paper in result.papers:
+                        saved = persistence.save_paper(paper, db)
+                        if saved:
+                            trial_count += 1
+                    time.sleep(0.5)
+            finally:
+                ct.close()
+
+            logger.info(f"[preprint_and_trials] 임상시험: {trial_count}건 신규 ({target_allergens})")
+        except Exception as e:
+            logger.warning(f"[preprint_and_trials] 임상시험 검색 실패: {e}")
+
+        db.commit()
+
+        summary = {
+            "preprints_saved": preprint_count,
+            "trials_saved": trial_count,
+        }
+        _log_complete(db, log, summary)
+        logger.info(f"[preprint_and_trials] 완료: {summary}")
+
+    except Exception as e:
+        _log_fail(db, log, str(e))
+        logger.error(f"[preprint_and_trials] 실패: {e}")
+    finally:
+        db.close()
+

@@ -10,7 +10,7 @@ FastAPI 기반 REST API 서버입니다.
 """
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.sessions import SessionMiddleware
+
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -44,6 +44,7 @@ from ..auth.paper_routes import router as paper_router
 from ..auth.config import auth_settings
 from ..database.connection import engine, init_db, get_db, SessionLocal
 from ..database.seed_users import seed_users
+from ..database.seed_allergens import seed_allergens
 from ..config import settings
 from ..database.models import User
 from ..core.auth import require_auth
@@ -73,11 +74,20 @@ from .subscription_routes import router as subscription_router
 # Public: Analytics (no auth required, read-only aggregates)
 from .analytics_routes import router as public_analytics_router
 
+# Public: Allergy Report (no auth required, stateless)
+from .report_routes import router as report_router
+
+# Public: AI Portal (no auth required)
+from .ai_consult_routes import router as ai_consult_router
+from .ai_insight_routes import router as ai_insight_router
+from .clinicaltrials_routes import router as clinicaltrials_router
+
 # 보안 로깅 설정
 security_logger = logging.getLogger("security")
 security_logger.setLevel(logging.INFO)
 handler = logging.StreamHandler()
-handler.setFormatter(logging.Formatter("[%(asctime)s] SECURITY %(levelname)s: %(message)s"))
+handler.setFormatter(logging.Formatter("[%(asctime)s] SECURITY %(levelname)s: %(message)s",
+                                          datefmt="%Y-%m-%d %H:%M:%S %Z"))
 security_logger.addHandler(handler)
 
 # Rate Limiter 설정
@@ -100,12 +110,6 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-)
-
-# Session middleware (required for OAuth)
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=auth_settings.jwt_secret_key,
 )
 
 # Activity logging middleware (환자 행동 추적)
@@ -133,6 +137,14 @@ app.include_router(subscription_router, prefix="/api", tags=["Subscription"])  #
 
 # Include public analytics router (no auth required, read-only)
 app.include_router(public_analytics_router, prefix="/api/public/analytics", tags=["Public Analytics"])
+
+# Include report router (public, no auth required, stateless)
+app.include_router(report_router, prefix="/api", tags=["Report"])
+
+# Include AI portal routers (public, no auth required)
+app.include_router(ai_consult_router, prefix="/api", tags=["AI Consult"])
+app.include_router(ai_insight_router, prefix="/api", tags=["AI Insight"])
+app.include_router(clinicaltrials_router, prefix="/api", tags=["Clinical Trials"])
 
 # 서비스 인스턴스 (lru_cache DI 패턴)
 @lru_cache(maxsize=1)
@@ -289,11 +301,11 @@ async def health_check():
 
 @app.post("/api/search")
 @limiter.limit("30/minute")
-async def search_papers(request: SearchRequest, http_request: Request):
+async def search_papers(request: Request, body: SearchRequest):
     """
     알러지 논문 검색
 
-    PubMed와 Semantic Scholar에서 논문을 검색합니다.
+    PubMed, Semantic Scholar, Europe PMC, OpenAlex에서 논문을 검색합니다.
     검색 결과는 자동으로 DB에 저장됩니다 (AUTO_SAVE_SEARCH 설정).
     """
     service = get_search_service()
@@ -305,9 +317,9 @@ async def search_papers(request: SearchRequest, http_request: Request):
 
     try:
         result = service.search_allergy(
-            allergen=request.allergen,
-            include_cross_reactivity=request.include_cross_reactivity,
-            max_results_per_source=request.max_results // 2,
+            allergen=body.allergen,
+            include_cross_reactivity=body.include_cross_reactivity,
+            max_results_per_source=body.max_results // 2,
             db=db,
         )
     finally:
@@ -320,11 +332,11 @@ async def search_papers(request: SearchRequest, http_request: Request):
         _collection_stats["total_papers_found"] += result.total_unique
         _collection_stats["last_search_time"] = datetime.now().isoformat()
 
-        if request.allergen not in _collection_stats["allergens_searched"]:
-            _collection_stats["allergens_searched"].append(request.allergen)
+        if body.allergen not in _collection_stats["allergens_searched"]:
+            _collection_stats["allergens_searched"].append(body.allergen)
 
         _collection_stats["search_history"].append({
-            "allergen": request.allergen,
+            "allergen": body.allergen,
             "papers_found": result.total_unique,
             "timestamp": datetime.now().isoformat(),
         })
@@ -336,6 +348,10 @@ async def search_papers(request: SearchRequest, http_request: Request):
         "total_found": result.total_unique,
         "pubmed_count": result.pubmed_count,
         "semantic_scholar_count": result.semantic_scholar_count,
+        "europe_pmc_count": result.europe_pmc_count,
+        "openalex_count": result.openalex_count,
+        "biorxiv_count": result.biorxiv_count,
+        "core_count": result.core_count,
         "downloadable_count": result.downloadable_count,
         "search_time_ms": round(result.search_time_ms, 2),
         "papers": [p.to_dict() for p in result.papers],
@@ -381,18 +397,20 @@ async def get_search_history(
 
 
 @app.get("/api/search/{allergen}")
+@limiter.limit("30/minute")
 async def search_allergen(
+    request: Request,
     allergen: str,
     cross_reactivity: bool = True,
     max_results: int = 20,
 ):
     """GET 방식 검색"""
-    request = SearchRequest(
+    body = SearchRequest(
         allergen=allergen,
         include_cross_reactivity=cross_reactivity,
         max_results=max_results,
     )
-    return await search_papers(request)
+    return await search_papers(request, body)
 
 
 # =====================
@@ -400,7 +418,7 @@ async def search_allergen(
 # =====================
 
 @app.post("/api/qa")
-async def ask_question(request: QuestionRequest):
+async def ask_question(body: QuestionRequest):
     """
     논문 기반 Q&A
 
@@ -409,9 +427,9 @@ async def ask_question(request: QuestionRequest):
     engine = get_qa_engine()
 
     response = engine.ask(
-        question=request.question,
-        allergen=request.allergen,
-        max_citations=request.max_citations,
+        question=body.question,
+        allergen=body.allergen,
+        max_citations=body.max_citations,
     )
 
     # 통계 업데이트 (thread-safe)
@@ -447,7 +465,7 @@ async def get_predefined_questions(allergen: str = "peanut"):
 # =====================
 
 @app.post("/api/batch/search")
-async def batch_search(request: BatchSearchRequest, background_tasks: BackgroundTasks):
+async def batch_search(body: BatchSearchRequest, background_tasks: BackgroundTasks):
     """
     배치 논문 검색
 
@@ -456,7 +474,7 @@ async def batch_search(request: BatchSearchRequest, background_tasks: Background
     processor = get_batch_processor()
 
     # AllergenItem 생성
-    allergens = create_allergen_items(request.allergens, request.grades)
+    allergens = create_allergen_items(body.allergens, body.grades)
 
     # 작업 생성
     job = processor.create_job(allergens, sort_by_priority=True)
@@ -465,7 +483,7 @@ async def batch_search(request: BatchSearchRequest, background_tasks: Background
     background_tasks.add_task(
         processor.process_job_sync,
         job,
-        request.include_cross_reactivity,
+        body.include_cross_reactivity,
     )
 
     return {
@@ -671,7 +689,7 @@ async def get_grade_info():
 
 @app.post("/api/diagnosis")
 @limiter.limit("10/minute")
-async def create_diagnosis(request: DiagnosisRequest, http_request: Request, user: User = Depends(require_auth)):
+async def create_diagnosis(request: Request, body: DiagnosisRequest, user: User = Depends(require_auth)):
     """
     진단 결과 저장 (인증 필요)
 
@@ -681,17 +699,17 @@ async def create_diagnosis(request: DiagnosisRequest, http_request: Request, use
 
     # 날짜 파싱
     diagnosis_date = None
-    if request.diagnosis_date:
+    if body.diagnosis_date:
         try:
-            diagnosis_date = datetime.fromisoformat(request.diagnosis_date)
+            diagnosis_date = datetime.fromisoformat(body.diagnosis_date)
         except ValueError:
             raise HTTPException(status_code=400, detail="잘못된 날짜 형식입니다. ISO 형식을 사용하세요.")
 
     # 진단 결과 저장
     diagnosis = repo.save_diagnosis(
-        diagnosis_results=[r.model_dump() for r in request.diagnosis_results],
+        diagnosis_results=[r.model_dump() for r in body.diagnosis_results],
         diagnosis_date=diagnosis_date,
-        patient_info=request.patient_info,
+        patient_info=body.patient_info,
     )
 
     return {
@@ -755,7 +773,7 @@ async def delete_diagnosis(diagnosis_id: str, user: User = Depends(require_auth)
 
 @app.post("/api/prescription/generate")
 @limiter.limit("10/minute")
-async def generate_prescription(request: PrescriptionRequest, http_request: Request, user: User = Depends(require_auth)):
+async def generate_prescription(request: Request, body: PrescriptionRequest, user: User = Depends(require_auth)):
     """
     처방 권고 생성 (인증 필요)
 
@@ -769,20 +787,20 @@ async def generate_prescription(request: PrescriptionRequest, http_request: Requ
     diagnosis_date = None
     diagnosis_id = None
 
-    if request.diagnosis_id:
+    if body.diagnosis_id:
         # 저장된 진단 사용
-        diagnosis = repo.get_diagnosis(request.diagnosis_id)
+        diagnosis = repo.get_diagnosis(body.diagnosis_id)
         if not diagnosis:
             raise HTTPException(status_code=404, detail="진단 결과를 찾을 수 없습니다.")
         diagnosis_results = diagnosis.diagnosis_results
         diagnosis_date = diagnosis.diagnosis_date
         diagnosis_id = diagnosis.diagnosis_id
-    elif request.diagnosis_results:
+    elif body.diagnosis_results:
         # 직접 입력된 진단 사용
-        diagnosis_results = [r.model_dump() for r in request.diagnosis_results]
-        if request.diagnosis_date:
+        diagnosis_results = [r.model_dump() for r in body.diagnosis_results]
+        if body.diagnosis_date:
             try:
-                diagnosis_date = datetime.fromisoformat(request.diagnosis_date)
+                diagnosis_date = datetime.fromisoformat(body.diagnosis_date)
             except ValueError:
                 pass
     else:
@@ -863,6 +881,7 @@ async def startup_event():
     """앱 시작 시 데이터베이스 초기화 및 시드 데이터 생성"""
     init_db()
     seed_users()  # 테스트 사용자 시딩
+    seed_allergens()  # 알러젠 마스터 데이터 시딩
 
     # 스케줄러 초기화 (ENABLE_SCHEDULER=true일 때만)
     if os.getenv("ENABLE_SCHEDULER", "false").lower() == "true":

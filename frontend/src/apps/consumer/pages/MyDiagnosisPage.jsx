@@ -128,7 +128,7 @@ function MyDiagnosisPage() {
       )}
 
       {/* 빠른 액션 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
         <button className="quick-action" onClick={() => navigate('/app/food-guide')}>
           <span className="action-icon">🍽️</span>
           <span>식품 가이드</span>
@@ -144,6 +144,10 @@ function MyDiagnosisPage() {
         <button className="quick-action" onClick={() => navigate('/app/kit-register')}>
           <span className="action-icon">📦</span>
           <span>키트 등록</span>
+        </button>
+        <button className="quick-action report-action" onClick={() => window.open('/report', '_blank')}>
+          <span className="action-icon">📄</span>
+          <span>알러지 리포트</span>
         </button>
       </div>
 
@@ -220,6 +224,13 @@ function MyDiagnosisPage() {
         }
         .action-icon {
           font-size: 2rem;
+        }
+        .report-action {
+          border-color: #e74c3c;
+          background: #fff5f5;
+        }
+        .report-action:hover {
+          background: #ffebee !important;
         }
         .diagnosis-list {
           display: flex;

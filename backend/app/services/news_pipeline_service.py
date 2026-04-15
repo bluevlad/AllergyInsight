@@ -1,10 +1,13 @@
 """뉴스 파이프라인 서비스
 
-수집 → 중복 제거 → AI 분석 파이프라인을 조합합니다.
+수집 → 중복 제거 → AI 분석(관련성 + 요약 + 중요도 + 카테고리) 파이프라인을 조합합니다.
 """
+import os
 import logging
 from datetime import datetime
 from typing import Optional
+
+from ..utils.timezone import utc_now
 
 from sqlalchemy.orm import Session
 
@@ -14,6 +17,9 @@ from .deduplication_service import DeduplicationService, get_deduplication_servi
 from ..database.competitor_models import CompetitorNews
 
 logger = logging.getLogger(__name__)
+
+# 관련성 임계값: 이 값 미만이면 무관 기사로 판정
+_RELEVANCE_THRESHOLD = float(os.getenv("NEWS_RELEVANCE_THRESHOLD", "0.3"))
 
 
 class NewsPipelineService:
@@ -126,23 +132,40 @@ class NewsPipelineService:
             return 0
 
         analyzed = 0
+        irrelevant = 0
         for article in articles:
             try:
                 analysis = self.ollama_service.analyze_article(
                     title=article.title,
                     description=article.description or "",
                 )
+
+                # 관련성 판정
+                relevance = analysis.get("relevance_score", 1.0)
+                article.relevance_score = relevance
+                if relevance < _RELEVANCE_THRESHOLD:
+                    article.is_relevant = False
+                    article.is_processed = True
+                    article.processed_at = utc_now()
+                    irrelevant += 1
+                    logger.info(
+                        f"무관 기사 제외 (id={article.id}, relevance={relevance:.2f}): "
+                        f"{article.title[:50]}"
+                    )
+                    continue
+
+                article.is_relevant = True
                 article.summary = analysis["summary"]
                 article.importance_score = analysis["importance_score"]
                 article.category = analysis["category"]
                 article.is_processed = True
-                article.processed_at = datetime.utcnow()
+                article.processed_at = utc_now()
                 analyzed += 1
             except Exception as e:
                 logger.warning(f"기사 분석 실패 (id={article.id}): {e}")
 
         db.commit()
-        logger.info(f"기사 {analyzed}/{len(articles)}건 분석 완료")
+        logger.info(f"기사 분석 완료: {analyzed}건 분석, {irrelevant}건 무관 제외 (전체 {len(articles)}건)")
         return analyzed
 
     def reanalyze_article(self, db: Session, article_id: int) -> Optional[dict]:
@@ -158,11 +181,15 @@ class NewsPipelineService:
             title=article.title,
             description=article.description or "",
         )
+
+        relevance = analysis.get("relevance_score", 1.0)
+        article.relevance_score = relevance
+        article.is_relevant = relevance >= _RELEVANCE_THRESHOLD
         article.summary = analysis["summary"]
         article.importance_score = analysis["importance_score"]
         article.category = analysis["category"]
         article.is_processed = True
-        article.processed_at = datetime.utcnow()
+        article.processed_at = utc_now()
         db.commit()
 
         return analysis

@@ -76,16 +76,6 @@ export const adminApi = {
   },
 
   // ============================================================================
-  // Newsletter
-  // ============================================================================
-  newsletter: {
-    preview: (params = {}) => apiClient.get('/admin/newsletter/preview', { params, responseType: 'text', transformResponse: [(data) => data] }),
-    send: (data) => apiClient.post('/admin/newsletter/send', data),
-    history: (params = {}) => apiClient.get('/admin/newsletter/history', { params }),
-    stats: () => apiClient.get('/admin/newsletter/stats'),
-  },
-
-  // ============================================================================
   // Analytics
   // ============================================================================
   analytics: {
@@ -96,6 +86,36 @@ export const adminApi = {
     keywordsTrend: (params = {}) => apiClient.get('/admin/analytics/keywords/trend', { params }),
     keywordsExtract: (params = {}) => apiClient.post('/admin/analytics/keywords/extract', null, { params }),
     activityStats: (params = {}) => apiClient.get('/admin/analytics/activity/stats', { params }),
+  },
+
+  // ============================================================================
+  // Drugs (수집·제품·병태생리 엣지 감수)
+  // ============================================================================
+  drugs: {
+    status: () => apiClient.get('/admin/drugs/status'),
+    runIngest: (data = {}) => apiClient.post('/admin/drug-ingest/run', data),
+    listProducts: (params = {}) => apiClient.get('/admin/drugs/products', { params }),
+    getProduct: (id) => apiClient.get(`/admin/drugs/products/${id}`),
+    listUnmapped: (params = {}) => apiClient.get('/admin/drugs/unmapped', { params }),
+    resolveUnmapped: (id, rxcui) =>
+      apiClient.post(`/admin/drugs/unmapped/${id}/resolve`, { rxcui }),
+    listPathophys: () => apiClient.get('/admin/drugs/pathophys'),
+    listAtcEdges: (pathophysId) =>
+      apiClient.get(`/admin/drugs/pathophys/${pathophysId}/atc`),
+    createAtcEdge: (pathophysId, data) =>
+      apiClient.post(`/admin/drugs/pathophys/${pathophysId}/atc`, data),
+    deleteAtcEdge: (edgeId) =>
+      apiClient.delete(`/admin/drugs/pathophys/atc/${edgeId}`),
+    verifyAtcEdge: (edgeId) =>
+      apiClient.post(`/admin/drugs/pathophys/atc/${edgeId}/verify`),
+    listSymptomEdges: (params = {}) =>
+      apiClient.get('/admin/drugs/pathophys/symptom-edges', { params }),
+    createSymptomEdge: (data) =>
+      apiClient.post('/admin/drugs/pathophys/symptom-edges', data),
+    deleteSymptomEdge: (edgeId) =>
+      apiClient.delete(`/admin/drugs/pathophys/symptom-edges/${edgeId}`),
+    verifySymptomEdge: (edgeId) =>
+      apiClient.post(`/admin/drugs/pathophys/symptom-edges/${edgeId}/verify`),
   },
 
   // ============================================================================

@@ -3,15 +3,16 @@
  *
  * /analytics/* 경로에서 라우팅됩니다.
  * 인증 불필요 - 누구나 접근 가능합니다.
+ *
+ * 4개 메뉴: 종합 트렌드, 알러젠 분석, 논문 수집정보, 알러젠뉴스 정보
  */
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AnalyticsNav from './components/AnalyticsNav';
-import AnalyticsDashboard from './pages/AnalyticsDashboard';
-import AllergenTrendPage from './pages/AllergenTrendPage';
-import KeywordTrendPage from './pages/KeywordTrendPage';
-import InsightListPage from './pages/InsightListPage';
-import InsightDetailPage from './pages/InsightDetailPage';
+import AllergenAnalysisPage from './pages/AllergenAnalysisPage';
+import PaperCollectionPage from './pages/PaperCollectionPage';
+import AllergenNewsPage from './pages/AllergenNewsPage';
+import ComprehensiveTrendPage from './pages/ComprehensiveTrendPage';
 
 const AnalyticsApp = () => {
   return (
@@ -26,12 +27,11 @@ const AnalyticsApp = () => {
 
       <main className="main-content">
         <Routes>
-          <Route path="/" element={<AnalyticsDashboard />} />
-          <Route path="/dashboard" element={<AnalyticsDashboard />} />
-          <Route path="/allergen-trends" element={<AllergenTrendPage />} />
-          <Route path="/keyword-trends" element={<KeywordTrendPage />} />
-          <Route path="/insights" element={<InsightListPage />} />
-          <Route path="/insights/:reportId" element={<InsightDetailPage />} />
+          <Route path="/" element={<ComprehensiveTrendPage />} />
+          <Route path="/comprehensive-trend" element={<ComprehensiveTrendPage />} />
+          <Route path="/allergen-analysis" element={<AllergenAnalysisPage />} />
+          <Route path="/paper-collection" element={<PaperCollectionPage />} />
+          <Route path="/allergen-news" element={<AllergenNewsPage />} />
           <Route path="*" element={<Navigate to="/analytics" replace />} />
         </Routes>
       </main>

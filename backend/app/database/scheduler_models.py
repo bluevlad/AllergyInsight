@@ -5,6 +5,7 @@ from sqlalchemy import Column, Integer, String, DateTime, Float, Text
 from sqlalchemy.dialects.postgresql import JSONB
 
 from .connection import Base
+from ..utils.timezone import utc_now
 
 
 class SchedulerExecutionLog(Base):
@@ -14,7 +15,7 @@ class SchedulerExecutionLog(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     job_id = Column(String(100), nullable=False, index=True)
     status = Column(String(20), nullable=False, index=True)  # 'running', 'success', 'failed'
-    started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    started_at = Column(DateTime, nullable=False, default=utc_now)
     completed_at = Column(DateTime, nullable=True)
     duration_seconds = Column(Float, nullable=True)
     result_summary = Column(JSONB, nullable=True)

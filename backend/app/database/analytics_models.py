@@ -6,6 +6,7 @@ Quick Win 3가지를 위한 테이블 정의:
 3. PatientActivityLog - 환자 행동 로그
 4. AllergenInsightReport - AI 기반 알러젠별 인사이트 리포트
 5. NewsAllergenLink - 뉴스-알러젠 자동 태깅
+6. PaperAllergenTrend - 논문 기반 알러젠 언급률 트렌드
 """
 from datetime import datetime
 from sqlalchemy import (
@@ -13,6 +14,7 @@ from sqlalchemy import (
     ForeignKey, JSON, Text, Index,
 )
 from .connection import Base
+from ..utils.timezone import utc_now
 
 
 class AnalyticsSnapshot(Base):
@@ -29,7 +31,7 @@ class AnalyticsSnapshot(Base):
     avg_grade = Column(Float, nullable=True)  # 평균 등급
     grade_distribution = Column(JSON, nullable=True)  # {0: 45, 1: 12, 2: 8, ...}
     cooccurrence_top5 = Column(JSON, nullable=True)  # [{"allergen": "crab", "rate": 0.82}, ...]
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     __table_args__ = (
         Index('idx_analytics_snapshot_date', 'snapshot_date'),
@@ -52,7 +54,7 @@ class KeywordTrend(Base):
     context_samples = Column(JSON, nullable=True)  # 대표 문장 3-5개
     trend_direction = Column(String(20), nullable=True)  # 'rising', 'stable', 'declining'
     change_rate = Column(Float, nullable=True)  # 전기 대비 변화율 (%)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     __table_args__ = (
         Index('idx_keyword_trend_keyword', 'keyword'),
@@ -75,7 +77,7 @@ class PatientActivityLog(Base):
     metadata_json = Column(JSON, nullable=True)  # 추가 컨텍스트 (검색어, 필터 등)
     ip_hash = Column(String(64), nullable=True)  # IP 해시 (비식별)
     user_agent = Column(String(200), nullable=True)  # 브라우저/디바이스
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     __table_args__ = (
         Index('idx_activity_log_user', 'user_id'),
@@ -95,7 +97,7 @@ class NewsAllergenLink(Base):
     allergen_code = Column(String(30), nullable=False)  # 'peanut', 'milk', 'egg' 등
     content_category = Column(String(30), nullable=True)  # 'treatment', 'epidemiology', 'diagnosis_method', 'regulation', 'research'
     relevance_score = Column(Float, nullable=True)  # 0.0~1.0
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     __table_args__ = (
         Index('idx_news_allergen_news', 'news_id'),
@@ -120,10 +122,117 @@ class AllergenInsightReport(Base):
     key_findings = Column(JSON, nullable=True)  # 핵심 발견 요약 ["finding1", "finding2"]
     treatment_score = Column(Integer, nullable=True)  # 치료 발전도 지표 (0-100)
     source_count = Column(Integer, nullable=True, default=0)  # 분석에 사용된 소스 수
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     __table_args__ = (
         Index('idx_insight_allergen', 'allergen_code'),
         Index('idx_insight_period', 'period_date'),
         Index('idx_insight_unique', 'allergen_code', 'period_date', 'period_type', unique=True),
+    )
+
+
+class PaperAllergenTrend(Base):
+    """논문 기반 알러젠 언급률 트렌드 (연도/분기별 집계)"""
+    __tablename__ = "paper_allergen_trends"
+
+    id = Column(Integer, primary_key=True, index=True)
+    allergen_code = Column(String(30), nullable=False)
+    period_type = Column(String(20), nullable=False, default="yearly")  # 'yearly', 'quarterly'
+    year = Column(Integer, nullable=False)
+    quarter = Column(Integer, nullable=True)  # 1-4 (quarterly일 때만)
+    paper_count = Column(Integer, nullable=False, default=0)  # 해당 알러젠 논문 수
+    total_papers_in_period = Column(Integer, nullable=False, default=0)  # 전체 논문 수
+    mention_rate = Column(Float, nullable=True)  # paper_count / total_papers_in_period
+    source_breakdown = Column(JSON, nullable=True)  # {"pubmed": 10, "semantic_scholar": 5, ...}
+    avg_relevance_score = Column(Float, nullable=True)  # PaperAllergenLink.relevance_score 평균
+    top_link_types = Column(JSON, nullable=True)  # [{"type": "symptom", "count": 5}, ...]
+    trend_direction = Column(String(20), nullable=True)  # 'rising', 'stable', 'declining', 'new'
+    change_rate = Column(Float, nullable=True)  # 전기 대비 변화율 (%)
+    created_at = Column(DateTime, default=utc_now)
+
+    __table_args__ = (
+        Index('idx_paper_trend_allergen', 'allergen_code'),
+        Index('idx_paper_trend_year', 'year'),
+        Index('idx_paper_trend_period', 'period_type', 'year'),
+        Index('idx_paper_trend_unique', 'period_type', 'year', 'quarter', 'allergen_code', unique=True),
+    )
+
+
+class TreatmentEntity(Base):
+    """논문에서 추출된 치료법 엔티티"""
+    __tablename__ = "treatment_entities"
+
+    id = Column(Integer, primary_key=True, index=True)
+    treatment_name = Column(String(200), nullable=False)  # 영문 치료법명
+    treatment_name_kr = Column(String(200), nullable=True)  # 한국어 치료법명
+    treatment_type = Column(String(30), nullable=False)  # drug, immunotherapy, avoidance, biologic, dietary
+    allergen_code = Column(String(30), nullable=False)
+    paper_id = Column(Integer, ForeignKey("papers.id", ondelete="CASCADE"), nullable=False)
+    year = Column(Integer, nullable=True)  # Paper.year
+    evidence_level = Column(String(10), nullable=True)  # A, B, C, D
+    source_text = Column(Text, nullable=True)  # 추출 근거 문장
+    confidence = Column(Float, nullable=True)  # LLM 추출 신뢰도 (0-1)
+    is_verified = Column(Boolean, default=False)  # 관리자 검증 여부
+    created_at = Column(DateTime, default=utc_now)
+
+    __table_args__ = (
+        Index('idx_treatment_name', 'treatment_name'),
+        Index('idx_treatment_type', 'treatment_type'),
+        Index('idx_treatment_allergen', 'allergen_code'),
+        Index('idx_treatment_paper', 'paper_id'),
+        Index('idx_treatment_year', 'year'),
+        Index('idx_treatment_unique', 'treatment_name', 'allergen_code', 'paper_id', unique=True),
+    )
+
+
+class TreatmentTrend(Base):
+    """치료법 연도별 트렌드 집계"""
+    __tablename__ = "treatment_trends"
+
+    id = Column(Integer, primary_key=True, index=True)
+    treatment_name = Column(String(200), nullable=False)
+    treatment_type = Column(String(30), nullable=False)
+    year = Column(Integer, nullable=False)
+    paper_count = Column(Integer, nullable=False, default=0)
+    first_mentioned_year = Column(Integer, nullable=True)
+    related_allergens = Column(JSON, nullable=True)  # [{"code": "peanut", "count": 5}, ...]
+    avg_confidence = Column(Float, nullable=True)
+    trend_direction = Column(String(20), nullable=True)  # rising, stable, declining, new
+    change_rate = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+
+    __table_args__ = (
+        Index('idx_treat_trend_name', 'treatment_name'),
+        Index('idx_treat_trend_type', 'treatment_type'),
+        Index('idx_treat_trend_year', 'year'),
+        Index('idx_treat_trend_unique', 'treatment_name', 'year', unique=True),
+    )
+
+
+class EpidemiologyData(Base):
+    """논문에서 추출된 역학 데이터 (유병률, 발병률, 환자 수 등)"""
+    __tablename__ = "epidemiology_data"
+
+    id = Column(Integer, primary_key=True, index=True)
+    allergen_code = Column(String(30), nullable=False)
+    paper_id = Column(Integer, ForeignKey("papers.id", ondelete="CASCADE"), nullable=False)
+    year = Column(Integer, nullable=True)  # Paper.year
+    region = Column(String(100), nullable=True)  # 'global', 'USA', 'Europe', 'Korea', 'Asia' 등
+    data_type = Column(String(30), nullable=False)  # prevalence, incidence, patient_count, sensitization_rate
+    value = Column(Float, nullable=False)  # 수치 (%, 명 등)
+    unit = Column(String(20), nullable=True)  # '%', 'per_100k', 'count'
+    sample_size = Column(Integer, nullable=True)  # 연구 대상 수
+    age_group = Column(String(50), nullable=True)  # 'children', 'adults', 'all', '0-5', '6-12' 등
+    source_text = Column(Text, nullable=True)  # 추출 근거 문장
+    confidence_score = Column(Float, nullable=True)  # 0.0-1.0
+    is_verified = Column(Boolean, default=False)  # 관리자 검증 여부
+    created_at = Column(DateTime, default=utc_now)
+
+    __table_args__ = (
+        Index('idx_epi_allergen', 'allergen_code'),
+        Index('idx_epi_paper', 'paper_id'),
+        Index('idx_epi_year', 'year'),
+        Index('idx_epi_type', 'data_type'),
+        Index('idx_epi_region', 'region'),
+        Index('idx_epi_unique', 'allergen_code', 'paper_id', 'data_type', 'value', unique=True),
     )

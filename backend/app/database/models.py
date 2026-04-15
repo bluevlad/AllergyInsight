@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Date, ForeignKey, JSON, Index, Text
 from sqlalchemy.orm import relationship
 from .connection import Base
+from ..utils.timezone import utc_now
 
 
 class User(Base):
@@ -22,10 +23,13 @@ class User(Base):
     google_id = Column(String(255), unique=True, nullable=True)
     profile_image = Column(String(500), nullable=True)
 
-    # Simple registration fields
-    phone = Column(String(20), nullable=True)  # Hashed
+    # Password auth fields
+    password_hash = Column(String(255), nullable=True)  # For email+password login
+
+    # Simple registration fields (legacy)
+    phone = Column(String(20), nullable=True)
     birth_date = Column(Date, nullable=True)
-    access_pin_hash = Column(String(255), nullable=True)  # For simple login
+    access_pin_hash = Column(String(255), nullable=True)  # Legacy: simple login PIN
 
     # Role: 확장된 역할 체계 지원
     # 'patient', 'doctor', 'nurse', 'lab_tech', 'hospital_admin', 'super_admin'
@@ -33,7 +37,7 @@ class User(Base):
     role = Column(String(20), default="user")
 
     # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
     last_login_at = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
 
@@ -89,7 +93,7 @@ class DiagnosisKit(Base):
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
 
     # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     # Relationships
@@ -119,7 +123,7 @@ class UserDiagnosis(Base):
     doctor_note = Column(Text, nullable=True)  # 의사 소견
 
     # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     # Relationships
     user = relationship("User", back_populates="diagnoses", foreign_keys=[user_id])
@@ -150,8 +154,8 @@ class Paper(Base):
     year = Column(Integer, nullable=True)
 
     # Content
-    abstract = Column(String(5000), nullable=True)
-    abstract_kr = Column(String(5000), nullable=True)
+    abstract = Column(Text, nullable=True)
+    abstract_kr = Column(Text, nullable=True)
 
     # URLs
     url = Column(String(500), nullable=True)  # PubMed or DOI URL
@@ -176,7 +180,7 @@ class Paper(Base):
     last_synced_at = Column(DateTime, nullable=True)  # 마지막 동기화 시점
 
     # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     is_verified = Column(Boolean, default=False)  # Admin verified
 
@@ -219,7 +223,7 @@ class PaperAllergenLink(Base):
     note = Column(String(500), nullable=True)
 
     # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     # Relationships
     paper = relationship("Paper", back_populates="allergen_links")
@@ -252,7 +256,7 @@ class SearchHistory(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     # Indexes
     __table_args__ = (

@@ -1,0 +1,124 @@
+# 알러지 치료 관련 ATC 코드 프리셋
+#
+# 학술 전용 알러지 치료 Agent의 수집·매핑 범위를 정의한다.
+# 본 파일은 drug_ingest 어댑터들이 공통으로 참조한다.
+#
+# 참조: WHO ATC/DDD Index (https://www.whocc.no/atc_ddd_index/)
+# 관련 문서:
+# - services/allergyinsight/plans/academic-drug-agent-plan.md Phase 2
+# - services/allergyinsight/adr/008-pathophysiology-knowledge-graph.md
+
+version: 1
+
+# 상위 계열 — 수집·필터링 기본 범위 (prefix match)
+# 2~4자리 ATC 프리픽스로 포괄
+classes:
+  - prefix: R01A
+    name_kr: 비강 국소 제제
+    name_en: Nasal preparations (topical)
+    notes: 비강 스테로이드(R01AD), 비강 항히스타민, 충혈완화제
+
+  - prefix: R01B
+    name_kr: 비강 전신 제제
+    name_en: Nasal preparations (systemic)
+    notes: 전신 순환성 비강 제제
+
+  - prefix: R03A
+    name_kr: 아드레날린성 흡입제
+    name_en: Adrenergics, inhalants
+    notes: SABA, LABA
+
+  - prefix: R03B
+    name_kr: 기타 흡입 천식약
+    name_en: Other drugs for obstructive airway diseases, inhalants
+    notes: 흡입 스테로이드(R03BA), 항콜린제
+
+  - prefix: R03C
+    name_kr: 아드레날린성 전신 제제
+    name_en: Adrenergics for systemic use
+    notes: 에피네프린 포함 — 아나필락시스 응급
+
+  - prefix: R03D
+    name_kr: 기타 전신 천식약
+    name_en: Other systemic drugs for obstructive airway diseases
+    notes: LTRA(R03DC), 크산틴, IL-5/IL-13/IgE 생물학제제(R03DX)
+
+  - prefix: R06A
+    name_kr: 전신 항히스타민제
+    name_en: Antihistamines for systemic use
+    notes: 1세대·2세대 H1 항히스타민, 아래 sub-prefix로 세분
+
+  - prefix: D07A
+    name_kr: 국소 스테로이드 (단일제)
+    name_en: Corticosteroids, plain
+    notes: 약한·중간·강한·매우강한 역가 (D07AA/AB/AC/AD)
+
+  - prefix: V01AA
+    name_kr: 알러젠 특이 면역치료제
+    name_en: Allergen extracts
+    notes: SCIT/SLIT — 꽃가루·진드기 등
+
+  - prefix: S01G
+    name_kr: 안과 항알러지제
+    name_en: Ophthalmological antiallergics
+    notes: 안과 항히스타민·마스트셀 안정제
+
+  - prefix: H02AB
+    name_kr: 전신 스테로이드 (글루코코르티코이드)
+    name_en: Glucocorticoids, systemic
+    notes: 알러지 전신 염증 치료
+
+  - prefix: D11AH
+    name_kr: 아토피 외용 제제
+    name_en: Agents for dermatitis, excluding corticosteroids
+    notes: 타크로리무스·피메크로리무스·두필루맙 외용 제형
+
+# 세부 sub-class — 크로스체크·규칙 엔진에서 정밀 매칭용
+sub_classes:
+  - prefix: R01AD
+    name_en: Nasal corticosteroids
+    category: nasal_steroid
+
+  - prefix: R03BA
+    name_en: Inhaled corticosteroids
+    category: inhaled_steroid
+
+  - prefix: R03AC
+    name_en: SABA / LABA (selective beta-2 agonists)
+    category: beta2_agonist
+
+  - prefix: R03DC
+    name_en: Leukotriene receptor antagonists
+    category: ltra
+
+  - prefix: R03DX
+    name_en: Biologics for asthma (IL-5/IL-13/IgE)
+    category: biologic_asthma
+
+  - prefix: R06AE
+    name_en: Piperazine derivatives (2nd gen antihistamines)
+    category: antihistamine_2gen
+
+  - prefix: R06AB
+    name_en: 1st generation antihistamines (alkylamines)
+    category: antihistamine_1gen
+
+  - prefix: R06AX
+    name_en: Other antihistamines for systemic use
+    category: antihistamine_other
+
+  - prefix: D07AC
+    name_en: Corticosteroids, potent (group III)
+    category: topical_steroid_potent
+
+  - prefix: D07AD
+    name_en: Corticosteroids, very potent (group IV)
+    category: topical_steroid_very_potent
+
+  - prefix: S01BA
+    name_en: Ophthalmic corticosteroids
+    category: ophthalmic_steroid
+
+  - prefix: D11AH05
+    name_en: Dupilumab (atopic dermatitis biologic)
+    category: biologic_atopy

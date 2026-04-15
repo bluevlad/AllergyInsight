@@ -34,7 +34,7 @@ jobs:
           need_restart=false
           for file in $changed_files; do
             case "$file" in
-              backend/*|frontend/*|docker-compose.yml|Dockerfile|.env*)
+              backend/*|frontend/*|wiki/*|docker-compose.yml|Dockerfile|.env*)
                 need_restart=true
                 echo "Docker restart needed: $file"
                 break

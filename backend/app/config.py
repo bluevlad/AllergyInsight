@@ -28,6 +28,10 @@ class Settings:
     # https://www.semanticscholar.org/product/api 에서 발급
     SEMANTIC_SCHOLAR_API_KEY: Optional[str] = None
 
+    # CORE API (Full-text 논문 검색)
+    # https://core.ac.uk/services/api 에서 무료 발급
+    CORE_API_KEY: Optional[str] = None
+
     # OpenAI (향후 요약 기능용)
     OPENAI_API_KEY: Optional[str] = None
 
@@ -48,6 +52,7 @@ class Settings:
             PUBMED_API_KEY=os.getenv("PUBMED_API_KEY"),
             PUBMED_EMAIL=os.getenv("PUBMED_EMAIL"),
             SEMANTIC_SCHOLAR_API_KEY=os.getenv("SEMANTIC_SCHOLAR_API_KEY"),
+            CORE_API_KEY=os.getenv("CORE_API_KEY"),
             OPENAI_API_KEY=os.getenv("OPENAI_API_KEY"),
             DOWNLOAD_DIR=os.getenv("DOWNLOAD_DIR", "./downloads/papers"),
             DEFAULT_MAX_RESULTS=int(os.getenv("DEFAULT_MAX_RESULTS", "20")),

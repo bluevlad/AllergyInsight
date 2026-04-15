@@ -3,6 +3,15 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 > 상위 `C:/GIT/CLAUDE.md`의 Git-First Workflow를 상속합니다.
+> 도메인/URL/포트 규칙: [Claude-Opus-bluevlad/standards/infrastructure/DOMAIN_MANAGEMENT.md](https://github.com/bluevlad/Claude-Opus-bluevlad/blob/main/standards/infrastructure/DOMAIN_MANAGEMENT.md) — `https://도메인:포트` 사용 금지
+
+## 실행 환경 감지 (SSH 재접속 금지)
+
+- Claude는 현재 호스트에서 직접 실행 중 — **SSH 재접속을 시도하지 말 것**
+- `uname -s` = `Darwin` → MacBook 운영환경 (172.30.1.72), docker/docker compose 직접 실행 가능
+- `uname -s` 결과가 Windows/MINGW/MSYS → Windows 개발환경 (172.30.1.100)
+- Docker 명령은 현재 호스트에서 바로 실행 (별도 SSH 접속 불필요)
+- compose 파일 선택: Darwin → `docker-compose.yml` / Windows → `docker-compose.local.yml`
 
 ## Project Overview
 
@@ -29,7 +38,7 @@ AllergyInsight - 알러지 연구 논문 검색/분석 플랫폼 (PubMed/Semanti
 | Vector DB | ChromaDB |
 | AI | OpenAI API (GPT), tiktoken |
 | PDF | PyMuPDF, pdfplumber |
-| Auth | python-jose (JWT), passlib (bcrypt), Authlib (OAuth) |
+| Auth | PyJWT (JWT), passlib (bcrypt), google-auth (ID 토큰 검증) |
 | HTTP Client | httpx, aiohttp, requests |
 | RSS | feedparser |
 | Config | Pydantic + python-dotenv |
@@ -126,10 +135,8 @@ DATABASE_URL=           # PostgreSQL 연결
 JWT_SECRET_KEY=         # JWT 서명 (필수)
 JWT_ALGORITHM=HS256
 JWT_EXPIRE_MINUTES=1440
-GOOGLE_CLIENT_ID=       # Google OAuth
-GOOGLE_CLIENT_SECRET=
-FRONTEND_URL=           # CORS/OAuth 리다이렉트
-BACKEND_URL=
+GOOGLE_CLIENT_ID=       # Google OAuth (ID 토큰 방식, CLIENT_SECRET 불필요)
+SUPER_ADMIN_EMAILS=     # Super Admin 이메일 (콤마 구분)
 PUBMED_API_KEY=         # PubMed API
 PUBMED_EMAIL=
 SEMANTIC_SCHOLAR_API_KEY=
@@ -145,14 +152,74 @@ OPENAI_API_KEY=         # OpenAI API
 
 ## Documentation
 
-### 문서 참조 경로
-- 코드 문서: `AllergyInsight/docs/`
-- 프로젝트 문서: `C:/GIT/Claude-Opus-bluevlad/docs/AllergyInsight/`
-  - 기획서, WBS, IMPLEMENTATION.md, ADR, 로드맵, Wiki
+### 문서 이원화 원칙
 
-### 문서 작성 규칙
-- 코드 관련 (API 변경, 환경설정): `AllergyInsight/docs/`
-- 기획/설계/로드맵: `C:/GIT/Claude-Opus-bluevlad/docs/AllergyInsight/`
+코드 저장소와 전략 저장소를 분리하여 민감 정보와 지적재산을 보호합니다.
+
+| 저장소 | 역할 | 원칙 |
+|--------|------|------|
+| `AllergyInsight/docs/` | 구현 문서 | **"어떻게(How)"** — 코드와 함께 버전 관리되는 운영/개발 문서 |
+| `Claude-Opus-bluevlad/services/allergyinsight/` | 전략 문서 | **"왜(Why) + 무엇을(What)"** — 의사결정, 분석, 보안, 계획 |
+
+> 📘 **표준 문서**: [SERVICE_FOLDER_STRUCTURE.md](https://github.com/bluevlad/Claude-Opus-bluevlad/blob/main/standards/documentation/SERVICE_FOLDER_STRUCTURE.md) — `services/{project}/` 하위 폴더·파일 표준 (필수/권장/해당 시, 네이밍 규칙, 배치 결정 트리)
+
+### 문서 분류 Decision Tree
+
+문서 작성 시 아래 순서로 위치를 결정합니다:
+
+```
+1. 보안 정보(키 관리, 계정 체계, 인증 설계)를 포함하는가?
+   → Claude-Opus-bluevlad/services/allergyinsight/security/
+
+2. 비즈니스 분석(경쟁사, 시장, 타당성, 비용)인가?
+   → Claude-Opus-bluevlad/services/allergyinsight/analysis/
+
+3. 아키텍처 의사결정(왜 이 기술을 선택했는가)인가?
+   → Claude-Opus-bluevlad/services/allergyinsight/adr/
+
+4. 구현 전 계획(무엇을 만들 것인가, 단계별 플랜)인가?
+   → Claude-Opus-bluevlad/services/allergyinsight/plans/
+
+5. 기능 로드맵(중장기 발전 계획)인가?
+   → Claude-Opus-bluevlad/services/allergyinsight/roadmap/
+
+6. 구현 후 결과(어떻게 사용하는가, 설정값, 엔드포인트)인가?
+   → AllergyInsight/docs/
+
+7. API 변경사항인가?
+   → AllergyInsight/docs/api/
+```
+
+### 문서 간 연결 규칙
+
+- **AllergyInsight → Claude-Opus-bluevlad 참조**: GitHub URL 사용
+  ```markdown
+  > **설계 문서**: [plans/allergen-trend-analysis-plan.md](https://github.com/bluevlad/Claude-Opus-bluevlad/blob/main/services/allergyinsight/plans/allergen-trend-analysis-plan.md)
+  ```
+- **Claude-Opus-bluevlad → AllergyInsight 참조**: GitHub URL 사용
+  ```markdown
+  > **구현 코드**: [backend/app/services/allergen_trend_service.py](https://github.com/bluevlad/AllergyInsight/blob/main/backend/app/services/allergen_trend_service.py)
+  ```
+- **구현 완료 시**: 양쪽 문서를 동시에 업데이트 (플랜에 구현 상태 표기, 코드 repo에 가이드 추가)
+
+### 문서 저장소 구조
+
+```
+Claude-Opus-bluevlad/services/allergyinsight/
+├── README.md               # ✅ 필수 — 서비스 메인 문서
+├── CLAUDE.service.md       # ✅ 필수 — Claude Code 진입점
+├── VERIFICATION_CRITERIA.md # ✅ 필수 — 검증 기준
+├── overview.md             # 🟢 권장 — 배경·목적·범위
+├── adr/                    # 🟢 권장 — 아키텍처 결정 기록
+├── plans/                  # 🟢 권장 — 구현 플랜
+├── roadmap/                # 🟢 권장 — 중장기 로드맵
+├── analysis/               # 🟢 권장 — 비즈니스/기술 분석
+├── security/               # 🟡 해당 시 — 보안 설계
+├── dev/                    # 🟡 해당 시 — 전략성 가이드
+└── wiki/                   # 🟡 해당 시 — 프로젝트 Wiki
+```
+
+> 상세 표준·네이밍 규칙·마이그레이션 가이드는 [SERVICE_FOLDER_STRUCTURE.md](https://github.com/bluevlad/Claude-Opus-bluevlad/blob/main/standards/documentation/SERVICE_FOLDER_STRUCTURE.md) 참조.
 
 ## Deployment
 
@@ -161,38 +228,19 @@ OPENAI_API_KEY=         # OpenAI API
 - **네트워크**: database-network (외부 공유), allergyinsight-network (내부)
 - **헬스체크**: http://localhost:9040/api/health
 
+## Help Page 관리
+
+> 작성 표준: [HELP_PAGE_GUIDE.md](https://github.com/bluevlad/Claude-Opus-bluevlad/blob/main/standards/documentation/HELP_PAGE_GUIDE.md)
+> HTML 템플릿: [help-page-template.html](https://github.com/bluevlad/Claude-Opus-bluevlad/blob/main/standards/documentation/templates/help-page-template.html)
+
+- **기능 추가/변경/삭제 시 반드시 헬프 페이지도 함께 업데이트**
+- 헬프 파일 위치: `frontend/public/help/`
+- 서비스 accent-color: `#8b5cf6` (Violet)
+- 대상 가이드 파일:
+  - `user-guide.html` — 사용자 처방 대시보드 가이드
+  - `admin-guide.html` — 관리자 콘솔 가이드
+  - `newsletter-guide.html` — 뉴스레터 구독/발송 가이드
+  - `ai-consult-guide.html` — AI 상담 사용자 가이드
+  - `analytics-guide.html` — 트렌드 분석 사용자 가이드
+
 > 로컬 환경 정보는 `CLAUDE.local.md` 참조 (git에 포함되지 않음)
-
-## Fix 커밋 오류 추적
-
-> 상세: [FIX_COMMIT_TRACKING_GUIDE.md](https://github.com/bluevlad/Claude-Opus-bluevlad/blob/main/standards/git/FIX_COMMIT_TRACKING_GUIDE.md) | [ERROR_TAXONOMY.md](https://github.com/bluevlad/Claude-Opus-bluevlad/blob/main/standards/git/ERROR_TAXONOMY.md)
-
-`fix:` 커밋 시 footer에 오류 추적 메타데이터를 **필수** 포함합니다.
-
-### 이 프로젝트에서 자주 발생하는 Root-Cause
-
-| Root-Cause | 설명 | 예방 |
-|-----------|------|------|
-| `env-assumption` | Docker 내/외부 경로, 환경변수 가정 | Settings 클래스에서 필수값 검증, 기본값 금지 |
-| `import-error` | 패키지 import 경로 오류, 상대/절대 경로 혼동 | `__init__.py` 확인, 절대 import 사용 |
-| `null-handling` | Optional 필드 None 미처리 | Pydantic `Optional[T]` + 기본값 명시 |
-| `type-mismatch` | SQLAlchemy 모델 ↔ Pydantic 스키마 타입 불일치 | `model_validate()` 사용, from_attributes=True |
-| `async-handling` | await 누락, 동기/비동기 혼용 | async def에서 동기 DB 호출 금지, run_in_executor 사용 |
-| `db-migration` | Alembic 마이그레이션 누락/충돌 | 스키마 변경 시 반드시 `alembic revision --autogenerate` |
-
-### 예시
-
-```
-fix(api): 알레르기 성분 조회 시 None 응답 처리
-
-- ingredient가 Optional인데 None 체크 없이 .name 접근하여 AttributeError 발생
-- None일 때 빈 문자열 반환하도록 수정
-
-Root-Cause: null-handling
-Error-Category: logic-error
-Affected-Layer: backend/api
-Recurrence: first
-Prevention: Optional 필드 접근 전 반드시 None 체크, or 연산자 활용
-
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
-```

@@ -4,9 +4,8 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
-from authlib.integrations.starlette_client import OAuth
+from pydantic import BaseModel
 import bcrypt
 
 security_logger = logging.getLogger("security")
@@ -21,19 +20,34 @@ from .schemas import (
     SimpleRegisterRequest, SimpleRegisterResponse, SimpleLoginRequest,
     AdminLoginRequest,
     KitRegisterRequest, UserDiagnosisResponse,
+    EmailRegisterRequest, EmailVerifyAndRegisterRequest, EmailLoginRequest,
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-# OAuth setup
-oauth = OAuth()
-oauth.register(
-    name='google',
-    client_id=auth_settings.google_client_id,
-    client_secret=auth_settings.google_client_secret,
-    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
-    client_kwargs={'scope': 'openid email profile'}
-)
+
+class GoogleTokenRequest(BaseModel):
+    """Google ID 토큰 검증 요청"""
+    credential: str
+
+
+def _verify_google_id_token(credential: str) -> dict:
+    """Google ID 토큰 검증 후 사용자 정보 반환"""
+    from google.auth.transport import requests as google_requests
+    from google.oauth2 import id_token
+
+    try:
+        idinfo = id_token.verify_oauth2_token(
+            credential,
+            google_requests.Request(),
+            auth_settings.google_client_id,
+        )
+        if idinfo["iss"] not in ("accounts.google.com", "https://accounts.google.com"):
+            raise ValueError("Invalid issuer")
+        return idinfo
+    except ValueError as e:
+        security_logger.error("Google ID token verification failed: %s", e)
+        raise
 
 
 def hash_pin(pin: str) -> str:
@@ -52,76 +66,83 @@ def generate_access_pin() -> str:
 
 
 # ============================================================================
-# Google OAuth Routes
+# Google OAuth Routes (ID 토큰 방식)
 # ============================================================================
 
-@router.get("/google/login")
-async def google_login(request: Request):
-    """Initiate Google OAuth login"""
-    redirect_uri = f"{auth_settings.backend_url}/auth/google/callback"
-    return await oauth.google.authorize_redirect(request, redirect_uri)
+@router.post("/google/verify")
+async def google_verify(body: GoogleTokenRequest, db: Session = Depends(get_db)):
+    """Google ID 토큰 검증 후 JWT 발급
 
-
-@router.get("/google/callback")
-async def google_callback(request: Request, db: Session = Depends(get_db)):
-    """Handle Google OAuth callback"""
+    프론트엔드에서 Google Identity Services로 받은 credential을 검증하고,
+    사용자 생성/연동 후 JWT 토큰을 반환합니다.
+    """
     try:
-        token = await oauth.google.authorize_access_token(request)
-        user_info = token.get('userinfo')
-
-        if not user_info:
-            raise HTTPException(status_code=400, detail="Failed to get user info from Google")
-
-        google_id = user_info.get('sub')
-        email = user_info.get('email')
-        name = user_info.get('name', email.split('@')[0] if email else 'User')
-        picture = user_info.get('picture')
-
-        # Find or create user
-        user = db.query(User).filter(User.google_id == google_id).first()
-
-        if not user:
-            # Check if email exists with different auth type
-            existing_user = db.query(User).filter(User.email == email).first()
-            if existing_user:
-                # Link Google account to existing user
-                existing_user.google_id = google_id
-                existing_user.auth_type = 'google'
-                existing_user.profile_image = picture
-                user = existing_user
-            else:
-                # Create new user
-                user = User(
-                    name=name,
-                    email=email,
-                    auth_type='google',
-                    google_id=google_id,
-                    profile_image=picture,
-                    role='user'
-                )
-                db.add(user)
-
-        user.last_login_at = datetime.now(timezone.utc)
-        db.commit()
-        db.refresh(user)
-
-        # Create JWT token
-        access_token = create_access_token(
-            data={"sub": str(user.id), "auth_type": "google"}
+        idinfo = _verify_google_id_token(body.credential)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Google credential",
         )
 
-        # Redirect to frontend with token
-        frontend_url = auth_settings.frontend_url
-        return RedirectResponse(
-            url=f"{frontend_url}/auth/callback?token={access_token}"
-        )
+    google_id = idinfo.get("sub")
+    email = idinfo.get("email", "")
+    name = idinfo.get("name", email.split("@")[0] if email else "User")
+    picture = idinfo.get("picture")
 
-    except Exception as e:
-        print(f"Google OAuth error: {e}")
-        frontend_url = auth_settings.frontend_url
-        return RedirectResponse(
-            url=f"{frontend_url}/login?error=oauth_failed"
-        )
+    # Find or create user
+    user = db.query(User).filter(User.google_id == google_id).first()
+
+    if not user:
+        # Check if email exists with different auth type
+        existing_user = db.query(User).filter(User.email == email).first()
+        if existing_user:
+            # Link Google account to existing user
+            existing_user.google_id = google_id
+            existing_user.auth_type = 'google'
+            existing_user.profile_image = picture
+            user = existing_user
+        else:
+            # Create new user
+            user = User(
+                name=name,
+                email=email,
+                auth_type='google',
+                google_id=google_id,
+                profile_image=picture,
+                role='user'
+            )
+            db.add(user)
+
+    # Super admin role assignment via SUPER_ADMIN_EMAILS env var
+    if auth_settings.is_super_admin(email):
+        if user.role != 'super_admin':
+            security_logger.info(
+                "Super admin role assigned via Google OAuth: email=%s user_id=%s previous_role=%s",
+                email, user.id, user.role
+            )
+            user.role = 'super_admin'
+    else:
+        # If user was super_admin but email removed from SUPER_ADMIN_EMAILS, downgrade
+        if user.role == 'super_admin':
+            security_logger.warning(
+                "Super admin role revoked (email removed from SUPER_ADMIN_EMAILS): email=%s user_id=%s",
+                email, user.id
+            )
+            user.role = 'user'
+
+    user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(user)
+
+    # Create JWT token
+    access_token = create_access_token(
+        data={"sub": str(user.id), "auth_type": "google"}
+    )
+
+    return {
+        "access_token": access_token,
+        "user": UserResponse.model_validate(user).model_dump(),
+    }
 
 
 # ============================================================================
@@ -336,6 +357,171 @@ async def admin_login(
 
     access_token = create_access_token(
         data={"sub": str(user.id), "auth_type": "simple"}
+    )
+
+    return UserWithToken(
+        user=UserResponse.model_validate(user),
+        access_token=access_token
+    )
+
+
+# ============================================================================
+# Email + Password Registration/Login Routes
+# ============================================================================
+
+@router.post("/email/send-code")
+async def email_send_verification(
+    request: EmailRegisterRequest,
+    db: Session = Depends(get_db)
+):
+    """Send email verification code for registration"""
+    from ..database.subscriber_models import EmailVerification
+    from ..services.email_service import get_email_service
+    from ..services.report_generator import NewsReportGenerator
+    import random
+    import string
+
+    # Check if email already registered
+    existing = db.query(User).filter(User.email == request.email).first()
+    if existing and existing.password_hash:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="이미 가입된 이메일입니다. 로그인해주세요."
+        )
+
+    # Invalidate previous unused codes
+    db.query(EmailVerification).filter(
+        EmailVerification.email == request.email,
+        EmailVerification.is_used == False,
+    ).update({"is_used": True})
+
+    # Generate and save verification code
+    from datetime import timedelta
+    code = "".join(random.choices(string.digits, k=6))
+    verification = EmailVerification(
+        email=request.email,
+        code=code,
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+    )
+    db.add(verification)
+    db.commit()
+
+    # Send email
+    email_service = get_email_service()
+    report_generator = NewsReportGenerator()
+    html = report_generator.generate_subscription_key_email(
+        verification_code=code,
+        expires_minutes=30,
+    )
+    email_service.send(
+        to=request.email,
+        subject="[AllergyInsight] 회원가입 인증 코드",
+        html_body=html,
+    )
+
+    return {"message": "인증 코드가 발송되었습니다. 이메일을 확인해주세요."}
+
+
+@router.post("/email/register", response_model=UserWithToken)
+async def email_register(
+    request: EmailVerifyAndRegisterRequest,
+    db: Session = Depends(get_db)
+):
+    """Verify code and complete registration with password"""
+    from ..database.subscriber_models import EmailVerification
+
+    # Verify code
+    verification = db.query(EmailVerification).filter(
+        EmailVerification.email == request.email,
+        EmailVerification.code == request.code,
+        EmailVerification.is_used == False,
+    ).first()
+
+    if not verification:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="유효하지 않은 인증 코드입니다."
+        )
+
+    if verification.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="인증 코드가 만료되었습니다."
+        )
+
+    verification.is_used = True
+
+    # Check existing user (e.g., Google OAuth user adding password)
+    user = db.query(User).filter(User.email == request.email).first()
+    password_hash = bcrypt.hashpw(request.password.encode(), bcrypt.gensalt()).decode()
+
+    if user:
+        user.password_hash = password_hash
+        if user.auth_type == 'google':
+            user.auth_type = 'google'  # keep google
+        else:
+            user.auth_type = 'email'
+    else:
+        user = User(
+            name=request.email.split('@')[0],
+            email=request.email,
+            auth_type='email',
+            password_hash=password_hash,
+            role='user',
+        )
+        db.add(user)
+
+    user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(user)
+
+    access_token = create_access_token(
+        data={"sub": str(user.id), "auth_type": "email"}
+    )
+
+    return UserWithToken(
+        user=UserResponse.model_validate(user),
+        access_token=access_token
+    )
+
+
+@router.post("/email/login", response_model=UserWithToken)
+async def email_login(
+    request: EmailLoginRequest,
+    db: Session = Depends(get_db)
+):
+    """Login with email + password"""
+    user = db.query(User).filter(User.email == request.email).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="이메일 또는 비밀번호가 올바르지 않습니다."
+        )
+
+    if not user.password_hash:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="비밀번호가 설정되지 않았습니다. 회원가입을 진행해주세요."
+        )
+
+    if not bcrypt.checkpw(request.password.encode(), user.password_hash.encode()):
+        security_logger.warning(
+            "Email login failed: email=%s user_id=%s",
+            request.email, user.id
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="이메일 또는 비밀번호가 올바르지 않습니다."
+        )
+
+    security_logger.info("Email login success: user=%s email=%s", user.id, request.email)
+    user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(user)
+
+    access_token = create_access_token(
+        data={"sub": str(user.id), "auth_type": "email"}
     )
 
     return UserWithToken(

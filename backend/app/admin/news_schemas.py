@@ -162,39 +162,3 @@ class SchedulerConfigRequest(BaseModel):
     send_minute: Optional[int] = None
 
 
-# ============================================================================
-# 뉴스레터
-# ============================================================================
-
-class NewsletterSendRequest(BaseModel):
-    """뉴스레터 발송 요청"""
-    recipients: List[str]
-    days: int = 1
-    subject: Optional[str] = None
-
-
-class NewsletterSendResponse(BaseModel):
-    """뉴스레터 발송 응답"""
-    sent: int
-    failed: int
-    article_count: int
-    message: str
-
-
-class SendHistoryItem(BaseModel):
-    """발송 이력 항목"""
-    id: int
-    recipient_email: str
-    subject: str
-    article_count: int
-    is_success: bool
-    error_message: Optional[str] = None
-    sent_at: Optional[str] = None
-
-
-class NewsletterStatsResponse(BaseModel):
-    """뉴스레터 통계 응답"""
-    total_sent: int
-    success_count: int
-    failed_count: int
-    recent_7days: int

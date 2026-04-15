@@ -5,6 +5,7 @@
 from datetime import datetime
 from typing import Optional
 
+from ..utils.timezone import utc_now
 from ..models.paper import Paper as PaperDC, PaperSource
 from ..database.models import Paper as PaperORM
 
@@ -49,8 +50,8 @@ class PaperMapper:
             semantic_scholar_id=semantic_scholar_id,
             citation_count=paper_dc.citation_count,
             keywords=paper_dc.keywords if paper_dc.keywords else None,
-            last_synced_at=datetime.utcnow(),
-            created_at=paper_dc.collected_at or datetime.utcnow(),
+            last_synced_at=utc_now(),
+            created_at=paper_dc.collected_at or utc_now(),
         )
 
     @staticmethod
@@ -84,7 +85,7 @@ class PaperMapper:
             citation_count=paper_orm.citation_count,
             pdf_url=paper_orm.pdf_url,
             keywords=paper_orm.keywords or [],
-            collected_at=paper_orm.created_at or datetime.utcnow(),
+            collected_at=paper_orm.created_at or utc_now(),
         )
 
     @staticmethod
@@ -131,6 +132,6 @@ class PaperMapper:
             updated = True
 
         if updated:
-            orm.last_synced_at = datetime.utcnow()
+            orm.last_synced_at = utc_now()
 
         return updated

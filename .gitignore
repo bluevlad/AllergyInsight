@@ -60,6 +60,10 @@ frontend/build/
 .next/
 out/
 
+# Wiki build output
+wiki/site/
+wiki/.venv/
+
 # -------------------------------------------
 # Claude Code
 # -------------------------------------------
@@ -150,6 +154,7 @@ temp/
 # ChromaDB local storage
 chroma_data/
 .chromadb/
+**/data/chromadb/
 
 # -------------------------------------------
 # Downloaded Data & Generated Files
