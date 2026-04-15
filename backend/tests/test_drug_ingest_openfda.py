@@ -92,12 +92,17 @@ def test_list_updated_since_yields_set_ids(adapter: OpenFdaLabelAdapter) -> None
         ids = list(adapter.list_updated_since(since=None, limit=10))
 
     assert ids == ["aaaa-0001", "bbbb-0002"]
-    # 쿼리에 알러지 pharm_class 필터가 포함되었는지 확인
+    # 쿼리에 알러지 pharm_class_epc 화이트리스트가 따옴표 phrase match 로 포함됐는지 확인
     call_args = fake_client.get.call_args
     params = call_args.kwargs.get("params") or call_args.args[-1]
     search_expr = params["search"]
-    assert "pharm_class_epc:antihistamine" in search_expr
-    assert "corticosteroid" in search_expr
+    assert 'openfda.pharm_class_epc:"Histamine-1 Receptor Antagonist"' in search_expr
+    assert 'openfda.pharm_class_epc:"Corticosteroid"' in search_expr
+    assert 'openfda.pharm_class_epc:"Leukotriene Receptor Antagonist"' in search_expr
+    assert 'openfda.pharm_class_epc:"beta-Adrenergic Agonist"' in search_expr
+    assert 'openfda.pharm_class_epc:"Anti-IgE"' in search_expr
+    # range 구문에 MUST operator(+) 가 아닌 공백이 사용되어야 함 (parse_exception 방지)
+    assert "+TO+" not in search_expr
 
 
 def test_list_updated_since_with_since_adds_time_filter(adapter: OpenFdaLabelAdapter) -> None:
@@ -113,7 +118,8 @@ def test_list_updated_since_with_since_adds_time_filter(adapter: OpenFdaLabelAda
     call_args = fake_client.get.call_args
     params = call_args.kwargs.get("params")
     search_expr = params["search"]
-    assert "effective_time:[20260101+TO+99991231]" in search_expr
+    assert "effective_time:[20260101 TO 99991231]" in search_expr
+    assert "+TO+" not in search_expr
 
 
 def test_list_updated_since_respects_limit(adapter: OpenFdaLabelAdapter) -> None:

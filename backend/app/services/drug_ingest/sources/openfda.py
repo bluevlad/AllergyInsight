@@ -31,26 +31,38 @@ class OpenFdaLabelAdapter(DrugSourceAdapter):
     REQUEST_INTERVAL = 0.3  # 키 없음 240/min ≈ 0.25s, 여유 있게 0.3s
     DEFAULT_LIMIT = 100  # openFDA max per request
 
+    # 수집 범위 — openFDA pharm_class_epc 필드의 실제 EPC 클래스명.
+    # 각 값은 openFDA 실측(count=openfda.pharm_class_epc.exact)으로 검증됨.
+    # 따옴표 phrase match 로 쿼리될 때 [EPC] 접미사는 생략해도 토크나이저가 매칭함.
+    DEFAULT_PHARM_CLASS_EPC_VALUES: tuple[str, ...] = (
+        # 알러지 치료제
+        "Histamine-1 Receptor Antagonist",          # H1 antihistamine
+        "Corticosteroid",                            # 국소/흡입/전신 스테로이드 (광범위)
+        "Leukotriene Receptor Antagonist",           # montelukast 등
+        "beta-Adrenergic Agonist",                   # 기관지 확장제 (SABA/LABA, epinephrine)
+        "Anti-IgE",                                  # omalizumab
+        # 알러겐 추출물 (면역요법)
+        "Standardized Chemical Allergen",
+        "Non-Standardized Food Allergenic Extract",
+        "Non-Standardized Plant Allergenic Extract",
+        "Standardized Insect Venom Allergenic Extract",
+        "Non-Standardized Fungal Allergenic Extract",
+        "Non-Standardized Chemical Allergen",
+    )
+
     def __init__(
         self,
         api_key: str | None = None,
         timeout: float = 30.0,
-        allergy_atc_prefixes: list[str] | None = None,
+        pharm_class_epc_values: list[str] | None = None,
     ) -> None:
         self.api_key = api_key or os.getenv("OPENFDA_API_KEY")
         self._client: httpx.Client | None = None
         self._last_request_time = 0.0
         self._timeout = timeout
-        # 수집 범위 — 알러지 ATC 프리셋 (allergy_atc_codes.yaml 과 일치)
-        self.allergy_atc_prefixes = allergy_atc_prefixes or [
-            "R01A", "R01B",
-            "R03A", "R03B", "R03C", "R03D",
-            "R06A",
-            "D07A",
-            "V01AA",
-            "S01G",
-            "H02AB",
-        ]
+        self.pharm_class_epc_values: list[str] = list(
+            pharm_class_epc_values or self.DEFAULT_PHARM_CLASS_EPC_VALUES
+        )
 
     def _get_client(self) -> httpx.Client:
         if self._client is None:
@@ -75,28 +87,24 @@ class OpenFdaLabelAdapter(DrugSourceAdapter):
         self._last_request_time = time.time()
 
     def _build_search(self, since: datetime | None) -> str:
-        """알러지 ATC 프리셋 + 갱신 시각 필터링 쿼리."""
-        atc_query = " OR ".join(
-            f'openfda.pharm_class_epc:"{prefix}"' for prefix in self.allergy_atc_prefixes
-        )
-        # openFDA pharm_class_epc 대신 pharm_class_cs 로도 매칭 가능하지만,
-        # 대부분의 제품이 NDC+SPL 파싱 결과를 보유하므로 effective_time 기준으로 증분 수집.
-        query_parts: list[str] = []
+        """pharm_class_epc 화이트리스트 + effective_time 증분 필터.
 
-        # 알러지 관련 약리학적 분류(pharm_class) 또는 성분으로 광범위 필터
-        # pharm_class_epc는 EPC (Established Pharmacologic Class) 표준 텍스트
-        pharm_filter = (
-            "(openfda.pharm_class_epc:antihistamine OR "
-            "openfda.pharm_class_epc:corticosteroid OR "
-            "openfda.pharm_class_epc:leukotriene OR "
-            "openfda.pharm_class_epc:beta-adrenergic OR "
-            "openfda.pharm_class_epc:mast+cell)"
-        )
-        query_parts.append(pharm_filter)
+        Lucene 쿼리 규약:
+        - 각 클래스명은 따옴표로 phrase match 하여 정확히 매칭.
+        - range 구문은 `[X TO Y]` 공백 필수. `+` 문자는 Lucene MUST operator 로
+          해석되어 range 파싱이 깨지므로 반드시 공백을 쓴다.
+        - httpx 는 공백을 `%20` 으로 percent-encode 하므로 openFDA 서버측에서
+          올바르게 디코딩된다.
+        """
+        pharm_clauses = [
+            f'openfda.pharm_class_epc:"{value}"' for value in self.pharm_class_epc_values
+        ]
+        pharm_filter = "(" + " OR ".join(pharm_clauses) + ")"
+        query_parts: list[str] = [pharm_filter]
 
         if since is not None:
             ymd = since.strftime("%Y%m%d")
-            query_parts.append(f"effective_time:[{ymd}+TO+99991231]")
+            query_parts.append(f"effective_time:[{ymd} TO 99991231]")
 
         return " AND ".join(query_parts)
 
