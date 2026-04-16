@@ -74,6 +74,9 @@ from .subscription_routes import router as subscription_router
 # Public: Analytics (no auth required, read-only aggregates)
 from .analytics_routes import router as public_analytics_router
 
+# Public: Newsletter data API (no auth required, NewsletterPlatform 연동)
+from .public_newsletter_routes import router as public_newsletter_router
+
 # Public: Allergy Report (no auth required, stateless)
 from .report_routes import router as report_router
 
@@ -137,6 +140,9 @@ app.include_router(subscription_router, prefix="/api", tags=["Subscription"])  #
 
 # Include public analytics router (no auth required, read-only)
 app.include_router(public_analytics_router, prefix="/api/public/analytics", tags=["Public Analytics"])
+
+# Include public newsletter data API (no auth, NewsletterPlatform collector 연동)
+app.include_router(public_newsletter_router, prefix="/api/public/analytics", tags=["Public Newsletter"])
 
 # Include report router (public, no auth required, stateless)
 app.include_router(report_router, prefix="/api", tags=["Report"])
