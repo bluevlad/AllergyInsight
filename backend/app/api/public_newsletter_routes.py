@@ -40,21 +40,26 @@ def get_headlines_today(
     pool이 limit에 미달하면 fallback_days 순서대로 lookback을 확장한다.
     excluded_ids 를 company-digest 호출 시 전달하여 교차 중복 방지.
     """
-    windows: list[int] = []
-    if fallback_days.strip():
-        for token in fallback_days.split(","):
-            token = token.strip()
-            if token.isdigit():
-                value = int(token)
+    fallback_raw = fallback_days.strip()
+    if fallback_raw:
+        windows: list[int] = []
+        for token in fallback_raw.split(","):
+            stripped = token.strip()
+            if stripped.isdigit():
+                value = int(stripped)
                 if 1 <= value <= 30:
                     windows.append(value)
+        windows_arg = windows or [days]
+    else:
+        # 빈 문자열 → 확장 비활성
+        windows_arg = [days]
 
     headlines, excluded_ids, effective_days = select_top_headlines(
         db,
         limit=limit,
         one_per_company=one_per_company,
         days=days,
-        fallback_days=windows or None,
+        fallback_days=windows_arg,
     )
 
     return {
