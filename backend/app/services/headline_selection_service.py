@@ -55,26 +55,14 @@ def _category_color(category: str | None) -> str:
     return _map.get(category or "general", "#757575")
 
 
-def select_top_headlines(
+def _select_within_window(
     session: Session,
     *,
-    limit: int = 5,
-    one_per_company: bool = True,
-    days: int = 1,
-) -> tuple[list[dict[str, Any]], set[int]]:
-    """핵심 헤드라인 선정.
-
-    Args:
-        session: SQLAlchemy session.
-        limit: 최대 선정 건수.
-        one_per_company: 1기업 1헤드라인 규칙 적용 여부.
-        days: 오늘로부터 며칠 이내 기사를 대상으로 할지.
-
-    Returns:
-        (headlines_list, excluded_id_set)
-        - headlines_list: 선정된 기사 dict 리스트 (§ 3.2.1 응답 스키마)
-        - excluded_id_set: 선정된 기사 id 집합 (company-digest 호출 시 전달)
-    """
+    limit: int,
+    one_per_company: bool,
+    days: int,
+) -> tuple[list[dict[str, Any]], set[int], int]:
+    """단일 lookback window 내에서 헤드라인 선정. 내부용."""
     since = utc_now() - timedelta(days=days)
 
     pool = (
@@ -138,7 +126,55 @@ def select_top_headlines(
         seen_url_hashes.add(url_hash)
         seen_minhashes.append(mh)
 
+    return selected, excluded_ids, pool_size
+
+
+def select_top_headlines(
+    session: Session,
+    *,
+    limit: int = 5,
+    one_per_company: bool = True,
+    days: int = 1,
+    fallback_days: list[int] | None = None,
+) -> tuple[list[dict[str, Any]], set[int], int]:
+    """핵심 헤드라인 선정 (부족 시 lookback 자동 확장).
+
+    Args:
+        session: SQLAlchemy session.
+        limit: 최대 선정 건수.
+        one_per_company: 1기업 1헤드라인 규칙 적용 여부.
+        days: 1차 lookback (오늘로부터 며칠).
+        fallback_days: limit 미달 시 확장할 lookback 후보. None 이면
+            [days, 3, 7] 을 사용(중복 제거 + 오름차순). days 보다 작은 값은 무시.
+
+    Returns:
+        (headlines_list, excluded_id_set, effective_days)
+        - headlines_list: 선정된 기사 dict 리스트 (§ 3.2.1 응답 스키마)
+        - excluded_id_set: 선정된 기사 id 집합 (company-digest 호출 시 전달)
+        - effective_days: 실제 사용된 lookback 일수 (fallback 확장 결과)
+    """
+    if fallback_days is None:
+        fallback_days = [days, 3, 7]
+    windows = sorted({d for d in fallback_days if d >= days}) or [days]
+
+    selected: list[dict[str, Any]] = []
+    excluded_ids: set[int] = set()
+    effective = windows[0]
+    last_pool_size = 0
+
+    for window in windows:
+        effective = window
+        selected, excluded_ids, last_pool_size = _select_within_window(
+            session,
+            limit=limit,
+            one_per_company=one_per_company,
+            days=window,
+        )
+        if len(selected) >= limit:
+            break
+
     logger.info(
-        "headline_selection: pool=%d selected=%d", pool_size, len(selected)
+        "headline_selection: effective_days=%d pool=%d selected=%d/%d",
+        effective, last_pool_size, len(selected), limit,
     )
-    return selected, excluded_ids
+    return selected, excluded_ids, effective

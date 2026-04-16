@@ -25,18 +25,36 @@ def get_headlines_today(
     limit: int = Query(5, ge=1, le=20),
     one_per_company: bool = Query(True),
     days: int = Query(1, ge=1, le=7),
+    fallback_days: str = Query(
+        "1,3,7",
+        description=(
+            "limit 미달 시 확장할 lookback 후보 (콤마 구분). "
+            "최초 days 풀로 부족하면 다음 값으로 재선정. 빈 문자열이면 확장 없음."
+        ),
+    ),
     db: Session = Depends(get_db),
 ):
     """오늘의 핵심 헤드라인 Top N.
 
     1기업 1헤드라인 · MinHash 제목 중복 제거 · URL canonical 중복 제거.
+    pool이 limit에 미달하면 fallback_days 순서대로 lookback을 확장한다.
     excluded_ids 를 company-digest 호출 시 전달하여 교차 중복 방지.
     """
-    headlines, excluded_ids = select_top_headlines(
+    windows: list[int] = []
+    if fallback_days.strip():
+        for token in fallback_days.split(","):
+            token = token.strip()
+            if token.isdigit():
+                value = int(token)
+                if 1 <= value <= 30:
+                    windows.append(value)
+
+    headlines, excluded_ids, effective_days = select_top_headlines(
         db,
         limit=limit,
         one_per_company=one_per_company,
         days=days,
+        fallback_days=windows or None,
     )
 
     return {
@@ -47,6 +65,8 @@ def get_headlines_today(
         "meta": {
             "report_date": date.today().isoformat(),
             "pool_size": len(headlines),
+            "effective_days": effective_days,
+            "requested_days": days,
         },
     }
 

@@ -123,7 +123,9 @@ def test_select_top_by_importance(session: Session):
     _make_news(session, c, "고중요도", "https://a.com/2", 0.9)
     session.commit()
 
-    headlines, _ = select_top_headlines(session, limit=1, one_per_company=False, days=1)
+    headlines, _, _ = select_top_headlines(
+        session, limit=1, one_per_company=False, days=1, fallback_days=[1]
+    )
     assert len(headlines) == 1
     assert headlines[0]["title"] == "고중요도"
 
@@ -135,7 +137,9 @@ def test_one_per_company(session: Session):
     _make_news(session, c, "GSK 뉴스 2", "https://a.com/2", 0.8)
     session.commit()
 
-    headlines, _ = select_top_headlines(session, limit=5, one_per_company=True, days=1)
+    headlines, _, _ = select_top_headlines(
+        session, limit=5, one_per_company=True, days=1, fallback_days=[1]
+    )
     assert len(headlines) == 1
     assert headlines[0]["importance_score"] == 0.9
 
@@ -148,7 +152,9 @@ def test_multiple_companies(session: Session):
     _make_news(session, c2, "GSK 뉴스", "https://a.com/2", 0.8)
     session.commit()
 
-    headlines, excluded = select_top_headlines(session, limit=5, one_per_company=True, days=1)
+    headlines, excluded, _ = select_top_headlines(
+        session, limit=5, one_per_company=True, days=1, fallback_days=[1]
+    )
     assert len(headlines) == 2
     assert len(excluded) == 2
     company_names = {h["company_name"] for h in headlines}
@@ -163,7 +169,9 @@ def test_url_dedup(session: Session):
     _make_news(session, c2, "동일 기사", "https://a.com/news?utm_source=y", 0.8)
     session.commit()
 
-    headlines, _ = select_top_headlines(session, limit=5, one_per_company=True, days=1)
+    headlines, _, _ = select_top_headlines(
+        session, limit=5, one_per_company=True, days=1, fallback_days=[1]
+    )
     assert len(headlines) == 1
 
 
@@ -173,7 +181,9 @@ def test_excluded_ids_returned(session: Session):
     n = _make_news(session, c, "뉴스", "https://a.com/1", 0.9)
     session.commit()
 
-    _, excluded = select_top_headlines(session, limit=5, days=1)
+    _, excluded, _ = select_top_headlines(
+        session, limit=5, days=1, fallback_days=[1]
+    )
     assert n.id in excluded
 
 
@@ -187,12 +197,14 @@ def test_limit_respected(session: Session):
     _make_news(session, c3, "뉴스3", "https://a.com/3", 0.7)
     session.commit()
 
-    headlines, _ = select_top_headlines(session, limit=2, days=1)
+    headlines, _, _ = select_top_headlines(
+        session, limit=2, days=1, fallback_days=[1]
+    )
     assert len(headlines) == 2
 
 
 def test_old_articles_excluded(session: Session):
-    """days 범위 밖 기사 제외."""
+    """days 범위 밖 기사 제외 (fallback 비활성)."""
     c = _make_company(session, "a", "A사")
     _make_news(
         session, c, "오래된 뉴스", "https://a.com/1", 0.9,
@@ -200,7 +212,9 @@ def test_old_articles_excluded(session: Session):
     )
     session.commit()
 
-    headlines, _ = select_top_headlines(session, limit=5, days=1)
+    headlines, _, _ = select_top_headlines(
+        session, limit=5, days=1, fallback_days=[1]
+    )
     assert len(headlines) == 0
 
 
@@ -210,5 +224,56 @@ def test_importance_level_mapping(session: Session):
     _make_news(session, c, "고", "https://a.com/1", 0.85)
     session.commit()
 
-    headlines, _ = select_top_headlines(session, limit=1, one_per_company=False, days=1)
+    headlines, _, _ = select_top_headlines(
+        session, limit=1, one_per_company=False, days=1, fallback_days=[1]
+    )
     assert headlines[0]["importance_level"] == "고"
+
+
+def test_fallback_expands_when_pool_insufficient(session: Session):
+    """days=1 풀이 limit 미달 시 fallback_days로 lookback 확장."""
+    c1 = _make_company(session, "a", "A사")
+    c2 = _make_company(session, "b", "B사")
+    c3 = _make_company(session, "c", "C사")
+    # 오늘은 1건, 3일 이내 총 2건, 7일 이내 총 3건
+    _make_news(session, c1, "오늘 뉴스", "https://a.com/1", 0.9)
+    _make_news(
+        session, c2, "2일전 뉴스", "https://a.com/2", 0.8,
+        published_at=datetime.utcnow() - timedelta(days=2),
+    )
+    _make_news(
+        session, c3, "5일전 뉴스", "https://a.com/3", 0.7,
+        published_at=datetime.utcnow() - timedelta(days=5),
+    )
+    session.commit()
+
+    # limit=3, 1차=days=1(1건) → fallback 3일(2건) → fallback 7일(3건)
+    headlines, _, effective = select_top_headlines(
+        session, limit=3, days=1, fallback_days=[1, 3, 7]
+    )
+    assert len(headlines) == 3
+    assert effective == 7
+
+
+def test_fallback_stops_at_first_sufficient_window(session: Session):
+    """처음으로 limit 을 충족하는 window 에서 즉시 중단."""
+    c1 = _make_company(session, "a", "A사")
+    c2 = _make_company(session, "b", "B사")
+    # 오늘 2건 (limit=2 충족)
+    _make_news(session, c1, "오늘1", "https://a.com/1", 0.9)
+    _make_news(session, c2, "오늘2", "https://a.com/2", 0.8)
+    # 5일전 1건 (사용 안 됨)
+    _make_news(
+        session, _make_company(session, "c", "C사"),
+        "5일전", "https://a.com/3", 0.7,
+        published_at=datetime.utcnow() - timedelta(days=5),
+    )
+    session.commit()
+
+    headlines, _, effective = select_top_headlines(
+        session, limit=2, days=1, fallback_days=[1, 3, 7]
+    )
+    assert len(headlines) == 2
+    assert effective == 1  # days=1 에서 충족 → 확장 안함
+    titles = {h["title"] for h in headlines}
+    assert titles == {"오늘1", "오늘2"}
