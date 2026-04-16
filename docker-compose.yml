@@ -28,6 +28,9 @@ services:
       - DOWNLOAD_DIR=/app/downloads/papers
       - DEFAULT_MAX_RESULTS=20
       - SEARCH_TIMEOUT=30
+      # Drug ingest (MFDS / openFDA)
+      - MFDS_API_KEY=${MFDS_API_KEY:-}
+      - OPENFDA_API_KEY=${OPENFDA_API_KEY:-}
       # Scheduler
       - ENABLE_SCHEDULER=${ENABLE_SCHEDULER:-false}
       - CRAWL_HOUR=${CRAWL_HOUR:-7}
