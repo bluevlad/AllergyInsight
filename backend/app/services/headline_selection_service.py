@@ -61,11 +61,15 @@ def _select_within_window(
     limit: int,
     one_per_company: bool,
     days: int,
+    exclude_ids: set[int] | None = None,
 ) -> tuple[list[dict[str, Any]], set[int], int]:
-    """단일 lookback window 내에서 헤드라인 선정. 내부용."""
+    """단일 lookback window 내에서 헤드라인 선정. 내부용.
+
+    exclude_ids: 이미 최근에 발송된 기사 ID. 풀에서 원천 제외.
+    """
     since = utc_now() - timedelta(days=days)
 
-    pool = (
+    q = (
         session.query(CompetitorNews, CompetitorCompany)
         .join(CompetitorCompany, CompetitorNews.company_id == CompetitorCompany.id)
         .filter(
@@ -75,7 +79,11 @@ def _select_within_window(
             CompetitorNews.published_at >= since,
             CompetitorNews.importance_score.isnot(None),
         )
-        .order_by(CompetitorNews.importance_score.desc())
+    )
+    if exclude_ids:
+        q = q.filter(CompetitorNews.id.notin_(exclude_ids))
+    pool = (
+        q.order_by(CompetitorNews.importance_score.desc())
         .limit(500)
         .all()
     )
@@ -136,6 +144,7 @@ def select_top_headlines(
     one_per_company: bool = True,
     days: int = 1,
     fallback_days: list[int] | None = None,
+    exclude_ids: set[int] | None = None,
 ) -> tuple[list[dict[str, Any]], set[int], int]:
     """핵심 헤드라인 선정 (부족 시 lookback 자동 확장).
 
@@ -146,6 +155,8 @@ def select_top_headlines(
         days: 1차 lookback (오늘로부터 며칠).
         fallback_days: limit 미달 시 확장할 lookback 후보. None 이면
             [days, 3, 7] 을 사용(중복 제거 + 오름차순). days 보다 작은 값은 무시.
+        exclude_ids: 최근 발송 이력(NewsLetterPlatform sent_articles) 으로
+            원천 제외할 기사 ID. fallback 확장 중에도 동일하게 적용.
 
     Returns:
         (headlines_list, excluded_id_set, effective_days)
@@ -169,12 +180,14 @@ def select_top_headlines(
             limit=limit,
             one_per_company=one_per_company,
             days=window,
+            exclude_ids=exclude_ids,
         )
         if len(selected) >= limit:
             break
 
     logger.info(
-        "headline_selection: effective_days=%d pool=%d selected=%d/%d",
+        "headline_selection: effective_days=%d pool=%d selected=%d/%d exclude_ids=%d",
         effective, last_pool_size, len(selected), limit,
+        len(exclude_ids) if exclude_ids else 0,
     )
     return selected, excluded_ids, effective

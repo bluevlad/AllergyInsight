@@ -277,3 +277,50 @@ def test_fallback_stops_at_first_sufficient_window(session: Session):
     assert effective == 1  # days=1 에서 충족 → 확장 안함
     titles = {h["title"] for h in headlines}
     assert titles == {"오늘1", "오늘2"}
+
+
+def test_exclude_ids_filters_out_sent_articles(session: Session):
+    """exclude_ids 로 전달된 기사는 풀에서 원천 제외된다.
+
+    NewsLetterPlatform sent_articles(최근 N일) 을 넘겨 교차일 중복 발송 차단.
+    """
+    c1 = _make_company(session, "nova", "노바티스")
+    c2 = _make_company(session, "gsk", "GSK")
+    n1 = _make_news(session, c1, "어제 발송됨", "https://a.com/1", 0.95)
+    n2 = _make_news(session, c2, "오늘 신규", "https://a.com/2", 0.85)
+    session.commit()
+
+    # exclude 없이: 중요도 상위인 n1 이 선정됨
+    headlines, _, _ = select_top_headlines(
+        session, limit=1, one_per_company=False, days=1, fallback_days=[1]
+    )
+    assert [h["id"] for h in headlines] == [n1.id]
+
+    # exclude 하면: n2 가 선정됨
+    headlines_ex, _, _ = select_top_headlines(
+        session, limit=1, one_per_company=False, days=1,
+        fallback_days=[1], exclude_ids={n1.id},
+    )
+    assert [h["id"] for h in headlines_ex] == [n2.id]
+
+
+def test_exclude_ids_applied_across_fallback_windows(session: Session):
+    """fallback 확장 중에도 exclude_ids 는 계속 적용된다."""
+    c1 = _make_company(session, "nova", "노바티스")
+    c2 = _make_company(session, "gsk", "GSK")
+    # 오늘 1건(제외 대상)
+    n_today_excluded = _make_news(session, c1, "오늘 제외", "https://a.com/1", 0.9)
+    # 5일전 1건(살아남음)
+    n_old = _make_news(
+        session, c2, "5일전", "https://a.com/2", 0.7,
+        published_at=datetime.utcnow() - timedelta(days=5),
+    )
+    session.commit()
+
+    headlines, _, effective = select_top_headlines(
+        session, limit=1, one_per_company=False, days=1,
+        fallback_days=[1, 7], exclude_ids={n_today_excluded.id},
+    )
+    assert len(headlines) == 1
+    assert headlines[0]["id"] == n_old.id
+    assert effective == 7  # 1일 풀이 비어 7일로 확장됨
