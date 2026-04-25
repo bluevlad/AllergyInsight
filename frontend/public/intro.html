@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AllergyInsight - Allergy AI Portal</title>
+    <meta name="description" content="AllergyInsight - 논문 기반 RAG AI 상담부터 알러젠 인사이트, 월별 자동 리포트까지 알러지 관리의 전 과정을 통합 지원하는 4-서비스 게이트웨이 플랫폼">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/service-landing.css">
+    <style>
+        :root {
+            --service-color: #f43f5e;
+            --glow-r: 244; --glow-g: 63; --glow-b: 94;
+        }
+    </style>
+</head>
+<body>
+    <div class="sl-container">
+
+        <!-- Navigation -->
+        <nav class="sl-topnav">
+            <div class="sl-nav-links">
+                <a href="https://www.unmong.com/index.html" class="sl-nav-link"><span class="sl-nav-arrow">&#8593;</span> Portal</a>
+                <a href="https://www.unmong.com/architecture.html" class="sl-nav-link"><span class="sl-nav-arrow">&#8594;</span> Architecture</a>
+            </div>
+        </nav>
+
+        <!-- Hero -->
+        <section class="sl-hero">
+            <div class="sl-hero-status"><span class="dot"></span> Active</div>
+            <h1>AllergyInsight</h1>
+            <p class="tagline">Allergy AI Portal · 4-Service Gateway</p>
+            <p class="desc">논문 기반 RAG AI 상담과 알러젠 인사이트, 진단 레포트, 공개 분석 대시보드, 월별 자동 생성 리포트까지 — 의료진·환자·일반 사용자·운영자를 하나의 게이트웨이로 통합 지원하는 알러지 전문 플랫폼</p>
+            <div class="sl-hero-actions">
+                <a href="https://allergy.unmong.com/ai/consult" target="_blank" rel="noopener" class="sl-btn sl-btn-primary">AI 상담</a>
+                <a href="https://allergy.unmong.com/ai/insight" target="_blank" rel="noopener" class="sl-btn sl-btn-outline">AI 인사이트</a>
+                <a href="https://allergy.unmong.com/analytics" target="_blank" rel="noopener" class="sl-btn sl-btn-outline">분석 대시보드</a>
+                <a href="https://allergy.unmong.com/login" target="_blank" rel="noopener" class="sl-btn sl-btn-outline">로그인</a>
+                <a href="https://allergy.unmong.com/admin/login" target="_blank" rel="noopener" class="sl-btn sl-btn-outline">관리자</a>
+            </div>
+        </section>
+
+        <!-- Features -->
+        <section class="sl-section">
+            <div class="sl-section-title">Features</div>
+            <div class="sl-features">
+                <a class="sl-feature" href="https://allergy.unmong.com/ai/consult" target="_blank" rel="noopener">
+                    <span class="sl-feature-icon">&#129302;</span>
+                    <div class="sl-feature-name">AI 상담</div>
+                    <div class="sl-feature-desc">MLX EXAONE-3.5 + ChromaDB RAG 기반 논문 Q&amp;A (공개, 10회/분)</div>
+                    <span class="sl-feature-tag">Public · RAG</span>
+                </a>
+                <a class="sl-feature" href="https://allergy.unmong.com/ai/insight" target="_blank" rel="noopener">
+                    <span class="sl-feature-icon">&#128161;</span>
+                    <div class="sl-feature-name">AI 인사이트</div>
+                    <div class="sl-feature-desc">알러젠별 논문·뉴스·트렌드를 한 페이지에 집약한 공개 허브</div>
+                    <span class="sl-feature-tag">Public · Insight</span>
+                </a>
+                <a class="sl-feature" href="https://allergy.unmong.com/analytics" target="_blank" rel="noopener">
+                    <span class="sl-feature-icon">&#128200;</span>
+                    <div class="sl-feature-name">분석 대시보드</div>
+                    <div class="sl-feature-desc">종합 트렌드·알러젠 분석·논문 수집정보·알러젠뉴스 4개 공개 탭</div>
+                    <span class="sl-feature-tag">Public · Analytics</span>
+                </a>
+                <a class="sl-feature" href="https://allergy.unmong.com/analytics/insights" target="_blank" rel="noopener">
+                    <span class="sl-feature-icon">&#128221;</span>
+                    <div class="sl-feature-name">인사이트 리포트</div>
+                    <div class="sl-feature-desc">매월 1일 03:00 자동 생성되는 알러젠별 AI 마크다운 리포트</div>
+                    <span class="sl-feature-tag">Analytics · Auto</span>
+                </a>
+                <a class="sl-feature" href="https://allergy.unmong.com/report" target="_blank" rel="noopener">
+                    <span class="sl-feature-icon">&#128196;</span>
+                    <div class="sl-feature-name">알러지 리포트</div>
+                    <div class="sl-feature-desc">알러젠별 등급(0-6)과 환자 맞춤 관리 가이드를 한 번에 생성</div>
+                    <span class="sl-feature-tag">Public · Report</span>
+                </a>
+                <a class="sl-feature" href="https://allergy.unmong.com/subscribe" target="_blank" rel="noopener">
+                    <span class="sl-feature-icon">&#128236;</span>
+                    <div class="sl-feature-name">뉴스레터</div>
+                    <div class="sl-feature-desc">알러지 뉴스·논문·인사이트 주간 정기 구독 (이메일 인증)</div>
+                    <span class="sl-feature-tag">Public · Digest</span>
+                </a>
+                <a class="sl-feature" href="https://allergy.unmong.com/wiki/" target="_blank" rel="noopener">
+                    <span class="sl-feature-icon">&#128218;</span>
+                    <div class="sl-feature-name">Wiki</div>
+                    <div class="sl-feature-desc">아키텍처·API 명세·ADR·운영 가이드 MkDocs 문서</div>
+                    <span class="sl-feature-tag">Public · Docs</span>
+                </a>
+                <a class="sl-feature" href="https://allergy.unmong.com/pro" target="_blank" rel="noopener">
+                    <span class="sl-feature-icon">&#129722;</span>
+                    <div class="sl-feature-name">Professional</div>
+                    <div class="sl-feature-desc">의료진 전용 콘솔 — 환자 관리·진단 입력·임상보고서·논문 검색·Q&amp;A (7메뉴)</div>
+                    <span class="sl-feature-tag">Auth · Healthcare</span>
+                </a>
+                <a class="sl-feature" href="https://allergy.unmong.com/app" target="_blank" rel="noopener">
+                    <span class="sl-feature-icon">&#129485;</span>
+                    <div class="sl-feature-name">Consumer</div>
+                    <div class="sl-feature-desc">환자용 앱 — 내 검사결과·식품 가이드·생활 관리·응급 대처·키트 등록</div>
+                    <span class="sl-feature-tag">Auth · Patient</span>
+                </a>
+                <a class="sl-feature" href="https://allergy.unmong.com/admin/login" target="_blank" rel="noopener">
+                    <span class="sl-feature-icon">&#128272;</span>
+                    <div class="sl-feature-name">관리자</div>
+                    <div class="sl-feature-desc">사용자·알러젠·논문·조직·경쟁사 뉴스·구독자·약물 통합 운영 (super_admin)</div>
+                    <span class="sl-feature-tag">Auth · Admin</span>
+                </a>
+                <a class="sl-feature" href="https://allergy.unmong.com/admin/drugs" target="_blank" rel="noopener">
+                    <span class="sl-feature-icon">&#128138;</span>
+                    <div class="sl-feature-name">약물 관리</div>
+                    <div class="sl-feature-desc">[NEW] 공개 약물 DB(openFDA·MFDS) 수집 + 병태생리 지식 그래프 감수 — Phase 1</div>
+                    <span class="sl-feature-tag">Admin · Phase 1</span>
+                </a>
+            </div>
+        </section>
+
+        <!-- Architecture -->
+        <section class="sl-section sl-arch">
+            <div class="sl-section-title">Architecture</div>
+            <div class="sl-arch-diagram">
+                <div class="sl-arch-node">
+                    <div class="sl-arch-node-label">Frontend</div>
+                    <div class="sl-arch-node-tech">React + Vite<br><span style="opacity:.7;font-size:.85em;">4-Service Gateway</span></div>
+                </div>
+                <div class="sl-arch-arrow">&#8594;</div>
+                <div class="sl-arch-node highlight">
+                    <div class="sl-arch-node-label">Backend</div>
+                    <div class="sl-arch-node-tech">FastAPI<br><span style="opacity:.7;font-size:.85em;">+ APScheduler</span></div>
+                </div>
+                <div class="sl-arch-arrow">&#8594;</div>
+                <div class="sl-arch-node">
+                    <div class="sl-arch-node-label">Data Layer</div>
+                    <div class="sl-arch-node-tech">PostgreSQL 15<br><span style="opacity:.7;font-size:.85em;">+ ChromaDB</span></div>
+                </div>
+                <div class="sl-arch-arrow">&#8592;</div>
+                <div class="sl-arch-node">
+                    <div class="sl-arch-node-label">AI Engine</div>
+                    <div class="sl-arch-node-tech">MLX Server<br><span style="opacity:.7;font-size:.85em;">EXAONE-3.5 7.8B</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Flow -->
+        <section class="sl-section sl-flow">
+            <div class="sl-section-title">Service Flow</div>
+            <div class="sl-flow-steps">
+                <div class="sl-flow-step">
+                    <div class="sl-flow-step-num">1</div>
+                    <div class="sl-flow-step-label">수집</div>
+                    <div class="sl-flow-step-desc">PubMed · S2 · News API</div>
+                </div>
+                <div class="sl-flow-arrow">&#8594;</div>
+                <div class="sl-flow-step">
+                    <div class="sl-flow-step-num">2</div>
+                    <div class="sl-flow-step-label">AI 분석</div>
+                    <div class="sl-flow-step-desc">알러젠 태깅 · RAG 임베딩</div>
+                </div>
+                <div class="sl-flow-arrow">&#8594;</div>
+                <div class="sl-flow-step">
+                    <div class="sl-flow-step-num">3</div>
+                    <div class="sl-flow-step-label">인사이트 생성</div>
+                    <div class="sl-flow-step-desc">월별 자동 리포트 (AI)</div>
+                </div>
+                <div class="sl-flow-arrow">&#8594;</div>
+                <div class="sl-flow-step">
+                    <div class="sl-flow-step-num">4</div>
+                    <div class="sl-flow-step-label">사용자 제공</div>
+                    <div class="sl-flow-step-desc">상담 · 대시보드 · 뉴스레터</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tech Stack -->
+        <section class="sl-section sl-tech">
+            <div class="sl-section-title">Tech Stack</div>
+            <div class="sl-tech-list">
+                <span class="sl-tech-badge"><span class="sl-tech-dot" style="background:#61dafb;"></span> React 18 + Vite</span>
+                <span class="sl-tech-badge"><span class="sl-tech-dot" style="background:#009688;"></span> FastAPI</span>
+                <span class="sl-tech-badge"><span class="sl-tech-dot" style="background:#3776ab;"></span> Python 3.10+</span>
+                <span class="sl-tech-badge"><span class="sl-tech-dot" style="background:#336791;"></span> PostgreSQL 15</span>
+                <span class="sl-tech-badge"><span class="sl-tech-dot" style="background:#ff6f61;"></span> ChromaDB</span>
+                <span class="sl-tech-badge"><span class="sl-tech-dot" style="background:#d97706;"></span> MLX · EXAONE-3.5</span>
+                <span class="sl-tech-badge"><span class="sl-tech-dot" style="background:#10b981;"></span> APScheduler</span>
+                <span class="sl-tech-badge"><span class="sl-tech-dot" style="background:#eab308;"></span> Google OAuth · JWT</span>
+                <span class="sl-tech-badge"><span class="sl-tech-dot" style="background:#2496ed;"></span> Docker Compose</span>
+                <span class="sl-tech-badge"><span class="sl-tech-dot" style="background:#f97316;"></span> Nginx</span>
+                <span class="sl-tech-badge"><span class="sl-tech-dot" style="background:#526cfe;"></span> MkDocs</span>
+            </div>
+        </section>
+
+        <!-- Connected Services -->
+        <section class="sl-section sl-connected">
+            <div class="sl-section-title">Connected Services</div>
+            <div class="sl-connected-grid">
+                <a href="https://newsletter.unmong.com/intro.html" class="sl-connected-card">
+                    <span class="sl-connected-dot" style="background:#ec4899;"></span>
+                    <div class="sl-connected-info">
+                        <div class="sl-connected-name">NewsLetterPlatform</div>
+                        <div class="sl-connected-role">뉴스레터 발송 연동</div>
+                    </div>
+                    <span class="sl-connected-arrow">&#8594;</span>
+                </a>
+                <a href="https://infrawatcher.unmong.com/intro.html" class="sl-connected-card">
+                    <span class="sl-connected-dot" style="background:#06b6d4;"></span>
+                    <div class="sl-connected-info">
+                        <div class="sl-connected-name">InfraWatcher</div>
+                        <div class="sl-connected-role">컨테이너 모니터링</div>
+                    </div>
+                    <span class="sl-connected-arrow">&#8594;</span>
+                </a>
+                <a href="https://qadashboard.unmong.com/intro.html" class="sl-connected-card">
+                    <span class="sl-connected-dot" style="background:#8b5cf6;"></span>
+                    <div class="sl-connected-info">
+                        <div class="sl-connected-name">QA-Agent</div>
+                        <div class="sl-connected-role">품질 자동 테스트</div>
+                    </div>
+                    <span class="sl-connected-arrow">&#8594;</span>
+                </a>
+            </div>
+        </section>
+
+    </div>
+</body>
+</html>
