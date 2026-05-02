@@ -13,6 +13,11 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
+from ..data.allergen_prescription_db import (
+    PHASE1_ACTIVE_ALLERGENS,
+    get_phase1_active_list,
+    is_phase1_active,
+)
 from ..database.allergen_models import AllergenMaster
 from ..database.connection import get_db
 from ..models.prescription import (
@@ -58,6 +63,41 @@ async def list_grades():
     }
 
 
+@router.get("/allergens")
+async def list_active_allergens(db: Session = Depends(get_db)):
+    """Phase 1 활성 알러젠 목록 반환 (처방 데이터 보유 36종)
+
+    allergen_master 119종 중 식이/증상/교차반응 데이터가 채워진 알러젠만
+    노출한다. 각 항목은 마스터 테이블에서 한·영 정식 명칭을 보강해 반환.
+    """
+    seed_items = get_phase1_active_list()
+    seed_codes = [item["code"] for item in seed_items]
+
+    master_map: dict[str, AllergenMaster] = {
+        a.code: a
+        for a in db.query(AllergenMaster)
+        .filter(AllergenMaster.code.in_(seed_codes))
+        .all()
+    }
+
+    items = []
+    for seed in seed_items:
+        master = master_map.get(seed["code"])
+        items.append({
+            "code": seed["code"],
+            "name_kr": (master.name_kr if master else seed["name_kr"]),
+            "name_en": (master.name_en if master else seed["name_en"]),
+            "category": (master.category if master else seed["category"]),
+            "type": (master.type if master else seed["category"]),
+        })
+
+    return {
+        "items": items,
+        "total": len(items),
+        "disclaimer": _DISCLAIMER,
+    }
+
+
 @router.post("/match")
 @_limiter.limit("30/minute")
 async def match_allergen_grade(
@@ -80,6 +120,15 @@ async def match_allergen_grade(
         - disclaimer: 의료 면책 문구
         - citations: 논문 출처 (Phase 4에서 채움)
     """
+    if not is_phase1_active(body.allergen_code):
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"현재 매칭이 지원되지 않는 알러젠입니다: {body.allergen_code}. "
+                f"Phase 1 활성 알러젠({len(PHASE1_ACTIVE_ALLERGENS)}종)만 조회 가능합니다."
+            ),
+        )
+
     allergen = (
         db.query(AllergenMaster)
         .filter(AllergenMaster.code == body.allergen_code)
@@ -88,7 +137,7 @@ async def match_allergen_grade(
     if not allergen:
         raise HTTPException(
             status_code=404,
-            detail=f"알러젠을 찾을 수 없습니다: {body.allergen_code}",
+            detail=f"알러젠 마스터 정보를 찾을 수 없습니다: {body.allergen_code}",
         )
 
     grade = normalize_grade(body.grade)

@@ -29,7 +29,8 @@ const MastInputForm = ({ onSubmit, loading }) => {
     let cancelled = false;
     (async () => {
       try {
-        const data = await apiClient.get('/allergens/?limit=500');
+        // Phase 1 활성 알러젠(36종)만 노출. allergen_master 전체(119종)는 admin 전용.
+        const data = await apiClient.get('/public/mast/allergens');
         if (!cancelled) setAllergens(data.items ?? []);
       } catch (err) {
         if (!cancelled) setAllergensError('알러젠 목록을 불러오지 못했습니다.');

@@ -45,6 +45,7 @@ from ..auth.config import auth_settings
 from ..database.connection import engine, init_db, get_db, SessionLocal
 from ..database.seed_users import seed_users
 from ..database.seed_allergens import seed_allergens
+from ..database.normalize_grades import normalize_legacy_grades
 from ..config import settings
 from ..database.models import User
 from ..core.auth import require_auth
@@ -895,6 +896,15 @@ async def startup_event():
     init_db()
     seed_users()  # 테스트 사용자 시딩
     seed_allergens()  # 알러젠 마스터 데이터 시딩
+
+    # Phase 1: 레거시 grade 5/6 → 4 정규화 (idempotent)
+    _db = SessionLocal()
+    try:
+        normalize_legacy_grades(_db)
+    except Exception as e:
+        logging.getLogger(__name__).warning("grade 정규화 실패 (무시): %s", e)
+    finally:
+        _db.close()
 
     # 스케줄러 초기화 (ENABLE_SCHEDULER=true일 때만)
     if os.getenv("ENABLE_SCHEDULER", "false").lower() == "true":
