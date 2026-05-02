@@ -348,16 +348,14 @@ async def get_patient_guide(
 
         allergen_name = ALLERGEN_NAMES_KR.get(allergen_code, allergen_code)
 
-        # Determine severity grade range
-        if grade >= 5:
-            grade_range = "5-6"
+        # Determine severity grade range (MAST Class 0~4)
+        if grade >= 4:
+            grade_range = "3-4"
             risk_level = "high_risk"
             emergency_medical["has_severe_allergy"] = True
         elif grade >= 3:
             grade_range = "3-4"
-            risk_level = "moderate_risk" if grade == 3 else "high_risk"
-            if grade >= 4:
-                emergency_medical["has_severe_allergy"] = True
+            risk_level = "moderate_risk"
         else:
             grade_range = "1-2"
             risk_level = "low_risk" if grade == 1 else "moderate_risk"

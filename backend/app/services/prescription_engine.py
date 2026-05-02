@@ -61,9 +61,9 @@ class PrescriptionEngine:
         # 양성 항원만 필터링
         positive_results = [r for r in parsed_results if r.is_positive]
 
-        # 요약 정보 계산
+        # 요약 정보 계산 (MAST Class 0~4 기준)
         highest_grade = max((r.grade for r in parsed_results), default=0)
-        critical_allergens = [r.allergen_kr for r in positive_results if r.grade >= 5]
+        critical_allergens = [r.allergen_kr for r in positive_results if r.grade >= 4]
         risk_level = self._calculate_risk_level(highest_grade, len(positive_results))
 
         # 처방 권고 생성
@@ -142,12 +142,18 @@ class PrescriptionEngine:
         return parsed
 
     def _calculate_risk_level(self, highest_grade: int, positive_count: int) -> RiskLevel:
-        """위험도 수준 계산"""
-        if highest_grade >= 6 or (highest_grade >= 5 and positive_count >= 3):
+        """위험도 수준 계산 (MAST Class 0~4 기준)
+
+        Class 4 (Very Strong) → CRITICAL (아나필락시스 위험)
+        Class 3 (Strong) → HIGH, 다중 양성 시 가중
+        Class 2 (Moderate) → MODERATE
+        Class 1 (Weak) → LOW
+        """
+        if highest_grade >= 4:
             return RiskLevel.CRITICAL
-        elif highest_grade >= 5 or (highest_grade >= 4 and positive_count >= 3):
+        elif highest_grade >= 3 or (highest_grade >= 2 and positive_count >= 3):
             return RiskLevel.HIGH
-        elif highest_grade >= 3 or positive_count >= 2:
+        elif highest_grade >= 2 or positive_count >= 2:
             return RiskLevel.MODERATE
         elif highest_grade >= 1:
             return RiskLevel.LOW
@@ -208,13 +214,12 @@ class PrescriptionEngine:
 
         symptoms_data = allergen_info.get("symptoms_by_grade", {})
 
-        # 등급 범위 결정
+        # MAST Class 0~4 → 시드 데이터 키 매핑
+        # Class 1~2 → "1-2", Class 3~4 → "3-4" (시드의 "5-6" 키는 deprecate, 차후 PR-4에서 정리)
         if result.grade <= 2:
             grade_key = "1-2"
-        elif result.grade <= 4:
-            grade_key = "3-4"
         else:
-            grade_key = "5-6"
+            grade_key = "3-4"
 
         grade_symptoms = symptoms_data.get(grade_key, {})
         symptom_list = grade_symptoms.get("symptoms", [])
@@ -327,11 +332,11 @@ class PrescriptionEngine:
             epinephrine_recommended = False
             follow_up_period = "12개월"
 
-        # 추가 검사 권고
+        # 추가 검사 권고 (MAST Class 0~4 기준)
         additional_tests = []
-        if highest_grade >= 3:
+        if highest_grade >= 2:
             additional_tests.append("피부단자검사 (Skin Prick Test)")
-        if highest_grade >= 4:
+        if highest_grade >= 3:
             additional_tests.append("경구유발검사 (Oral Food Challenge) - 전문의 판단 하에")
         if positive_count >= 3:
             additional_tests.append("알러지 성분 검사 (Component-resolved diagnostics)")
@@ -340,7 +345,7 @@ class PrescriptionEngine:
         notes = []
         if epinephrine_recommended:
             notes.append("에피네프린 자가주사기(에피펜) 처방 및 사용법 교육 필요")
-        if highest_grade >= 5:
+        if highest_grade >= 4:
             notes.append("응급상황 대비 행동 계획 수립 권장")
             notes.append("학교/직장에 알러지 정보 공유 권장")
         if positive_count >= 2:

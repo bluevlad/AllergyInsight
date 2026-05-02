@@ -13,23 +13,20 @@ from ..core.allergen import (
 
 
 def _grade_to_severity(grade: int) -> str:
-    """등급을 심각도로 변환"""
+    """MAST Class 0~4 → 심각도"""
     if grade <= 2:
         return "mild"
-    elif grade <= 4:
+    elif grade == 3:
         return "moderate"
-    else:
+    else:  # grade >= 4
         return "severe"
 
 
 def _grade_to_range_key(grade: int) -> str:
-    """등급을 symptoms_by_grade 키로 변환"""
+    """MAST Class 0~4 → symptoms_by_grade 키"""
     if grade <= 2:
         return "1-2"
-    elif grade <= 4:
-        return "3-4"
-    else:
-        return "5-6"
+    return "3-4"
 
 
 SEVERITY_LABELS = {
@@ -206,9 +203,9 @@ def generate_report(allergens: list[dict], name: str | None = None) -> dict:
             "symptoms": grade_data.get("symptoms", []),
         })
 
-    # 응급 정보 - 최대 심각도에 따라 관련 가이드라인 선택
+    # 응급 정보 - 최대 심각도에 따라 관련 가이드라인 선택 (MAST Class 0~4)
     emergency = {}
-    if max_grade >= 5:
+    if max_grade >= 4:
         emergency = {
             "level": "severe",
             "primary": EMERGENCY_GUIDELINES.get("anaphylaxis", {}),

@@ -84,9 +84,9 @@ class AnalyticsService:
             positive_rate = positive_count / total_tests if total_tests > 0 else 0.0
             avg_grade = sum(grades) / total_tests if total_tests > 0 else 0.0
 
-            # 등급 분포
+            # 등급 분포 (MAST Class 0~4)
             grade_dist = {}
-            for g in range(7):  # 0-6
+            for g in range(5):  # 0~4
                 grade_dist[str(g)] = sum(1 for x in grades if x == g)
 
             # 동반 양성 Top 5

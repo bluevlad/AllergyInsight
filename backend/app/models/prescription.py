@@ -9,14 +9,44 @@ from typing import Optional
 from enum import Enum
 
 
+__all__ = [
+    "RestrictionLevel",
+    "RiskLevel",
+    "AllergenCategory",
+    "DiagnosisResult",
+    "FoodSubstitute",
+    "FoodRestriction",
+    "CrossReactivityAlert",
+    "SymptomPrediction",
+    "EmergencyGuideline",
+    "MedicalRecommendation",
+    "AllergyPrescription",
+    "GRADE_DESCRIPTIONS",
+    "MAST_MIN_GRADE",
+    "MAST_MAX_GRADE",
+    "normalize_grade",
+]
+
+
 class RestrictionLevel(str, Enum):
-    """섭취 제한 수준"""
-    NONE = "none"           # 제한 없음 (등급 0)
-    MONITOR = "monitor"     # 모니터링 (등급 1)
-    CAUTION = "caution"     # 주의 (등급 2)
-    LIMIT = "limit"         # 제한 (등급 3)
-    AVOID = "avoid"         # 회피 (등급 4)
-    STRICT_AVOID = "strict_avoid"  # 완전 회피 (등급 5-6)
+    """섭취 제한 수준 (MAST Class 0~4 기준)"""
+    NONE = "none"           # 제한 없음 (Class 0, 음성)
+    MONITOR = "monitor"     # 모니터링 (Class 1, 약양성)
+    CAUTION = "caution"     # 주의 (Class 2, 중등도)
+    LIMIT = "limit"         # 제한 (Class 3, 강양성)
+    STRICT_AVOID = "strict_avoid"  # 완전 회피 (Class 4, 매우 강양성)
+
+
+# MAST 등급 범위 상수
+MAST_MIN_GRADE = 0
+MAST_MAX_GRADE = 4
+
+
+def normalize_grade(grade: int) -> int:
+    """MAST 0~4 범위로 정규화. 기존 0~6 데이터의 5/6은 4로, 음수는 0으로 클램프."""
+    if grade is None:
+        return 0
+    return max(MAST_MIN_GRADE, min(int(grade), MAST_MAX_GRADE))
 
 
 class RiskLevel(str, Enum):
@@ -36,11 +66,15 @@ class AllergenCategory(str, Enum):
 
 @dataclass
 class DiagnosisResult:
-    """개별 항원 진단 결과"""
+    """개별 항원 진단 결과 (MAST Class 0~4)"""
     allergen: str           # 항원 코드 (예: "peanut")
     allergen_kr: str        # 항원 한글명 (예: "땅콩")
-    grade: int              # 등급 (0-6)
+    grade: int              # MAST 등급 (0~4)
     category: AllergenCategory
+
+    def __post_init__(self):
+        # 기존 0~6 데이터 호환: 5/6은 4로, 음수는 0으로 정규화
+        self.grade = normalize_grade(self.grade)
 
     @property
     def is_positive(self) -> bool:
@@ -49,19 +83,8 @@ class DiagnosisResult:
 
     @property
     def restriction_level(self) -> RestrictionLevel:
-        """등급별 제한 수준"""
-        if self.grade == 0:
-            return RestrictionLevel.NONE
-        elif self.grade == 1:
-            return RestrictionLevel.MONITOR
-        elif self.grade == 2:
-            return RestrictionLevel.CAUTION
-        elif self.grade == 3:
-            return RestrictionLevel.LIMIT
-        elif self.grade == 4:
-            return RestrictionLevel.AVOID
-        else:  # 5-6
-            return RestrictionLevel.STRICT_AVOID
+        """등급별 제한 수준 (MAST Class 0~4)"""
+        return _GRADE_TO_RESTRICTION[self.grade]
 
     def to_dict(self) -> dict:
         return {
@@ -265,48 +288,51 @@ class AllergyPrescription:
         }
 
 
-# 등급별 제한 수준 설명
+# MAST Class 0~4 등급별 설명 (한·영 병기)
 GRADE_DESCRIPTIONS = {
     0: {
         "level": "음성",
-        "description": "알러지 반응 없음",
+        "level_en": "Class 0",
+        "description": "알러지 반응 없음 (Negative)",
         "action": "제한 없이 섭취 가능",
         "color": "green",
     },
     1: {
         "level": "약양성",
-        "description": "매우 약한 반응",
+        "level_en": "Class 1",
+        "description": "약한 반응 (Weak Positive)",
         "action": "섭취 후 증상 관찰 권장",
-        "color": "lightgreen",
-    },
-    2: {
-        "level": "양성",
-        "description": "약한 반응",
-        "action": "소량 섭취 시 주의 관찰",
         "color": "yellow",
     },
-    3: {
-        "level": "양성",
-        "description": "중등도 반응",
-        "action": "섭취 제한 권고",
+    2: {
+        "level": "중등도 양성",
+        "level_en": "Class 2",
+        "description": "중등도 반응 (Moderate Positive)",
+        "action": "섭취 시 주의 관찰",
         "color": "orange",
     },
-    4: {
+    3: {
         "level": "강양성",
-        "description": "강한 반응",
-        "action": "섭취 회피 권고",
+        "level_en": "Class 3",
+        "description": "강한 반응 (Strong Positive)",
+        "action": "섭취 제한 권고",
         "color": "orangered",
     },
-    5: {
-        "level": "강양성",
-        "description": "매우 강한 반응",
-        "action": "완전 회피 필수",
-        "color": "red",
-    },
-    6: {
-        "level": "최강양성",
-        "description": "극심한 반응, 아나필락시스 위험",
-        "action": "완전 회피 + 응급약 휴대 필수",
+    4: {
+        "level": "매우 강양성",
+        "level_en": "Class 4",
+        "description": "매우 강한 반응 (Very Strong Positive), 아나필락시스 위험",
+        "action": "완전 회피 + 응급약 휴대 권고",
         "color": "darkred",
     },
+}
+
+
+# MAST 등급 → RestrictionLevel 매핑 (DiagnosisResult.restriction_level에서 사용)
+_GRADE_TO_RESTRICTION = {
+    0: RestrictionLevel.NONE,
+    1: RestrictionLevel.MONITOR,
+    2: RestrictionLevel.CAUTION,
+    3: RestrictionLevel.LIMIT,
+    4: RestrictionLevel.STRICT_AVOID,
 }

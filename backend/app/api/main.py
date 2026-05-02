@@ -86,6 +86,9 @@ from .ai_consult_routes import router as ai_consult_router
 from .ai_insight_routes import router as ai_insight_router
 from .clinicaltrials_routes import router as clinicaltrials_router
 
+# Public: MAST 등급 매칭 (Phase 1, no auth required)
+from .public_mast_routes import router as public_mast_router
+
 # 보안 로깅 설정
 security_logger = logging.getLogger("security")
 security_logger.setLevel(logging.INFO)
@@ -153,6 +156,9 @@ app.include_router(report_router, prefix="/api", tags=["Report"])
 app.include_router(ai_consult_router, prefix="/api", tags=["AI Consult"])
 app.include_router(ai_insight_router, prefix="/api", tags=["AI Insight"])
 app.include_router(clinicaltrials_router, prefix="/api", tags=["Clinical Trials"])
+
+# Include public MAST router (Phase 1, no auth required)
+app.include_router(public_mast_router, prefix="/api", tags=["Public MAST"])
 
 # 서비스 인스턴스 (lru_cache DI 패턴)
 @lru_cache(maxsize=1)
@@ -241,7 +247,7 @@ class CollectionStats(BaseModel):
 class DiagnosisResultItem(BaseModel):
     """개별 진단 결과 항목"""
     allergen: str = Field(..., description="알러젠 코드 (예: peanut)")
-    grade: int = Field(..., ge=0, le=6, description="검사 등급 (0-6)")
+    grade: int = Field(..., ge=0, le=4, description="MAST 검사 등급 (Class 0~4)")
 
 
 class DiagnosisRequest(BaseModel):
@@ -661,14 +667,15 @@ async def get_sgti_info():
             "total": 16,
         },
         "grade_system": {
-            "range": "0-6",
+            "range": "0-4",
+            "standard": "MAST (Multiple Allergen Simultaneous Test)",
             "grades": GRADE_DESCRIPTIONS,
         },
         "usage_guide": [
             "1. 검체(혈액) 채취",
             "2. 검사 키트에 검체 적용",
             "3. 지정된 시간 대기",
-            "4. 결과 판독 (등급 0-6)",
+            "4. 결과 판독 (Class 0~4)",
             "5. AllergyInsight에 결과 입력",
         ],
     }
@@ -676,7 +683,7 @@ async def get_sgti_info():
 
 @app.get("/api/sgti/grades")
 async def get_grade_info():
-    """등급별 설명 정보"""
+    """등급별 설명 정보 (MAST Class 0~4)"""
     return {
         "grades": GRADE_DESCRIPTIONS,
         "restriction_levels": {
@@ -684,9 +691,7 @@ async def get_grade_info():
             1: {"level": "monitor", "description": "모니터링"},
             2: {"level": "caution", "description": "주의"},
             3: {"level": "limit", "description": "제한"},
-            4: {"level": "avoid", "description": "회피"},
-            5: {"level": "strict_avoid", "description": "완전 회피"},
-            6: {"level": "strict_avoid", "description": "완전 회피 + 응급약 휴대"},
+            4: {"level": "strict_avoid", "description": "완전 회피 + 응급약 휴대"},
         },
     }
 

@@ -24,7 +24,7 @@ router = APIRouter(prefix="/diagnosis", tags=["Professional - Diagnosis"])
 class DiagnosisCreateRequest(BaseModel):
     """진단 결과 입력 요청"""
     patient_user_id: int = Field(..., description="환자 사용자 ID")
-    results: Dict[str, int] = Field(..., description="알러젠별 등급 (0-6)")
+    results: Dict[str, int] = Field(..., description="알러젠별 MAST 등급 (Class 0~4)")
     diagnosis_date: date = Field(default_factory=date.today, description="진단 날짜")
     doctor_note: Optional[str] = Field(None, description="의사 소견")
     kit_serial: Optional[str] = Field(None, description="진단 키트 시리얼 번호")
@@ -157,12 +157,12 @@ async def create_diagnosis(
             detail="환자를 찾을 수 없습니다"
         )
 
-    # 결과 값 검증 (0-6)
+    # 결과 값 검증 (MAST Class 0~4)
     for allergen, grade in data.results.items():
-        if not isinstance(grade, int) or grade < 0 or grade > 6:
+        if not isinstance(grade, int) or grade < 0 or grade > 4:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"잘못된 등급 값: {allergen}={grade} (0-6 범위)"
+                detail=f"잘못된 등급 값: {allergen}={grade} (MAST Class 0~4 범위)"
             )
 
     # 처방 정보 자동 생성
@@ -276,10 +276,10 @@ async def update_diagnosis(
     # 결과 수정
     if data.results is not None:
         for allergen, grade in data.results.items():
-            if not isinstance(grade, int) or grade < 0 or grade > 6:
+            if not isinstance(grade, int) or grade < 0 or grade > 4:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"잘못된 등급 값: {allergen}={grade} (0-6 범위)"
+                    detail=f"잘못된 등급 값: {allergen}={grade} (MAST Class 0~4 범위)"
                 )
         diagnosis.results = data.results
         diagnosis.prescription = generate_prescription(data.results)

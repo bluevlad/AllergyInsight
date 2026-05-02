@@ -33,6 +33,9 @@ import AllergyReportPage from './pages/report/AllergyReportPage';
 import AIConsultPage from './pages/ai-consult/AIConsultPage';
 import AIInsightPage from './pages/ai-insight/AIInsightPage';
 
+// Public MAST Page (Phase 1)
+import MastPage from './pages/mast/MastPage';
+
 // Gateway Landing
 import GatewayLanding from './pages/gateway-landing/GatewayLanding';
 
@@ -161,6 +164,9 @@ const AppRouter = () => {
       {/* Public AI Portal Routes (no auth required) */}
       <Route path="/ai/consult" element={<AIConsultPage />} />
       <Route path="/ai/insight" element={<AIInsightPage />} />
+
+      {/* Public MAST Route (Phase 1, no auth required) */}
+      <Route path="/mast" element={<MastPage />} />
 
       {/* Admin App (/admin/*) - 자체 관리자 로그인 폼 포함 */}
       <Route path="/admin/*" element={<AdminApp />} />
