@@ -7,6 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../shared/services/apiClient';
+import EmergencyAlert from '../../shared/components/EmergencyAlert';
 
 const CATEGORY_ICONS = {
   symptoms: '🩺',
@@ -231,6 +232,11 @@ function AIConsultPage() {
             <div className="spinner" />
             <p style={{ color: '#666', marginTop: '1rem' }}>논문을 검색하고 답변을 생성하고 있습니다...</p>
           </div>
+        )}
+
+        {/* 응급 / 주의 알림 (safety_gate 결과) */}
+        {answer && !loading && answer.safety && (
+          <EmergencyAlert safety={answer.safety} />
         )}
 
         {/* 답변 */}

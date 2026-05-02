@@ -11,10 +11,27 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from ..data.allergen_prescription_db import get_allergen_list
+from ..services.safety_gate import assess as safety_assess
 
 limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/ai/consult", tags=["AI Consult"])
+
+
+def _emergency_response(question: str, safety) -> dict:
+    """응급 감지 시 LLM/RAG 호출을 건너뛰고 즉시 119 안내 응답을 반환."""
+    return {
+        "success": True,
+        "question": question,
+        "answer": safety.message(),
+        "confidence": 1.0,
+        "sources": [],
+        "source_count": 0,
+        "citations": [],
+        "citation_count": 0,
+        "engine": "safety_gate",
+        "safety": safety.to_dict(),
+    }
 
 
 class ConsultRequest(BaseModel):
@@ -47,7 +64,14 @@ async def ask_question(request: Request, body: ConsultRequest):
 
     RAG(시맨틱 검색 + LLM) 엔진을 우선 사용하고,
     RAG 미가용 시 키워드 기반 Q&A 엔진으로 자동 전환합니다.
+
+    응급 키워드 감지 시 LLM/RAG 호출 없이 즉시 119 안내로 대체합니다.
     """
+    # 0) 응급 감지 — 응급 시 본 답변 차단 후 119 안내로 즉시 응답
+    safety = safety_assess(body.question)
+    if safety.is_emergency:
+        return _emergency_response(body.question, safety)
+
     # 1) RAG 엔진 시도
     from ..services.rag_service import get_rag_service
 
@@ -67,6 +91,7 @@ async def ask_question(request: Request, body: ConsultRequest):
                 "sources": result["sources"],
                 "source_count": len(result["sources"]),
                 "engine": "rag",
+                "safety": safety.to_dict(),
             }
 
     # 2) Fallback: 키워드 기반 Q&A 엔진
@@ -90,6 +115,7 @@ async def ask_question(request: Request, body: ConsultRequest):
         "related_symptoms": [s.to_dict() for s in response.related_symptoms],
         "warnings": response.warnings,
         "engine": "keyword",
+        "safety": safety.to_dict(),
     }
 
 
@@ -126,7 +152,13 @@ async def ask_question_rag(request: Request, body: ConsultRequest):
 
     ChromaDB 벡터 검색 + LLM으로 논문 기반 답변을 생성합니다.
     기존 /ask 대비 시맨틱 검색으로 더 정확한 논문 매칭을 제공합니다.
+
+    응급 키워드 감지 시 RAG 호출 없이 즉시 119 안내로 대체합니다.
     """
+    safety = safety_assess(body.question)
+    if safety.is_emergency:
+        return _emergency_response(body.question, safety)
+
     from ..services.rag_service import get_rag_service
 
     rag = get_rag_service()
@@ -148,6 +180,7 @@ async def ask_question_rag(request: Request, body: ConsultRequest):
         "sources": result["sources"],
         "source_count": len(result["sources"]),
         "engine": "rag",
+        "safety": safety.to_dict(),
     }
 
 
