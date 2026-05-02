@@ -42,6 +42,9 @@ import SymptomMatchPage from './pages/symptoms/SymptomMatchPage';
 // Public Drug Info Page (Phase 3)
 import DrugInfoPage from './pages/drugs/DrugInfoPage';
 
+// Public Clinical Image Gallery Page (Phase 4)
+import ClinicalImageGalleryPage from './pages/images/ClinicalImageGalleryPage';
+
 // Gateway Landing
 import GatewayLanding from './pages/gateway-landing/GatewayLanding';
 
@@ -179,6 +182,9 @@ const AppRouter = () => {
 
       {/* Public Drug Info Route (Phase 3, no auth required) */}
       <Route path="/drugs" element={<DrugInfoPage />} />
+
+      {/* Public Clinical Image Gallery (Phase 4, no auth required) */}
+      <Route path="/images" element={<ClinicalImageGalleryPage />} />
 
       {/* Admin App (/admin/*) - 자체 관리자 로그인 폼 포함 */}
       <Route path="/admin/*" element={<AdminApp />} />

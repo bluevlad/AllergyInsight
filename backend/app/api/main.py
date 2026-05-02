@@ -96,6 +96,9 @@ from .public_symptom_routes import router as public_symptom_router
 # Public: 약물 성분 정보 (Phase 3, no auth required)
 from .public_drug_routes import router as public_drug_router
 
+# Public: 임상 이미지 갤러리 (Phase 4, no auth required)
+from .public_clinical_image_routes import router as public_clinical_image_router
+
 # 보안 로깅 설정
 security_logger = logging.getLogger("security")
 security_logger.setLevel(logging.INFO)
@@ -172,6 +175,9 @@ app.include_router(public_symptom_router, prefix="/api", tags=["Public Symptom M
 
 # Include public drug ingredient router (Phase 3, no auth required)
 app.include_router(public_drug_router, prefix="/api", tags=["Public Drugs"])
+
+# Include public clinical image gallery router (Phase 4, no auth required)
+app.include_router(public_clinical_image_router, prefix="/api", tags=["Public Clinical Images"])
 
 # 서비스 인스턴스 (lru_cache DI 패턴)
 @lru_cache(maxsize=1)
