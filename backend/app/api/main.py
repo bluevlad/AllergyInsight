@@ -90,6 +90,9 @@ from .clinicaltrials_routes import router as clinicaltrials_router
 # Public: MAST 등급 매칭 (Phase 1, no auth required)
 from .public_mast_routes import router as public_mast_router
 
+# Public: 증상 → 알러젠 매칭 (Phase 2, no auth required)
+from .public_symptom_routes import router as public_symptom_router
+
 # 보안 로깅 설정
 security_logger = logging.getLogger("security")
 security_logger.setLevel(logging.INFO)
@@ -160,6 +163,9 @@ app.include_router(clinicaltrials_router, prefix="/api", tags=["Clinical Trials"
 
 # Include public MAST router (Phase 1, no auth required)
 app.include_router(public_mast_router, prefix="/api", tags=["Public MAST"])
+
+# Include public symptom matcher router (Phase 2, no auth required)
+app.include_router(public_symptom_router, prefix="/api", tags=["Public Symptom Match"])
 
 # 서비스 인스턴스 (lru_cache DI 패턴)
 @lru_cache(maxsize=1)

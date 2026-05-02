@@ -36,6 +36,9 @@ import AIInsightPage from './pages/ai-insight/AIInsightPage';
 // Public MAST Page (Phase 1)
 import MastPage from './pages/mast/MastPage';
 
+// Public Symptom Match Page (Phase 2)
+import SymptomMatchPage from './pages/symptoms/SymptomMatchPage';
+
 // Gateway Landing
 import GatewayLanding from './pages/gateway-landing/GatewayLanding';
 
@@ -167,6 +170,9 @@ const AppRouter = () => {
 
       {/* Public MAST Route (Phase 1, no auth required) */}
       <Route path="/mast" element={<MastPage />} />
+
+      {/* Public Symptom Match Route (Phase 2, no auth required) */}
+      <Route path="/symptoms" element={<SymptomMatchPage />} />
 
       {/* Admin App (/admin/*) - 자체 관리자 로그인 폼 포함 */}
       <Route path="/admin/*" element={<AdminApp />} />
