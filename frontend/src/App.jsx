@@ -39,6 +39,9 @@ import MastPage from './pages/mast/MastPage';
 // Public Symptom Match Page (Phase 2)
 import SymptomMatchPage from './pages/symptoms/SymptomMatchPage';
 
+// Public Drug Info Page (Phase 3)
+import DrugInfoPage from './pages/drugs/DrugInfoPage';
+
 // Gateway Landing
 import GatewayLanding from './pages/gateway-landing/GatewayLanding';
 
@@ -173,6 +176,9 @@ const AppRouter = () => {
 
       {/* Public Symptom Match Route (Phase 2, no auth required) */}
       <Route path="/symptoms" element={<SymptomMatchPage />} />
+
+      {/* Public Drug Info Route (Phase 3, no auth required) */}
+      <Route path="/drugs" element={<DrugInfoPage />} />
 
       {/* Admin App (/admin/*) - 자체 관리자 로그인 폼 포함 */}
       <Route path="/admin/*" element={<AdminApp />} />
