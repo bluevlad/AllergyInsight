@@ -10,6 +10,11 @@ import MedicalDisclaimer from '../../shared/components/MedicalDisclaimer';
 import MastInputForm from './MastInputForm';
 import MastResultView from './MastResultView';
 
+const footerLinkStyle = {
+  color: '#1976d2',
+  textDecoration: 'none',
+};
+
 const MastPage = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -105,9 +110,17 @@ const MastPage = () => {
           fontSize: '0.85rem',
         }}
       >
-        <a href="/" style={{ color: '#1976d2', textDecoration: 'none' }}>
-          AllergyInsight 홈으로
-        </a>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          <a href="/help/mast-guide.html" target="_blank" rel="noopener" style={footerLinkStyle}>
+            사용 가이드
+          </a>
+          <span style={{ color: '#ddd' }}>·</span>
+          <a href="/help/medical-disclaimer.html" target="_blank" rel="noopener" style={footerLinkStyle}>
+            의료 정보 면책 안내
+          </a>
+          <span style={{ color: '#ddd' }}>·</span>
+          <a href="/" style={footerLinkStyle}>AllergyInsight 홈으로</a>
+        </div>
       </footer>
     </div>
   );

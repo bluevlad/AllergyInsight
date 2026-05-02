@@ -40,13 +40,26 @@ const STYLES = {
   },
 };
 
-const MedicalDisclaimer = ({ variant = 'banner', message }) => {
+const MedicalDisclaimer = ({ variant = 'banner', message, showDetailLink = variant === 'banner' }) => {
   const text = message ?? MESSAGES[variant] ?? MESSAGES.banner;
   const style = STYLES[variant] ?? STYLES.banner;
 
   return (
     <div style={style} role="note">
       {variant === 'banner' && '⚠️ '}{text}
+      {showDetailLink && (
+        <>
+          {' '}
+          <a
+            href="/help/medical-disclaimer.html"
+            target="_blank"
+            rel="noopener"
+            style={{ color: '#1976d2', textDecoration: 'underline', fontWeight: 500 }}
+          >
+            자세히
+          </a>
+        </>
+      )}
     </div>
   );
 };
