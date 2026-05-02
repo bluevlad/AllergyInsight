@@ -48,6 +48,7 @@ from ..database.seed_allergens import seed_allergens
 from ..config import settings
 from ..database.models import User
 from ..core.auth import require_auth
+from ..core.feature_flags import LEGACY_MODULES_ENABLED
 
 # Phase 1: Organization imports
 from ..organization.routes import router as organization_router
@@ -122,7 +123,8 @@ app.add_middleware(ActivityLoggerMiddleware)
 app.include_router(auth_router, prefix="/api")
 app.include_router(diagnosis_router, prefix="/api")
 app.include_router(paper_router, prefix="/api")
-app.include_router(organization_router, prefix="/api")
+if LEGACY_MODULES_ENABLED:
+    app.include_router(organization_router, prefix="/api")
 app.include_router(hospital_router, prefix="/api")
 
 # Include service routers (Bifurcated)

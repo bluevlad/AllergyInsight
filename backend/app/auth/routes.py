@@ -12,6 +12,7 @@ security_logger = logging.getLogger("security")
 
 from ..database.connection import get_db
 from ..database.models import User, DiagnosisKit, UserDiagnosis
+from ..core.feature_flags import LEGACY_MODULES_ENABLED
 from .config import auth_settings
 from .jwt_handler import create_access_token
 from .dependencies import require_auth
@@ -24,6 +25,14 @@ from .schemas import (
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+def _require_legacy() -> None:
+    if not LEGACY_MODULES_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="이 기능은 더 이상 제공되지 않습니다.",
+        )
 
 
 class GoogleTokenRequest(BaseModel):
@@ -155,6 +164,7 @@ async def simple_register(
     db: Session = Depends(get_db)
 ):
     """Register with name + phone/birth_date + kit verification"""
+    _require_legacy()
     # Verify kit exists and PIN matches
     kit = db.query(DiagnosisKit).filter(
         DiagnosisKit.serial_number == request.serial_number
@@ -260,6 +270,7 @@ async def simple_login(
     db: Session = Depends(get_db)
 ):
     """Login with name + birth_date/phone + access PIN"""
+    _require_legacy()
     user = None
 
     if request.birth_date:
@@ -375,6 +386,7 @@ async def email_send_verification(
     db: Session = Depends(get_db)
 ):
     """Send email verification code for registration"""
+    _require_legacy()
     from ..database.subscriber_models import EmailVerification
     from ..services.email_service import get_email_service
     from ..services.report_generator import NewsReportGenerator
@@ -428,6 +440,7 @@ async def email_register(
     db: Session = Depends(get_db)
 ):
     """Verify code and complete registration with password"""
+    _require_legacy()
     from ..database.subscriber_models import EmailVerification
 
     # Verify code
@@ -491,6 +504,7 @@ async def email_login(
     db: Session = Depends(get_db)
 ):
     """Login with email + password"""
+    _require_legacy()
     user = db.query(User).filter(User.email == request.email).first()
 
     if not user:
@@ -557,6 +571,7 @@ async def register_kit(
     db: Session = Depends(get_db)
 ):
     """Register a diagnosis kit to current user"""
+    _require_legacy()
     kit = db.query(DiagnosisKit).filter(
         DiagnosisKit.serial_number == request.serial_number
     ).first()

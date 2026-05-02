@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../shared/contexts/AuthContext';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const LEGACY_MODULES_ENABLED = import.meta.env.VITE_LEGACY_MODULES_ENABLED === 'true';
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -157,8 +158,8 @@ const LoginPage = () => {
         <h1>AllergyInsight</h1>
         <p className="subtitle">알러지 검사 결과 조회 서비스</p>
 
-        {/* Mode Tabs */}
-        {mode !== 'verify' && (
+        {/* Mode Tabs (레거시 회원가입 활성 시만 노출) */}
+        {LEGACY_MODULES_ENABLED && mode !== 'verify' && (
           <div className="mode-tabs">
             <button
               className={`mode-tab ${mode === 'login' ? 'active' : ''}`}
@@ -180,14 +181,16 @@ const LoginPage = () => {
           <>
             <div ref={googleBtnRef} className="google-btn-wrapper" />
 
-            <div className="divider">
-              <span>또는</span>
-            </div>
+            {LEGACY_MODULES_ENABLED && (
+              <div className="divider">
+                <span>또는</span>
+              </div>
+            )}
           </>
         )}
 
         {/* Login Form */}
-        {mode === 'login' && (
+        {LEGACY_MODULES_ENABLED && mode === 'login' && (
           <form onSubmit={handleLogin}>
             <div className="form-group">
               <label>이메일</label>
@@ -250,7 +253,7 @@ const LoginPage = () => {
         )}
 
         {/* Register Step 1: Email input */}
-        {mode === 'register' && (
+        {LEGACY_MODULES_ENABLED && mode === 'register' && (
           <form onSubmit={handleSendCode}>
             <div className="form-group">
               <label>이메일</label>
@@ -274,7 +277,7 @@ const LoginPage = () => {
         )}
 
         {/* Register Step 2: Verify + Password */}
-        {mode === 'verify' && (
+        {LEGACY_MODULES_ENABLED && mode === 'verify' && (
           <form onSubmit={handleRegister}>
             {message && <div className="success-message">{message}</div>}
             <div className="form-group">
