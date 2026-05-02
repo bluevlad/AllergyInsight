@@ -18,6 +18,12 @@ limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(prefix="/ai/consult", tags=["AI Consult"])
 
 
+_DIAGNOSIS_DISCLAIMER = (
+    "본 응답은 의료 진단이 아닌 논문 · 일반 의학 지식 기반의 정보 매칭이며, "
+    "정확한 진단 · 처방 · 치료는 반드시 전문 의료진과 상담하세요."
+)
+
+
 def _emergency_response(question: str, safety) -> dict:
     """응급 감지 시 LLM/RAG 호출을 건너뛰고 즉시 119 안내 응답을 반환."""
     return {
@@ -31,6 +37,7 @@ def _emergency_response(question: str, safety) -> dict:
         "citation_count": 0,
         "engine": "safety_gate",
         "safety": safety.to_dict(),
+        "diagnosis_disclaimer": _DIAGNOSIS_DISCLAIMER,
     }
 
 
@@ -92,6 +99,7 @@ async def ask_question(request: Request, body: ConsultRequest):
                 "source_count": len(result["sources"]),
                 "engine": "rag",
                 "safety": safety.to_dict(),
+                "diagnosis_disclaimer": _DIAGNOSIS_DISCLAIMER,
             }
 
     # 2) Fallback: 키워드 기반 Q&A 엔진
@@ -116,6 +124,7 @@ async def ask_question(request: Request, body: ConsultRequest):
         "warnings": response.warnings,
         "engine": "keyword",
         "safety": safety.to_dict(),
+        "diagnosis_disclaimer": _DIAGNOSIS_DISCLAIMER,
     }
 
 
@@ -181,6 +190,7 @@ async def ask_question_rag(request: Request, body: ConsultRequest):
         "source_count": len(result["sources"]),
         "engine": "rag",
         "safety": safety.to_dict(),
+        "diagnosis_disclaimer": _DIAGNOSIS_DISCLAIMER,
     }
 
 
