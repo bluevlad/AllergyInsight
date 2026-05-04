@@ -41,6 +41,7 @@ class PaperMapper:
             authors=authors_str,
             journal=paper_dc.journal,
             year=paper_dc.year,
+            published_at=paper_dc.published_at,
             abstract=paper_dc.abstract,
             url=url,
             pdf_url=paper_dc.pdf_url,
@@ -129,6 +130,11 @@ class PaperMapper:
         # doi 보강
         if dc.doi and not orm.doi:
             orm.doi = dc.doi
+            updated = True
+
+        # published_at 보강 (없던 것 추가, 또는 더 정밀한 값으로 갱신)
+        if dc.published_at and not orm.published_at:
+            orm.published_at = dc.published_at
             updated = True
 
         if updated:

@@ -1,6 +1,6 @@
 """논문 데이터 모델"""
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from typing import Optional
 
@@ -28,6 +28,7 @@ class Paper:
     # 선택적 필드
     doi: Optional[str] = None
     year: Optional[int] = None
+    published_at: Optional[date] = None  # 정확한 발행일 (PubMed Article Date / S2 publicationDate)
     journal: Optional[str] = None
     citation_count: Optional[int] = None
     pdf_url: Optional[str] = None
@@ -47,6 +48,7 @@ class Paper:
             "source_id": self.source_id,
             "doi": self.doi,
             "year": self.year,
+            "published_at": self.published_at.isoformat() if self.published_at else None,
             "journal": self.journal,
             "citation_count": self.citation_count,
             "pdf_url": self.pdf_url,
@@ -62,6 +64,8 @@ class Paper:
         data["source"] = PaperSource(data["source"])
         if isinstance(data.get("collected_at"), str):
             data["collected_at"] = datetime.fromisoformat(data["collected_at"])
+        if isinstance(data.get("published_at"), str):
+            data["published_at"] = date.fromisoformat(data["published_at"])
         return cls(**data)
 
 

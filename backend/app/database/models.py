@@ -179,6 +179,10 @@ class Paper(Base):
     keywords = Column(JSON, nullable=True)  # JSONB: ["keyword1", "keyword2"]
     last_synced_at = Column(DateTime, nullable=True)  # 마지막 동기화 시점
 
+    # 정확한 발행일 (PubMed Article Date / S2 publicationDate 기반)
+    # year만 있을 때보다 정밀한 trigger_date 산출에 사용 (Strategic Intel 모듈)
+    published_at = Column(Date, nullable=True)
+
     # Metadata
     created_at = Column(DateTime, default=utc_now)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)

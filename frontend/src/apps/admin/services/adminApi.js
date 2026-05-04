@@ -128,6 +128,22 @@ export const adminApi = {
     delete: (id) => apiClient.delete(`/admin/subscribers/${id}`),
     stats: () => apiClient.get('/admin/subscribers/stats'),
   },
+
+  // ============================================================================
+  // Strategic Intel (내부 경영 분석 — super_admin 전용)
+  // ============================================================================
+  strategicIntel: {
+    matrix: (params = {}) => apiClient.get('/admin/strategic-intel/matrix', { params }),
+    listHypotheses: (params = {}) => apiClient.get('/admin/strategic-intel/hypotheses', { params }),
+    getHypothesis: (id) => apiClient.get(`/admin/strategic-intel/hypotheses/${id}`),
+    listReports: (params = {}) => apiClient.get('/admin/strategic-intel/reports', { params }),
+    getReport: (id) => apiClient.get(`/admin/strategic-intel/reports/${id}`),
+    generateEventReport: (hypothesisId) =>
+      apiClient.post(`/admin/strategic-intel/reports/event/${hypothesisId}`),
+    generateMonthlyReport: (year, month) =>
+      apiClient.post('/admin/strategic-intel/reports/monthly', { year, month }),
+    stats: (params = {}) => apiClient.get('/admin/strategic-intel/stats', { params }),
+  },
 };
 
 export default adminApi;

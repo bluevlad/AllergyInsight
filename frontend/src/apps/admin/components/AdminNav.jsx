@@ -17,6 +17,7 @@ const AdminNav = () => {
     { to: '/admin/news', label: '경쟁사 뉴스', icon: '📰' },
     { to: '/admin/subscribers', label: '구독자 관리', icon: '📬' },
     { to: '/admin/drugs', label: '약물 관리', icon: '💊' },
+    { to: '/admin/strategic-intel', label: 'Strategic Intel', icon: '🎯' },
   ];
 
   return (
