@@ -59,6 +59,7 @@ def init_db():
     from . import subscriber_models  # 구독자 모델
     from . import allergen_models  # 알러젠 마스터 데이터
     from . import drug_models  # 약물/병태생리 — 학술 전용 알러지 Agent (allergen_master 이후 로드 필수)
+    from . import strategic_intel_models  # 전략 인텔 — 기술 적합도/가설/주가 (내부용)
     from ..services.diagnosis_repository import StoredDiagnosisModel, StoredPrescriptionModel  # noqa: F401
     Base.metadata.create_all(bind=engine)
     run_migrations()
@@ -109,6 +110,7 @@ def run_migrations():
         ("citation_count", "INTEGER"),
         ("keywords", "JSONB"),
         ("last_synced_at", "TIMESTAMP"),
+        ("published_at", "DATE"),  # Strategic Intel 모듈 — 정확한 발행일
     ]
 
     with engine.begin() as conn:

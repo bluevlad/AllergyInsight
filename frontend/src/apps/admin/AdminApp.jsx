@@ -20,6 +20,7 @@ import OrganizationsPage from './pages/OrganizationsPage';
 import CompetitorNewsPage from './pages/CompetitorNewsPage';
 import SubscribersPage from './pages/SubscribersPage';
 import DrugsPage from './pages/DrugsPage';
+import StrategicIntelPage from './pages/StrategicIntelPage';
 import AdminLoginPage from './pages/AdminLoginPage';
 
 const AdminApp = () => {
@@ -73,6 +74,9 @@ const AdminApp = () => {
 
           {/* Drugs (Phase 1) */}
           <Route path="/drugs" element={<DrugsPage />} />
+
+          {/* Strategic Intel (내부 경영 분석) */}
+          <Route path="/strategic-intel" element={<StrategicIntelPage />} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/admin" replace />} />

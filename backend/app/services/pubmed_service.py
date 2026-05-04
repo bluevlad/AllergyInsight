@@ -9,7 +9,7 @@ import time
 import logging
 import xml.etree.ElementTree as ET
 from typing import Optional
-from datetime import datetime
+from datetime import date, datetime
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -245,16 +245,22 @@ class PubMedService:
         journal_elem = article_elem.find(".//Journal/Title")
         journal = journal_elem.text if journal_elem is not None else None
 
-        # 발행년도
+        # 발행년도 + 정확한 발행일
         year = None
+        published_at = None
         pub_date = article_elem.find(".//Journal/JournalIssue/PubDate")
         if pub_date is not None:
-            year_elem = pub_date.find("Year")
-            if year_elem is not None and year_elem.text:
-                try:
-                    year = int(year_elem.text)
-                except ValueError:
-                    pass
+            year, published_at = self._parse_pub_date(pub_date)
+        # PubMed Article Date (가장 정밀, 없으면 PubDate fallback)
+        article_date = article_elem.find(".//ArticleDate[@DateType='Electronic']")
+        if article_date is None:
+            article_date = article_elem.find(".//ArticleDate")
+        if article_date is not None:
+            ad_year, ad_date = self._parse_pub_date(article_date)
+            if ad_date is not None:
+                published_at = ad_date  # ArticleDate가 더 정밀
+            if ad_year and not year:
+                year = ad_year
 
         # DOI
         doi = None
@@ -288,6 +294,7 @@ class PubMedService:
             source_id=pmid,
             doi=doi,
             year=year,
+            published_at=published_at,
             journal=journal,
             keywords=keywords[:20],  # 상위 20개만
         )
@@ -295,6 +302,56 @@ class PubMedService:
     def _get_text_content(self, element: ET.Element) -> str:
         """XML 요소의 전체 텍스트 내용 추출 (하위 태그 포함)"""
         return "".join(element.itertext()).strip()
+
+    @staticmethod
+    def _parse_pub_date(elem: ET.Element) -> tuple[Optional[int], Optional[date]]:
+        """PubDate / ArticleDate XML 요소 → (year, published_at)
+
+        지원 포맷:
+          - <Year>2026</Year><Month>Mar</Month><Day>15</Day>  (Month: 1~12 또는 'Jan'..'Dec')
+          - <Year>2026</Year><Month>03</Month>               (Day 없음 → 1일)
+          - <Year>2026</Year>                                  (Month 없음 → 1월 1일)
+          - <MedlineDate>2026 Mar-Apr</MedlineDate>            (year만 추출, published_at None)
+        """
+        month_map = {
+            "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+            "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+        }
+        year_elem = elem.find("Year")
+        if year_elem is not None and year_elem.text:
+            try:
+                year = int(year_elem.text)
+            except ValueError:
+                return None, None
+            month = 1
+            day = 1
+            month_elem = elem.find("Month")
+            if month_elem is not None and month_elem.text:
+                m = month_elem.text.strip().lower()
+                if m.isdigit():
+                    month = max(1, min(12, int(m)))
+                else:
+                    month = month_map.get(m[:3], 1)
+            day_elem = elem.find("Day")
+            if day_elem is not None and day_elem.text:
+                try:
+                    day = max(1, min(31, int(day_elem.text)))
+                except ValueError:
+                    day = 1
+            try:
+                return year, date(year, month, day)
+            except ValueError:
+                return year, date(year, month, 1)
+        # MedlineDate fallback (자유 형식 텍스트, 연도만 추출)
+        medline = elem.find("MedlineDate")
+        if medline is not None and medline.text:
+            for token in medline.text.split():
+                if token.isdigit() and len(token) == 4:
+                    try:
+                        return int(token), None
+                    except ValueError:
+                        return None, None
+        return None, None
 
     def get_paper_by_pmid(self, pmid: str) -> Optional[Paper]:
         """
