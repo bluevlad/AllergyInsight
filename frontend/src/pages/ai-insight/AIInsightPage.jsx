@@ -7,6 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../shared/services/apiClient';
+import BackToHomeBar from '../../shared/components/BackToHomeBar';
 
 const TABS = [
   { key: 'overview', label: '개요' },
@@ -56,6 +57,7 @@ function AIInsightPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f5f6fa' }}>
+      <BackToHomeBar />
       {/* 헤더 */}
       <div style={{
         background: 'linear-gradient(135deg, #27ae60 0%, #2ecc71 50%, #1abc9c 100%)',

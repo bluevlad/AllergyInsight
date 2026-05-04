@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import apiClient from '../../shared/services/apiClient';
 import EmergencyAlert from '../../shared/components/EmergencyAlert';
 import MedicalDisclaimer from '../../shared/components/MedicalDisclaimer';
+import BackToHomeBar from '../../shared/components/BackToHomeBar';
 
 const SEVERITY_LABEL = {
   mild: '경미',
@@ -68,6 +69,7 @@ const SymptomMatchPage = () => {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f5f6fa' }}>
+      <BackToHomeBar />
       <div
         style={{
           background: 'linear-gradient(135deg, #2980b9 0%, #3498db 50%, #2c3e50 100%)',

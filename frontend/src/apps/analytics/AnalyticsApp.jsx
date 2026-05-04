@@ -8,6 +8,7 @@
  */
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import BackToHomeBar from '../../shared/components/BackToHomeBar';
 import AnalyticsNav from './components/AnalyticsNav';
 import AllergenAnalysisPage from './pages/AllergenAnalysisPage';
 import PaperCollectionPage from './pages/PaperCollectionPage';
@@ -17,6 +18,7 @@ import ComprehensiveTrendPage from './pages/ComprehensiveTrendPage';
 const AnalyticsApp = () => {
   return (
     <div className="analytics-app">
+      <BackToHomeBar />
       <header className="header analytics-header">
         <h1>AllergyInsight Analytics</h1>
         <p className="header-subtitle">
