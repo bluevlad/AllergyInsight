@@ -98,12 +98,28 @@ def stage_prices(db, start: date, end: date) -> dict:
     return {"stage": "prices", "rows_per_ticker": result, "elapsed_s": round(time.time() - t0, 2)}
 
 
-def stage_classify(db, start: date, end: date, limit: int | None = None) -> dict:
+def stage_classify(
+    db,
+    start: date,
+    end: date,
+    limit: int | None = None,
+    *,
+    max_per_run: int | None = None,
+    rpm_limit: int = 12,
+    target: str = "all",
+    progress_every: int = 25,
+) -> dict:
     """Stage 3: papers/news 라벨링
 
     대상:
       - papers: published_at >= start (NULL이면 year로 fallback — start.year 이상이면 포함)
       - competitor_news: published_at >= start, 4사 (sugentech/greencross/bodytech/madx) 한정
+
+    무료 한도 대응:
+      - max_per_run    : 이번 실행에서 처리할 *총* 항목 수 상한 (Gemini 무료 RPD 1,500 대비 1,400 권장)
+      - rpm_limit      : 분당 호출 상한 (free tier 15 RPM → 12로 안전 마진)
+      - target         : 'papers' | 'news' | 'all' — 분리 실행 가능
+      - progress_every : N개마다 진행 로그 출력
     """
     from app.database.competitor_models import CompetitorCompany, CompetitorNews
     from app.database.models import Paper as PaperORM
@@ -116,101 +132,145 @@ def stage_classify(db, start: date, end: date, limit: int | None = None) -> dict
     t0 = time.time()
     classifier = TechClassifier(db)
 
-    # ---- Papers ----
-    paper_q = (
-        db.query(PaperORM)
-        .outerjoin(
-            PaperTechLink,
-            (PaperTechLink.paper_id == PaperORM.id)
-            & (PaperTechLink.classifier_version == classifier.CLASSIFIER_VERSION_USED),
-        )
-        .filter(PaperTechLink.id.is_(None))  # 미분류만
-        .filter(
-            (PaperORM.published_at >= start)
-            | ((PaperORM.published_at.is_(None)) & (PaperORM.year >= start.year))
-        )
-    )
-    if end:
-        paper_q = paper_q.filter(
-            (PaperORM.published_at <= end)
-            | ((PaperORM.published_at.is_(None)) & (PaperORM.year <= end.year))
-        )
-    paper_q = paper_q.order_by(PaperORM.id.asc())
-    if limit:
-        paper_q = paper_q.limit(limit)
-    papers = paper_q.all()
+    # 페이싱 설정 — 분당 rpm_limit 호출 → 호출당 최소 간격
+    min_interval_s = 60.0 / max(1, rpm_limit)
+    last_call_at = [0.0]
 
-    paper_labels = 0
-    paper_skipped = 0
-    for p in papers:
-        try:
-            labels = classifier.classify_and_save_paper(p)
-            if labels:
-                paper_labels += len(labels)
-            else:
-                paper_skipped += 1
-        except Exception as e:
-            logger.warning("paper classify failed (id=%s): %s", p.id, e)
-            paper_skipped += 1
-    logger.info(
-        "[classify/papers] processed=%d labeled=%d skipped=%d",
-        len(papers),
-        len(papers) - paper_skipped,
-        paper_skipped,
-    )
+    def pace():
+        elapsed = time.time() - last_call_at[0]
+        if elapsed < min_interval_s:
+            time.sleep(min_interval_s - elapsed)
+        last_call_at[0] = time.time()
+
+    remaining = [max_per_run] if max_per_run else [None]
+    aggregate = {
+        "papers_processed": 0,
+        "papers_labels_added": 0,
+        "news_processed": 0,
+        "news_labels_added": 0,
+        "stopped_by_quota": False,
+    }
+
+    # ---- Papers ----
+    if target in ("all", "papers") and (remaining[0] is None or remaining[0] > 0):
+        paper_q = (
+            db.query(PaperORM)
+            .outerjoin(
+                PaperTechLink,
+                (PaperTechLink.paper_id == PaperORM.id)
+                & (PaperTechLink.classifier_version == classifier.CLASSIFIER_VERSION_USED),
+            )
+            .filter(PaperTechLink.id.is_(None))  # 미분류만
+            .filter(
+                (PaperORM.published_at >= start)
+                | ((PaperORM.published_at.is_(None)) & (PaperORM.year >= start.year))
+            )
+        )
+        if end:
+            paper_q = paper_q.filter(
+                (PaperORM.published_at <= end)
+                | ((PaperORM.published_at.is_(None)) & (PaperORM.year <= end.year))
+            )
+        paper_q = paper_q.order_by(PaperORM.id.asc())
+        if limit:
+            paper_q = paper_q.limit(limit)
+        if remaining[0] is not None:
+            paper_q = paper_q.limit(remaining[0])
+        papers = paper_q.all()
+
+        paper_labels = 0
+        for idx, p in enumerate(papers, 1):
+            try:
+                pace()
+                labels = classifier.classify_and_save_paper(p)
+                if labels:
+                    paper_labels += len(labels)
+            except Exception as e:
+                logger.warning("paper classify failed (id=%s): %s", p.id, e)
+            if idx % progress_every == 0:
+                logger.info(
+                    "[classify/papers] progress %d/%d (labels added=%d, elapsed=%.0fs)",
+                    idx, len(papers), paper_labels, time.time() - t0,
+                )
+            if remaining[0] is not None:
+                remaining[0] -= 1
+                if remaining[0] <= 0:
+                    aggregate["stopped_by_quota"] = True
+                    logger.info("[classify/papers] daily quota reached (max_per_run=%d)", max_per_run)
+                    break
+        aggregate["papers_processed"] = len(papers) if not aggregate["stopped_by_quota"] else (max_per_run - max(0, remaining[0] or 0))
+        aggregate["papers_labels_added"] = paper_labels
+        logger.info(
+            "[classify/papers] done — processed=%d labels=%d",
+            aggregate["papers_processed"], paper_labels,
+        )
 
     # ---- News (4사 한정) ----
-    target_codes = list(ALL_COMPANIES_FOR_NEWS_FILTER)
-    target_company_ids = [
-        cid for (cid,) in db.query(CompetitorCompany.id)
-        .filter(CompetitorCompany.code.in_(target_codes)).all()
-    ]
-    news_q = (
-        db.query(CompetitorNews)
-        .outerjoin(
-            NewsTechLink,
-            (NewsTechLink.news_id == CompetitorNews.id)
-            & (NewsTechLink.classifier_version == classifier.CLASSIFIER_VERSION_USED),
+    if (
+        target in ("all", "news")
+        and not aggregate["stopped_by_quota"]
+        and (remaining[0] is None or remaining[0] > 0)
+    ):
+        target_codes = list(ALL_COMPANIES_FOR_NEWS_FILTER)
+        target_company_ids = [
+            cid for (cid,) in db.query(CompetitorCompany.id)
+            .filter(CompetitorCompany.code.in_(target_codes)).all()
+        ]
+        news_q = (
+            db.query(CompetitorNews)
+            .outerjoin(
+                NewsTechLink,
+                (NewsTechLink.news_id == CompetitorNews.id)
+                & (NewsTechLink.classifier_version == classifier.CLASSIFIER_VERSION_USED),
+            )
+            .filter(NewsTechLink.id.is_(None))
+            .filter(CompetitorNews.company_id.in_(target_company_ids))
+            .filter(CompetitorNews.published_at >= datetime.combine(start, datetime.min.time()))
         )
-        .filter(NewsTechLink.id.is_(None))
-        .filter(CompetitorNews.company_id.in_(target_company_ids))
-        .filter(CompetitorNews.published_at >= datetime.combine(start, datetime.min.time()))
-    )
-    if end:
-        news_q = news_q.filter(
-            CompetitorNews.published_at <= datetime.combine(end, datetime.max.time())
+        if end:
+            news_q = news_q.filter(
+                CompetitorNews.published_at <= datetime.combine(end, datetime.max.time())
+            )
+        news_q = news_q.order_by(CompetitorNews.id.asc())
+        if limit:
+            news_q = news_q.limit(limit)
+        if remaining[0] is not None:
+            news_q = news_q.limit(remaining[0])
+        newslist = news_q.all()
+
+        news_labels = 0
+        for idx, n in enumerate(newslist, 1):
+            try:
+                pace()
+                labels = classifier.classify_and_save_news(n)
+                if labels:
+                    news_labels += len(labels)
+            except Exception as e:
+                logger.warning("news classify failed (id=%s): %s", n.id, e)
+            if idx % progress_every == 0:
+                logger.info(
+                    "[classify/news] progress %d/%d (labels added=%d, elapsed=%.0fs)",
+                    idx, len(newslist), news_labels, time.time() - t0,
+                )
+            if remaining[0] is not None:
+                remaining[0] -= 1
+                if remaining[0] <= 0:
+                    aggregate["stopped_by_quota"] = True
+                    logger.info("[classify/news] daily quota reached (max_per_run=%d)", max_per_run)
+                    break
+        aggregate["news_processed"] = len(newslist) if not aggregate["stopped_by_quota"] else (len(newslist) - max(0, remaining[0] or 0))
+        aggregate["news_labels_added"] = news_labels
+        logger.info(
+            "[classify/news] done — processed=%d labels=%d",
+            aggregate["news_processed"], news_labels,
         )
-    news_q = news_q.order_by(CompetitorNews.id.asc())
-    if limit:
-        news_q = news_q.limit(limit)
-    newslist = news_q.all()
-
-    news_labels = 0
-    news_skipped = 0
-    for n in newslist:
-        try:
-            labels = classifier.classify_and_save_news(n)
-            if labels:
-                news_labels += len(labels)
-            else:
-                news_skipped += 1
-        except Exception as e:
-            logger.warning("news classify failed (id=%s): %s", n.id, e)
-            news_skipped += 1
-
-    logger.info(
-        "[classify/news] processed=%d labeled=%d skipped=%d",
-        len(newslist),
-        len(newslist) - news_skipped,
-        news_skipped,
-    )
 
     return {
         "stage": "classify",
-        "papers_processed": len(papers),
-        "papers_labels_added": paper_labels,
-        "news_processed": len(newslist),
-        "news_labels_added": news_labels,
+        "rpm_limit": rpm_limit,
+        "max_per_run": max_per_run,
+        "target": target,
+        **aggregate,
         "elapsed_s": round(time.time() - t0, 2),
     }
 
@@ -321,7 +381,19 @@ def main():
     parser.add_argument(
         "--skip", nargs="+", choices=STAGES_ORDER, default=[], help="스킵할 단계"
     )
-    parser.add_argument("--classify-limit", type=int, default=None, help="분류 처리 제한")
+    parser.add_argument("--classify-limit", type=int, default=None, help="분류 항목 수 제한 (디버그용)")
+    parser.add_argument(
+        "--max-per-run", type=int, default=1400,
+        help="이번 실행 총 처리 상한 (Gemini 무료 RPD 1500 → 기본 1400 안전 마진)",
+    )
+    parser.add_argument(
+        "--rpm-limit", type=int, default=12,
+        help="분당 호출 상한 (Gemini 무료 RPM 15 → 기본 12 안전 마진)",
+    )
+    parser.add_argument(
+        "--target", choices=["all", "papers", "news"], default="all",
+        help="분류 대상 — papers/news 분리 실행 가능",
+    )
     parser.add_argument("--validate-limit", type=int, default=1000)
     parser.add_argument("--dry-run", action="store_true", help="DB 커밋 없이 카운트만")
     args = parser.parse_args()
@@ -351,7 +423,12 @@ def main():
             elif stage == "prices":
                 summary.append(stage_prices(db, args.start, args.end))
             elif stage == "classify":
-                summary.append(stage_classify(db, args.start, args.end, args.classify_limit))
+                summary.append(stage_classify(
+                    db, args.start, args.end, args.classify_limit,
+                    max_per_run=args.max_per_run,
+                    rpm_limit=args.rpm_limit,
+                    target=args.target,
+                ))
             elif stage == "generate":
                 summary.append(stage_generate(db, args.start, args.end))
             elif stage == "validate":
