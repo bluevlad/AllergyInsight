@@ -275,18 +275,35 @@ def stage_classify(
     }
 
 
-def stage_generate(db, start: date, end: date) -> dict:
+def stage_generate(db, start: date, end: date, *, regenerate: bool = False) -> dict:
     """Stage 4: 라벨된 paper/news → 가설 생성 (4사)
 
     중복 가설은 자동 skip (HypothesisGenerator 내부에서 검사).
+    regenerate=True 인 경우 generator_version 매칭 가설을 모두 삭제 후 재생성.
     """
     from app.database.competitor_models import CompetitorNews
     from app.database.models import Paper as PaperORM
-    from app.database.strategic_intel_models import NewsTechLink, PaperTechLink
-    from app.services.strategic_intel.hypothesis_engine import HypothesisGenerator
+    from app.database.strategic_intel_models import (
+        HypothesisLog,
+        NewsTechLink,
+        PaperTechLink,
+    )
+    from app.services.strategic_intel.hypothesis_engine import (
+        GENERATOR_VERSION,
+        HypothesisGenerator,
+    )
 
     t0 = time.time()
     gen = HypothesisGenerator(db)
+
+    if regenerate:
+        deleted = (
+            db.query(HypothesisLog)
+            .filter(HypothesisLog.generator_version == GENERATOR_VERSION)
+            .delete(synchronize_session=False)
+        )
+        db.commit()
+        logger.info("[generate] regenerate=True — deleted %d existing hypotheses (version=%s)", deleted, GENERATOR_VERSION)
 
     # ---- Paper trigger ----
     labeled_paper_ids = (
@@ -395,6 +412,10 @@ def main():
         help="분류 대상 — papers/news 분리 실행 가능",
     )
     parser.add_argument("--validate-limit", type=int, default=1000)
+    parser.add_argument(
+        "--regenerate", action="store_true",
+        help="generate 단계에서 기존 가설(현재 generator_version)을 삭제 후 재생성",
+    )
     parser.add_argument("--dry-run", action="store_true", help="DB 커밋 없이 카운트만")
     args = parser.parse_args()
 
@@ -430,7 +451,7 @@ def main():
                     target=args.target,
                 ))
             elif stage == "generate":
-                summary.append(stage_generate(db, args.start, args.end))
+                summary.append(stage_generate(db, args.start, args.end, regenerate=args.regenerate))
             elif stage == "validate":
                 summary.append(stage_validate(db, args.validate_limit))
 

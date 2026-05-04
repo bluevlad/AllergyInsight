@@ -35,6 +35,8 @@ HIGH_FIT_THRESHOLD = 0.60      # 회사 핵심 영역 판정선
 LOW_FIT_THRESHOLD = 0.30       # 회사 미보유 판정선 (이 이하면 위협/무관)
 COMPETITOR_THREAT_FIT = 0.70   # 경쟁사가 이 이상 fit이면 위협으로 간주
 NEUTRAL_BAND = (-0.15, 0.15)   # impact_score 이 범위 내면 neutral 처리
+MIN_RELEVANCE_FOR_THREAT = 0.15  # 회사가 이 미만 fit이면 negative 트리거 안 함 (완전 무관)
+                                # 예: MADx poc_lateral_flow=0.00 → 한국 POC 회사 진보가 위협 아님
 
 # 검증 대상 회사 (주가 검증 가능한 한국 3사)
 VALIDATED_COMPANIES = {"sugentech", "greencross", "bodytech"}
@@ -155,7 +157,8 @@ def _build_company_impact(
             f"직접 연관 — 자사 제품 강화·신뢰도 상승 기회로 평가."
         )
     elif (
-        own_weighted <= LOW_FIT_THRESHOLD
+        own_fit_raw >= MIN_RELEVANCE_FOR_THREAT  # 회사가 최소한 인접 비즈니스 보유
+        and own_weighted <= LOW_FIT_THRESHOLD
         and competitor_weighted >= COMPETITOR_THREAT_FIT
         and competitor_code is not None
     ):
