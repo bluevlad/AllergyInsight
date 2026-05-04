@@ -163,7 +163,8 @@ class TechClassifier:
         if not isinstance(labels_raw, list):
             return []
 
-        out: list[TechLabel] = []
+        # tech_id 단위 dedupe — LLM이 동일 카테고리를 다중 반환할 경우 최고 신뢰도만 채택
+        best: dict[str, float] = {}
         for entry in labels_raw:
             if not isinstance(entry, dict):
                 continue
@@ -177,8 +178,9 @@ class TechClassifier:
             conf = max(0.0, min(1.0, conf))
             if conf < self.min_confidence:
                 continue
-            out.append(TechLabel(tech_id=tid, confidence=conf))
-        return out
+            if conf > best.get(tid, 0.0):
+                best[tid] = conf
+        return [TechLabel(tech_id=tid, confidence=c) for tid, c in best.items()]
 
     @staticmethod
     def _strip_json_fences(s: str) -> str:
@@ -193,17 +195,27 @@ class TechClassifier:
     # ------------------------------------------------------------------
 
     def classify_and_save_paper(self, paper) -> list[TechLabel]:
-        """Paper 객체 → 라벨링 후 paper_tech_links 저장 (idempotent)"""
+        """Paper 객체 → 라벨링 후 paper_tech_links 저장 (idempotent + 세션 손상 가드)"""
         body = paper.abstract or paper.abstract_kr or ""
         labels = self.classify_text(paper.title, body, is_paper=True)
-        self._upsert_paper_links(paper.id, labels)
+        try:
+            self._upsert_paper_links(paper.id, labels)
+        except Exception as e:
+            self.db.rollback()
+            logger.warning("upsert paper_tech_links failed (paper_id=%s): %s", paper.id, e)
+            return []
         return labels
 
     def classify_and_save_news(self, news) -> list[TechLabel]:
-        """CompetitorNews 객체 → 라벨링 후 news_tech_links 저장 (idempotent)"""
+        """CompetitorNews 객체 → 라벨링 후 news_tech_links 저장 (idempotent + 세션 손상 가드)"""
         body = news.description or news.summary or ""
         labels = self.classify_text(news.title, body, is_paper=False)
-        self._upsert_news_links(news.id, labels)
+        try:
+            self._upsert_news_links(news.id, labels)
+        except Exception as e:
+            self.db.rollback()
+            logger.warning("upsert news_tech_links failed (news_id=%s): %s", news.id, e)
+            return []
         return labels
 
     def _upsert_paper_links(self, paper_id: int, labels: Iterable[TechLabel]) -> None:
