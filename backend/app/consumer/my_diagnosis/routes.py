@@ -251,10 +251,8 @@ async def get_patient_guide(
         else:
             risk_level = "low_risk"
 
-        # 증상 정보
-        if grade >= 5:
-            grade_range = "5-6"
-        elif grade >= 3:
+        # 증상 정보 (MAST Class 0~4 → 시드 데이터 키 매핑)
+        if grade >= 3:
             grade_range = "3-4"
         else:
             grade_range = "1-2"

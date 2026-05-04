@@ -6,13 +6,11 @@
 - normalize(raw): 원본 → DrugProductCandidate 정규화
 
 현재 구현:
-- openfda.py — FDA openFDA drug/label API (CC0, 키 선택)
-
-계획:
-- mfds_eyakeunyo.py — 식약처 e약은요 (공공누리 1유형)
-- mfds_license.py — 식약처 제품허가정보
-- mfds_hfood.py — 식약처 건강기능식품
-- dailymed.py — NIH NLM DailyMed SPL
-- dsld.py — NIH ODS DSLD
-- rxnorm.py — NIH NLM RxNorm
+- openfda.py         — FDA openFDA drug/label API (CC0, 키 선택)
+- mfds_eyakeunyo.py  — 식약처 e약은요 (공공누리 1유형, MFDS_API_KEY)
+- mfds_license.py    — 식약처 의약품 제품허가정보 (공공누리 1유형, MFDS_API_KEY)
+- mfds_hfood.py      — 식약처 건강기능식품 품목제조신고 (공공누리 1유형, MFDS_API_KEY)
+- dailymed.py        — NIH NLM DailyMed SPL (Public Domain, 키 없음)
+- dsld.py            — NIH ODS DSLD 보충제 (Public Domain, 키 없음)
+- rxnorm.py          — NIH NLM RxNav/RxNorm (UMLS Cat 0, 키 없음)
 """

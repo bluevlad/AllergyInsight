@@ -6,7 +6,7 @@ from typing import Optional
 class AllergenGradeItem(BaseModel):
     """개별 알러젠 등급 항목"""
     code: str = Field(..., description="알러젠 코드 (예: peanut, dust_mite)")
-    grade: int = Field(..., ge=0, le=6, description="등급 (0-6)")
+    grade: int = Field(..., ge=0, le=4, description="MAST 등급 (Class 0~4)")
 
 
 class ReportRequest(BaseModel):

@@ -7,6 +7,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../shared/services/apiClient';
+import EmergencyAlert from '../../shared/components/EmergencyAlert';
+import MedicalDisclaimer from '../../shared/components/MedicalDisclaimer';
 
 const CATEGORY_ICONS = {
   symptoms: '🩺',
@@ -107,11 +109,17 @@ function AIConsultPage() {
       </div>
 
       <div style={{ maxWidth: '900px', margin: '0 auto', padding: '1.5rem 1rem' }}>
+        {/* 의료 면책 (페이지 진입 시 최상단 노출) */}
+        <div style={{ marginBottom: '1rem' }}>
+          <MedicalDisclaimer variant="banner" />
+        </div>
+
         {/* 소개 */}
         <div className="card" style={{ marginBottom: '1.5rem' }}>
           <h2 style={{ marginTop: 0, marginBottom: '0.5rem' }}>알러지에 대해 궁금한 점을 물어보세요</h2>
           <p style={{ color: '#666', margin: 0, fontSize: '0.9rem' }}>
-            수집된 의학 논문을 기반으로 알러지 관련 질문에 답변합니다. 출처 논문과 함께 신뢰도를 표시합니다.
+            본 챗봇은 수집된 의학 논문 · 일반 알러지 지식을 기반으로 <strong>유사 사례를 매칭</strong>해서 보여드리는 정보 제공 도구입니다.
+            의료 진단을 내리지 않으며, 모든 응답은 출처와 함께 표시됩니다.
           </p>
         </div>
 
@@ -233,6 +241,11 @@ function AIConsultPage() {
           </div>
         )}
 
+        {/* 응급 / 주의 알림 (safety_gate 결과) */}
+        {answer && !loading && answer.safety && (
+          <EmergencyAlert safety={answer.safety} />
+        )}
+
         {/* 답변 */}
         {answer && !loading && (
           <div className="card answer-card" style={{ marginBottom: '1.5rem' }}>
@@ -267,6 +280,21 @@ function AIConsultPage() {
                 __html: formatAnswer(answer.answer),
               }}
             />
+
+            {/* 진단 면책 (응답마다 강제 노출) */}
+            {answer.diagnosis_disclaimer && (
+              <div style={{
+                marginTop: '0.75rem',
+                padding: '0.6rem 0.85rem',
+                background: '#f5f5f5',
+                borderLeft: '3px solid #ffc107',
+                color: '#5d4037',
+                fontSize: '0.8rem',
+                lineHeight: 1.5,
+              }}>
+                {answer.diagnosis_disclaimer}
+              </div>
+            )}
 
             {/* 주의사항 */}
             {answer.warnings && answer.warnings.length > 0 && (
@@ -378,12 +406,19 @@ function AIConsultPage() {
 
       {/* 푸터 */}
       <footer style={{ textAlign: 'center', padding: '2rem 1rem', color: '#999', fontSize: '0.85rem' }}>
-        <a href="/ai/insight" style={{ color: '#2980b9', textDecoration: 'none', marginRight: '1.5rem' }}>
-          알러지 인사이트
-        </a>
-        <a href="/" style={{ color: '#667eea', textDecoration: 'none' }}>
-          AllergyInsight 홈으로
-        </a>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          <a href="/help/medical-disclaimer.html" target="_blank" rel="noopener" style={{ color: '#1976d2', textDecoration: 'none' }}>
+            의료 정보 면책 안내
+          </a>
+          <span style={{ color: '#ddd' }}>·</span>
+          <a href="/ai/insight" style={{ color: '#2980b9', textDecoration: 'none' }}>
+            알러지 인사이트
+          </a>
+          <span style={{ color: '#ddd' }}>·</span>
+          <a href="/" style={{ color: '#667eea', textDecoration: 'none' }}>
+            AllergyInsight 홈으로
+          </a>
+        </div>
       </footer>
 
       <style>{`

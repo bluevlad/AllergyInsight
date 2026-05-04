@@ -1,11 +1,15 @@
 """알러젠 처방 지식베이스
 
-SGTi-Allergy Screen PLUS 검사 대상 알러젠에 대한
-처방 권고 정보를 포함합니다.
+병원/진단소 MAST 검사 결과를 매칭하기 위한 알러젠별
+처방 권고 지식베이스 (식이/증상/교차반응/응급).
 
-식품 알러지: 9종
-흡입성 알러지: 7종
-총 16종 지원
+Phase 1 활성 알러젠 — 풍부한 처방 데이터 보유:
+- 식품 알러지: 21종
+- 흡입성 알러지: 15종
+- 총 36종
+
+allergen_master 테이블에는 119종이 있으나, Phase 1 비회원 페이지에서는
+처방 데이터가 채워진 36종만 노출한다 (PHASE1_ACTIVE_ALLERGENS 참조).
 """
 from typing import Optional
 
@@ -4018,3 +4022,42 @@ ALLERGEN_PRESCRIPTION_DB = {
     **FOOD_ALLERGENS,
     **INHALANT_ALLERGENS,
 }
+
+
+# ============================================================================
+# Phase 1 활성 알러젠 화이트리스트
+# ============================================================================
+# 비회원 MAST 매칭 페이지에서 노출 가능한 알러젠 목록.
+# allergen_master 119종 중 처방 데이터가 채워진 항목만 활성화.
+# 신규 알러젠을 활성화하려면 FOOD_ALLERGENS 또는 INHALANT_ALLERGENS에
+# 처방 데이터 추가 후 자동 반영됨.
+
+PHASE1_ACTIVE_ALLERGENS: frozenset[str] = frozenset(ALLERGEN_PRESCRIPTION_DB.keys())
+
+
+def is_phase1_active(allergen_code: str) -> bool:
+    """Phase 1 비회원 페이지에 노출 가능한 알러젠인지 확인."""
+    return allergen_code in PHASE1_ACTIVE_ALLERGENS
+
+
+def get_phase1_active_list() -> list[dict]:
+    """Phase 1 활성 알러젠 목록 반환 (UI용).
+
+    각 항목: { code, name_kr, name_en, category: food|inhalant }
+    """
+    items: list[dict] = []
+    for code, info in FOOD_ALLERGENS.items():
+        items.append({
+            "code": code,
+            "name_kr": info["name_kr"],
+            "name_en": info["name_en"],
+            "category": "food",
+        })
+    for code, info in INHALANT_ALLERGENS.items():
+        items.append({
+            "code": code,
+            "name_kr": info["name_kr"],
+            "name_en": info["name_en"],
+            "category": "inhalant",
+        })
+    return items

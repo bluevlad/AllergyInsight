@@ -38,7 +38,7 @@ class AllergenDiagnosisSchema(BaseModel):
     allergen_name_kr: str
     allergen_name_en: str
     grade: int
-    grade_class: str  # Class 0-6
+    grade_class: str  # MAST Class 0~4
     grade_interpretation: str  # "Negative", "Low", "Moderate", "High", "Very High"
     clinical_significance: str  # "음성", "약양성", "양성", "강양성" 등
 

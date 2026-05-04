@@ -51,7 +51,7 @@ class AllergenItem:
     """알러지 항원 항목"""
     name: str                    # 항원 이름 (예: "peanut", "milk")
     name_kr: str = ""            # 한글 이름 (예: "땅콩", "우유")
-    grade: int = 0               # 양성 등급 (0-6, 높을수록 심함)
+    grade: int = 0               # MAST 등급 (Class 0~4, 높을수록 심함)
     priority: int = 0            # 처리 우선순위 (높을수록 먼저)
     category: str = ""           # 카테고리 (food, inhalant, etc.)
 

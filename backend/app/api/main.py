@@ -45,9 +45,11 @@ from ..auth.config import auth_settings
 from ..database.connection import engine, init_db, get_db, SessionLocal
 from ..database.seed_users import seed_users
 from ..database.seed_allergens import seed_allergens
+from ..database.normalize_grades import normalize_legacy_grades
 from ..config import settings
 from ..database.models import User
 from ..core.auth import require_auth
+from ..core.feature_flags import LEGACY_MODULES_ENABLED
 
 # Phase 1: Organization imports
 from ..organization.routes import router as organization_router
@@ -74,6 +76,9 @@ from .subscription_routes import router as subscription_router
 # Public: Analytics (no auth required, read-only aggregates)
 from .analytics_routes import router as public_analytics_router
 
+# Public: Newsletter data API (no auth required, NewsletterPlatform 연동)
+from .public_newsletter_routes import router as public_newsletter_router
+
 # Public: Allergy Report (no auth required, stateless)
 from .report_routes import router as report_router
 
@@ -81,6 +86,18 @@ from .report_routes import router as report_router
 from .ai_consult_routes import router as ai_consult_router
 from .ai_insight_routes import router as ai_insight_router
 from .clinicaltrials_routes import router as clinicaltrials_router
+
+# Public: MAST 등급 매칭 (Phase 1, no auth required)
+from .public_mast_routes import router as public_mast_router
+
+# Public: 증상 → 알러젠 매칭 (Phase 2, no auth required)
+from .public_symptom_routes import router as public_symptom_router
+
+# Public: 약물 성분 정보 (Phase 3, no auth required)
+from .public_drug_routes import router as public_drug_router
+
+# Public: 임상 이미지 갤러리 (Phase 4, no auth required)
+from .public_clinical_image_routes import router as public_clinical_image_router
 
 # 보안 로깅 설정
 security_logger = logging.getLogger("security")
@@ -119,7 +136,8 @@ app.add_middleware(ActivityLoggerMiddleware)
 app.include_router(auth_router, prefix="/api")
 app.include_router(diagnosis_router, prefix="/api")
 app.include_router(paper_router, prefix="/api")
-app.include_router(organization_router, prefix="/api")
+if LEGACY_MODULES_ENABLED:
+    app.include_router(organization_router, prefix="/api")
 app.include_router(hospital_router, prefix="/api")
 
 # Include service routers (Bifurcated)
@@ -138,6 +156,9 @@ app.include_router(subscription_router, prefix="/api", tags=["Subscription"])  #
 # Include public analytics router (no auth required, read-only)
 app.include_router(public_analytics_router, prefix="/api/public/analytics", tags=["Public Analytics"])
 
+# Include public newsletter data API (no auth, NewsletterPlatform collector 연동)
+app.include_router(public_newsletter_router, prefix="/api/public/analytics", tags=["Public Newsletter"])
+
 # Include report router (public, no auth required, stateless)
 app.include_router(report_router, prefix="/api", tags=["Report"])
 
@@ -145,6 +166,18 @@ app.include_router(report_router, prefix="/api", tags=["Report"])
 app.include_router(ai_consult_router, prefix="/api", tags=["AI Consult"])
 app.include_router(ai_insight_router, prefix="/api", tags=["AI Insight"])
 app.include_router(clinicaltrials_router, prefix="/api", tags=["Clinical Trials"])
+
+# Include public MAST router (Phase 1, no auth required)
+app.include_router(public_mast_router, prefix="/api", tags=["Public MAST"])
+
+# Include public symptom matcher router (Phase 2, no auth required)
+app.include_router(public_symptom_router, prefix="/api", tags=["Public Symptom Match"])
+
+# Include public drug ingredient router (Phase 3, no auth required)
+app.include_router(public_drug_router, prefix="/api", tags=["Public Drugs"])
+
+# Include public clinical image gallery router (Phase 4, no auth required)
+app.include_router(public_clinical_image_router, prefix="/api", tags=["Public Clinical Images"])
 
 # 서비스 인스턴스 (lru_cache DI 패턴)
 @lru_cache(maxsize=1)
@@ -233,7 +266,7 @@ class CollectionStats(BaseModel):
 class DiagnosisResultItem(BaseModel):
     """개별 진단 결과 항목"""
     allergen: str = Field(..., description="알러젠 코드 (예: peanut)")
-    grade: int = Field(..., ge=0, le=6, description="검사 등급 (0-6)")
+    grade: int = Field(..., ge=0, le=4, description="MAST 검사 등급 (Class 0~4)")
 
 
 class DiagnosisRequest(BaseModel):
@@ -653,14 +686,15 @@ async def get_sgti_info():
             "total": 16,
         },
         "grade_system": {
-            "range": "0-6",
+            "range": "0-4",
+            "standard": "MAST (Multiple Allergen Simultaneous Test)",
             "grades": GRADE_DESCRIPTIONS,
         },
         "usage_guide": [
             "1. 검체(혈액) 채취",
             "2. 검사 키트에 검체 적용",
             "3. 지정된 시간 대기",
-            "4. 결과 판독 (등급 0-6)",
+            "4. 결과 판독 (Class 0~4)",
             "5. AllergyInsight에 결과 입력",
         ],
     }
@@ -668,7 +702,7 @@ async def get_sgti_info():
 
 @app.get("/api/sgti/grades")
 async def get_grade_info():
-    """등급별 설명 정보"""
+    """등급별 설명 정보 (MAST Class 0~4)"""
     return {
         "grades": GRADE_DESCRIPTIONS,
         "restriction_levels": {
@@ -676,9 +710,7 @@ async def get_grade_info():
             1: {"level": "monitor", "description": "모니터링"},
             2: {"level": "caution", "description": "주의"},
             3: {"level": "limit", "description": "제한"},
-            4: {"level": "avoid", "description": "회피"},
-            5: {"level": "strict_avoid", "description": "완전 회피"},
-            6: {"level": "strict_avoid", "description": "완전 회피 + 응급약 휴대"},
+            4: {"level": "strict_avoid", "description": "완전 회피 + 응급약 휴대"},
         },
     }
 
@@ -882,6 +914,15 @@ async def startup_event():
     init_db()
     seed_users()  # 테스트 사용자 시딩
     seed_allergens()  # 알러젠 마스터 데이터 시딩
+
+    # Phase 1: 레거시 grade 5/6 → 4 정규화 (idempotent)
+    _db = SessionLocal()
+    try:
+        normalize_legacy_grades(_db)
+    except Exception as e:
+        logging.getLogger(__name__).warning("grade 정규화 실패 (무시): %s", e)
+    finally:
+        _db.close()
 
     # 스케줄러 초기화 (ENABLE_SCHEDULER=true일 때만)
     if os.getenv("ENABLE_SCHEDULER", "false").lower() == "true":

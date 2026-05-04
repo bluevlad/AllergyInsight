@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AllergyInsight - 의료 정보 면책 안내</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text-color: #f1f5f9;
+            --text-muted: #94a3b8;
+            --accent-color: #8b5cf6;
+            --border-color: rgba(148, 163, 184, 0.1);
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.7;
+            background-image: radial-gradient(ellipse at 50% 100%, hsla(263, 70%, 50%, 0.15), transparent 70%);
+            background-attachment: fixed;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 2rem;
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: var(--accent-color); }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--warning-color);
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+        }
+
+        h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 1rem;
+        }
+
+        h2 {
+            font-size: 1.35rem;
+            color: var(--accent-color);
+            margin: 2.25rem 0 1rem 0;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--accent-color);
+        }
+
+        p { margin-bottom: 1rem; color: var(--text-muted); }
+        p strong { color: var(--text-color); }
+
+        ul { margin: 0.5rem 0 1rem 1.5rem; color: var(--text-muted); }
+        li { margin-bottom: 0.5rem; }
+
+        .info-box {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem 1.5rem;
+            margin: 1.25rem 0;
+        }
+        .info-box strong { display: block; margin-bottom: 0.5rem; color: var(--text-color); }
+        .info-box.danger { border-left: 4px solid var(--danger-color); background: rgba(239, 68, 68, 0.08); }
+        .info-box.warning { border-left: 4px solid var(--warning-color); background: rgba(245, 158, 11, 0.08); }
+        .info-box.highlight { border-left: 4px solid var(--accent-color); }
+
+        .meta {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-align: center;
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem 0;
+            margin-top: 3rem;
+            border-top: 1px solid var(--border-color);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+        footer a { color: var(--accent-color); text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 1.75rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <a href="/" class="back-link">&larr; AllergyInsight로 돌아가기</a>
+
+        <header>
+            <span class="badge">Medical Disclaimer</span>
+            <h1>의료 정보 면책 안내</h1>
+            <p>본 서비스가 제공하는 정보의 성격과 한계, 책임 범위를 안내합니다</p>
+        </header>
+
+        <!-- ===== 1. 서비스의 성격 ===== -->
+        <h2>1. 서비스의 성격</h2>
+        <div class="info-box highlight">
+            <strong>본 서비스는 의료 진단 도구가 아닙니다</strong>
+            <p>
+                AllergyInsight 는 논문 · 전문기관 자료를 기반으로 알러지 관련 정보를 큐레이션 · 매칭하여 제공하는
+                <strong>교육 · 정보 매칭 서비스</strong>입니다. 의료 행위(진단 · 처방 · 치료)를 수행하거나
+                의료기기로서 작동하지 않으며, 개별 증상에 대한 임상적 판단을 내리지 않습니다.
+            </p>
+        </div>
+        <p>
+            본 서비스가 제공하는 정보는 사용자가 이미 의료기관에서 받은 검사 결과 · 일반적인 알러지 지식을
+            토대로 일상에서 참고할 수 있도록 정리한 <strong>참고 자료</strong>이며, 새로운 진단을 내리거나
+            의료적 판단을 대체하지 않습니다.
+        </p>
+
+        <!-- ===== 2. 정보의 출처 ===== -->
+        <h2>2. 정보의 출처와 한계</h2>
+        <ul>
+            <li><strong>출처</strong>: 본 서비스의 정보는 PubMed · Semantic Scholar 등 의학 논문 데이터베이스, 대한천식알레르기학회 등 전문학회 가이드, 식약처 공공자료를 기반으로 합니다.</li>
+            <li><strong>출처 표시</strong>: 각 정보 항목별 출처(논문/학회) 표시 시스템은 단계적으로 활성화 중입니다.</li>
+            <li><strong>업데이트</strong>: 의학 정보는 지속적으로 갱신됩니다. 본 서비스의 데이터가 최신 임상 지침과 시점 차이가 있을 수 있습니다.</li>
+            <li><strong>일반화의 한계</strong>: 제공되는 정보는 일반적인 알러지 사례 기준이며, 개인의 병력 · 동반 질환 · 약물 복용 상태 등을 반영하지 않습니다.</li>
+        </ul>
+
+        <!-- ===== 3. 응급 상황 ===== -->
+        <h2>3. 응급 상황 안내</h2>
+        <div class="info-box danger">
+            <strong>🚨 즉시 119 호출이 필요한 증상</strong>
+            <p>
+                <strong>아나필락시스 의심 증상</strong> — 호흡곤란 · 입술/혀/목 부종 · 의식 저하 · 어지러움 ·
+                혈압 저하 · 전신 두드러기와 호흡 증상 동반 · 구토와 함께 발생하는 알러지 반응 — 이 발생하면
+                <strong>본 서비스에서 정보를 찾기 전 즉시 119</strong>에 전화하시고, 에피네프린
+                자가주사기(에피펜)가 있다면 즉시 사용하세요.
+            </p>
+        </div>
+        <p>
+            본 서비스는 응급 의료 서비스가 아니며, 응급 상황에서 본 서비스의 정보 조회를 우선시할 경우
+            치명적 결과로 이어질 수 있습니다. 응급 상황에서는 항상 <strong>119 / 의료진</strong>이
+            우선이며, 본 서비스의 정보는 비응급 상황에서의 일상 관리 참고용입니다.
+        </p>
+
+        <!-- ===== 4. 의료적 결정 금지 ===== -->
+        <h2>4. 의료적 결정에 사용하지 마세요</h2>
+        <p>본 서비스의 정보를 다음 목적으로 사용하지 마세요:</p>
+        <ul>
+            <li>알러지 자가 진단 (정식 검사 없이 알러지 여부를 결정)</li>
+            <li>처방된 식이 제한 · 약물 복용의 변경 · 중단</li>
+            <li>응급 상황에서의 의료 조치 대체</li>
+            <li>임신 · 수유 · 소아 · 만성질환자 등 특수 상황의 임상 결정</li>
+            <li>본 서비스 결과를 의료진 상담 없이 타인(가족 · 자녀 등)에게 적용</li>
+        </ul>
+        <p>
+            모든 의료적 결정은 반드시 <strong>의료진(알레르기내과 · 소아알레르기 등 전문의)</strong>과 상담 후 이루어져야 합니다.
+        </p>
+
+        <!-- ===== 5. 데이터 처리 ===== -->
+        <h2>5. 데이터 처리 방침</h2>
+        <ul>
+            <li><strong>비회원 익명 사용</strong>: 비회원 페이지(MAST 등급 매칭 등)에서 입력한 알러젠 · 등급 정보는 서버에 저장되지 않습니다.</li>
+            <li><strong>건강정보 보호</strong>: 회원 가입 후 검사 결과를 저장하실 경우, 해당 정보는 개인정보보호법상 민감정보로 분류되어 별도 동의 절차와 암호화 보관이 적용됩니다.</li>
+            <li><strong>로그 수집</strong>: 서비스 개선을 위해 비식별 · 익명 사용 통계(검색어 빈도, 등급 분포 등)는 집계 형태로 수집될 수 있습니다.</li>
+        </ul>
+
+        <!-- ===== 6. 책임 한계 ===== -->
+        <h2>6. 책임 한계</h2>
+        <div class="info-box warning">
+            <strong>본 서비스 사용에 따른 책임</strong>
+            <p>
+                본 서비스의 정보를 활용하여 발생한 모든 의료적 · 법적 · 재산상의 결과에 대해
+                AllergyInsight 운영자는 책임을 지지 않습니다. 본 서비스의 정보는 <strong>참고 목적</strong>이며,
+                사용자는 본 서비스의 정보에 의존한 의사결정에 대해 스스로 책임을 부담합니다. 본 서비스를 사용함으로써
+                사용자는 위 내용에 동의한 것으로 간주합니다.
+            </p>
+        </div>
+
+        <!-- ===== 7. 문의 ===== -->
+        <h2>7. 문의</h2>
+        <p>
+            본 면책 안내 또는 서비스 운영 관련 문의는 운영자에게 연락 주세요. 의료적 자문이 필요한 경우
+            반드시 의료진(알레르기내과 · 소아알레르기 등 전문의)과 상담하세요.
+        </p>
+
+        <p class="meta">최종 갱신: 2026-05-02 · Phase 1 비회원 매칭 페이지 도입 시점</p>
+
+        <footer>
+            <p>
+                <a href="/help/mast-guide.html">MAST 검사 등급 매칭 가이드</a>
+                &nbsp;·&nbsp;
+                <a href="/">AllergyInsight 홈으로</a>
+            </p>
+            <p style="margin-top: 0.75rem;">&copy; AllergyInsight</p>
+        </footer>
+
+    </div>
+</body>
+</html>

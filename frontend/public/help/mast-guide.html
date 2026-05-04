@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AllergyInsight - MAST 검사 등급 매칭 가이드</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text-color: #f1f5f9;
+            --text-muted: #94a3b8;
+            --accent-color: #8b5cf6;
+            --border-color: rgba(148, 163, 184, 0.1);
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --success-color: #10b981;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.7;
+            background-image: radial-gradient(ellipse at 50% 100%, hsla(263, 70%, 50%, 0.15), transparent 70%);
+            background-attachment: fixed;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 2rem;
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: var(--accent-color); }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            background: rgba(139, 92, 246, 0.2);
+            color: var(--accent-color);
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            color: var(--accent-color);
+            margin: 2.5rem 0 1rem 0;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--accent-color);
+        }
+
+        h3 {
+            font-size: 1.2rem;
+            color: var(--text-color);
+            margin: 1.5rem 0 0.75rem 0;
+        }
+
+        p { margin-bottom: 1rem; }
+
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; color: var(--text-muted); }
+        li { margin-bottom: 0.4rem; }
+        strong { color: var(--text-color); }
+
+        /* Steps */
+        .steps {
+            counter-reset: step;
+            list-style: none;
+            padding: 0;
+            margin: 1.5rem 0;
+        }
+        .steps li {
+            position: relative;
+            padding-left: 3rem;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+            color: var(--text-color);
+        }
+        .steps li::before {
+            counter-increment: step;
+            content: counter(step);
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 2rem;
+            height: 2rem;
+            background: var(--accent-color);
+            color: #ffffff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.85rem;
+        }
+
+        /* Grade table */
+        .grade-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0 1.5rem;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .grade-table th, .grade-table td {
+            padding: 0.85rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.95rem;
+        }
+        .grade-table th {
+            background: rgba(139, 92, 246, 0.1);
+            color: var(--accent-color);
+            font-weight: 600;
+        }
+        .grade-table tr:last-child td { border-bottom: none; }
+        .grade-class {
+            display: inline-block;
+            padding: 0.15rem 0.55rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .gc-0 { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+        .gc-1 { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+        .gc-2 { background: rgba(245, 158, 11, 0.25); color: #f59e0b; }
+        .gc-3 { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+        .gc-4 { background: rgba(239, 68, 68, 0.4); color: #ffffff; }
+
+        /* Info boxes */
+        .info-box {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem 1.5rem;
+            margin: 1.25rem 0;
+        }
+        .info-box.warning {
+            border-left: 4px solid var(--warning-color);
+            background: rgba(245, 158, 11, 0.1);
+        }
+        .info-box.danger {
+            border-left: 4px solid var(--danger-color);
+            background: rgba(239, 68, 68, 0.1);
+        }
+        .info-box.highlight {
+            border-left: 4px solid var(--accent-color);
+        }
+        .info-box strong { display: block; margin-bottom: 0.5rem; }
+
+        /* Section grid */
+        .section-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+            margin: 1.25rem 0;
+        }
+        .section-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem;
+        }
+        .section-card .icon { font-size: 1.5rem; margin-bottom: 0.4rem; }
+        .section-card h3 { font-size: 1rem; margin: 0.25rem 0; }
+        .section-card p { color: var(--text-muted); font-size: 0.9rem; margin: 0; }
+
+        /* FAQ */
+        .faq-item {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            margin-bottom: 0.75rem;
+            overflow: hidden;
+        }
+        .faq-question {
+            padding: 0.9rem 1.25rem;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+        .faq-answer {
+            padding: 0 1.25rem 1rem 1.25rem;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border-color);
+            padding-top: 0.9rem;
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem 0;
+            margin-top: 3rem;
+            border-top: 1px solid var(--border-color);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+        footer a { color: var(--accent-color); text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 2rem; }
+            .grade-table { font-size: 0.85rem; }
+            .grade-table th, .grade-table td { padding: 0.6rem 0.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <a href="/" class="back-link">&larr; AllergyInsight로 돌아가기</a>
+
+        <header>
+            <span class="badge">USER GUIDE</span>
+            <h1>MAST 검사 등급 매칭 가이드</h1>
+            <p>병원 · 진단소에서 받은 알러지 검사 결과를 입력하면 식이 · 증상 · 응급 정보를 확인할 수 있습니다</p>
+        </header>
+
+        <!-- ===== 1. 서비스 소개 ===== -->
+        <h2>1. 서비스 소개</h2>
+        <p>
+            <strong>MAST(Multiple Allergen Simultaneous Test)</strong> 는 한 번의 검사로 여러 알러젠에 대한 IgE 반응을
+            동시에 측정하는 다중 알러지 검사입니다. 본 페이지에서는 병원 또는 진단소에서 받은
+            MAST 등급(Class 0~4)을 입력하면, 해당 알러젠에 대해 논문 · 전문기관 출처 기반의
+            식이 관리 · 예상 증상 · 교차반응 · 응급 대처 정보를 매칭해서 보여줍니다.
+        </p>
+        <div class="info-box highlight">
+            <strong>📌 본 서비스의 위치</strong>
+            <p>
+                본 서비스는 <em>의료 진단 도구가 아니라 정보 매칭 서비스</em>입니다.
+                이미 의료기관에서 받은 검사 결과를 바탕으로 일상에서 참고할 수 있는
+                정보를 제공할 뿐, 새로운 진단을 내리지 않습니다.
+            </p>
+        </div>
+
+        <!-- ===== 2. MAST 등급 체계 ===== -->
+        <h2>2. MAST 등급 체계 (Class 0~4)</h2>
+        <p>본 서비스가 사용하는 등급 체계는 다음과 같습니다. 한국 임상에서 통용되는 라벨과 표준 클래스 명칭을 함께 표기합니다.</p>
+        <table class="grade-table">
+            <thead>
+                <tr><th>등급</th><th>한국어 라벨</th><th>표준 명칭</th><th>설명</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><span class="grade-class gc-0">0</span></td><td>음성</td><td>Class 0 (Negative)</td><td>알러지 반응 없음 — 제한 없이 섭취 가능</td></tr>
+                <tr><td><span class="grade-class gc-1">1</span></td><td>약양성</td><td>Class 1 (Weak)</td><td>약한 반응 — 섭취 후 증상 관찰 권장</td></tr>
+                <tr><td><span class="grade-class gc-2">2</span></td><td>중등도 양성</td><td>Class 2 (Moderate)</td><td>중등도 반응 — 섭취 시 주의 관찰</td></tr>
+                <tr><td><span class="grade-class gc-3">3</span></td><td>강양성</td><td>Class 3 (Strong)</td><td>강한 반응 — 섭취 제한 권고</td></tr>
+                <tr><td><span class="grade-class gc-4">4</span></td><td>매우 강양성</td><td>Class 4 (Very Strong)</td><td>매우 강한 반응, 아나필락시스 위험 — 회피 + 응급약 휴대 권고</td></tr>
+            </tbody>
+        </table>
+        <div class="info-box warning">
+            <strong>⚠️ 다른 검사 결과를 가지고 계신 경우</strong>
+            <p>
+                ImmunoCAP(0~6) 등 다른 검사 체계를 사용하셨다면 등급이 다를 수 있습니다.
+                검사 종류별 등급은 직접 비교가 어려우므로, 본 페이지에서는 MAST 기준 라벨을 입력해 주세요.
+            </p>
+        </div>
+
+        <!-- ===== 3. 사용 방법 ===== -->
+        <h2>3. 사용 방법</h2>
+        <ol class="steps">
+            <li>
+                <strong>알러젠 선택</strong> — 한글명, 영문명, 또는 코드로 검색하거나 카테고리 필터로 알러젠을 찾습니다.
+                현재 본 서비스는 처방 데이터가 풍부하게 준비된 36종(식품 21 + 흡입 15)을 매칭 대상으로 합니다.
+            </li>
+            <li>
+                <strong>MAST 등급 선택</strong> — Class 0(음성)부터 Class 4(매우 강양성)까지 5단계 중
+                병원/진단소 결과지에 표기된 등급을 선택합니다.
+            </li>
+            <li>
+                <strong>"정보 매칭하기" 클릭</strong> — 입력값을 보내면 즉시 결과 화면으로 이동합니다.
+                별도 회원가입은 필요 없으며, 입력 정보는 저장되지 않습니다(익명).
+            </li>
+        </ol>
+
+        <!-- ===== 4. 결과 화면 구성 ===== -->
+        <h2>4. 결과 화면 구성</h2>
+        <p>입력한 알러젠과 등급에 따라 다음 정보가 자동으로 매칭되어 표시됩니다.</p>
+        <div class="section-grid">
+            <div class="section-card">
+                <div class="icon">🍽️</div>
+                <h3>식이 관리</h3>
+                <p>회피 식품 · 가공식품 숨겨진 알러젠 · 대체 식품 · 라벨 확인 키워드</p>
+            </div>
+            <div class="section-card">
+                <div class="icon">⚠️</div>
+                <h3>예상 증상 / 위험도</h3>
+                <p>등급별로 노출 시 발생할 수 있는 증상, 발현 시간, 발생 확률</p>
+            </div>
+            <div class="section-card">
+                <div class="icon">🔁</div>
+                <h3>교차반응 주의</h3>
+                <p>해당 알러젠과 공통 단백질을 가진 관련 알러젠 안내</p>
+            </div>
+            <div class="section-card">
+                <div class="icon">🚨</div>
+                <h3>응급 대처 가이드</h3>
+                <p>아나필락시스 / 중등도 / 경미 반응별 즉각 대처 절차와 119 호출 기준</p>
+            </div>
+            <div class="section-card">
+                <div class="icon">🏥</div>
+                <h3>의료 권고</h3>
+                <p>전문의 상담 권고, 추적 검사 주기, 추가 검사 안내</p>
+            </div>
+            <div class="section-card">
+                <div class="icon">📚</div>
+                <h3>출처</h3>
+                <p>각 정보의 논문 · 전문기관 출처 (citations 시스템은 단계적 활성화)</p>
+            </div>
+        </div>
+
+        <!-- ===== 5. 응급 상황 안내 ===== -->
+        <h2>5. 응급 상황 안내</h2>
+        <div class="info-box danger">
+            <strong>🚨 다음 증상 시 즉시 119</strong>
+            <p>
+                숨가쁨/호흡곤란, 입술/혀/목 부종, 의식 저하, 어지러움, 전신 두드러기 + 호흡 증상,
+                구토와 함께 발생하는 알러지 반응, 혈압 저하 등 <strong>아나필락시스 의심 증상</strong>이
+                나타나면 즉시 119에 전화하시고, 에피네프린 자가주사기(에피펜)가 있다면 즉시 사용하세요.
+            </p>
+        </div>
+        <p>
+            <strong>Class 3(강양성) 이상</strong>의 결과를 입력하면 결과 화면 상단에 응급 정보가 자동으로 노출됩니다.
+            이는 임상적으로 중증 반응 위험이 높은 등급에 대해 항상 응급 절차를 먼저 안내하기 위함입니다.
+        </p>
+
+        <!-- ===== 6. FAQ ===== -->
+        <h2>6. 자주 묻는 질문</h2>
+
+        <div class="faq-item">
+            <div class="faq-question">Q. 회원가입 없이 사용할 수 있나요?</div>
+            <div class="faq-answer">네. 본 서비스는 비회원 익명 사용을 기본으로 합니다. 입력한 알러젠 · 등급은 서버에 저장되지 않습니다.</div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">Q. 왜 36종만 조회 가능한가요?</div>
+            <div class="faq-answer">의학적으로 검증된 식이/증상/응급 정보가 충분히 채워진 36종에 한정해서 노출하고 있습니다. 출처 부재 또는 정보 부족 상태로 노출하면 사용자에게 잘못된 안내가 될 수 있어, 풍부한 데이터 보유 알러젠만 우선 활성화하는 정책입니다.</div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">Q. 본 서비스 결과로 자가 진단이 가능한가요?</div>
+            <div class="faq-answer">아니요. 본 서비스는 의료 진단을 대체하지 않습니다. 모든 정보는 교육 · 정보 매칭 목적이며, 실제 식이 결정 · 처방 · 응급 대처는 반드시 의료진과 상담하세요.</div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">Q. 검사 결과지에 등급이 0~6으로 표기되어 있어요</div>
+            <div class="faq-answer">CAP/ImmunoCAP 등 다른 검사 체계는 0~6 단계입니다. 본 서비스는 MAST 0~4 기준으로 동작하므로, 검사기관에 결과지의 등급 체계를 확인 후 가장 가까운 MAST 클래스를 선택하시는 것을 권장합니다 (대략 5/6은 Class 4에 가까움).</div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">Q. 약물 정보 / 약 추천을 받을 수 있나요?</div>
+            <div class="faq-answer">현재는 등급별 응급약 휴대 권고 등 일반 안내만 제공합니다. 특정 약품 추천 · 처방 안내는 의약품 광고법 등 법적 제약으로 제공하지 않습니다. 약물 성분 정보는 향후 별도 페이지에서 출처와 함께 제공할 예정입니다.</div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">Q. 사진 업로드로 알러지를 진단해 주세요</div>
+            <div class="faq-answer">현재 단계에서는 사용자 사진을 통한 진단/매칭은 제공하지 않습니다. 추후 논문 출처가 명확한 임상 사진 갤러리 형태로 정보 제공이 검토될 수 있으나, 사용자 사진 분석은 의료기기 인허가 영역이라 별도 절차가 필요합니다.</div>
+        </div>
+
+        <h2>7. 면책 / 정보 출처 한계</h2>
+        <div class="info-box warning">
+            <strong>본 서비스의 한계</strong>
+            <p>
+                본 페이지의 모든 정보는 논문 · 전문기관 자료를 큐레이션한 <strong>교육 · 정보 매칭 목적</strong>이며,
+                의료 진단 · 처방 · 치료를 대체하지 않습니다. 정확한 진단과 처방은 반드시 의료진과 상담하세요.
+                자세한 내용은
+                <a href="/help/medical-disclaimer.html" style="color: var(--accent-color);">의료 정보 면책 안내</a>를 참고하세요.
+            </p>
+        </div>
+
+        <footer>
+            <p>
+                <a href="/help/medical-disclaimer.html">의료 정보 면책 안내</a>
+                &nbsp;·&nbsp;
+                <a href="/">AllergyInsight 홈으로</a>
+            </p>
+            <p style="margin-top: 0.75rem;">&copy; AllergyInsight</p>
+        </footer>
+
+    </div>
+</body>
+</html>
