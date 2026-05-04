@@ -325,6 +325,9 @@ class HypothesisValidator:
     def validate_one(self, h: HypothesisLog) -> bool:
         """단일 가설 검증. T+5d 데이터 확보되면 status='validated' 처리.
 
+        벤치마크(KOSDAQ 종합) 가용 시 abnormal return 사용, 미가용 시 종목 자체 수익률(raw)
+        기준으로 hit 판정. 어느 경우든 validation_{t1d/t5d/t30d}_return 은 항상 적재.
+
         Returns: True if any update happened
         """
         if h.company_code not in VALIDATED_COMPANIES:
@@ -341,48 +344,59 @@ class HypothesisValidator:
         if not anchor_close:
             return False
         anchor_date, p0 = anchor_close
-
-        market_close = price_svc.next_trading_day_close(self.db, "KOSDAQ", anchor)
-        if not market_close:
+        if p0 <= 0:
             return False
-        m0_date, m0 = market_close
+
+        # 벤치마크는 옵션 — 없어도 진행
+        market_close = price_svc.next_trading_day_close(self.db, "KOSDAQ", anchor)
+        m0_date = market_close[0] if market_close else None
+        m0 = market_close[1] if market_close else None
+        has_benchmark = m0 is not None and m0 > 0
 
         updated = False
         for label, offset in T_PLUS_DAYS.items():
             stock_target = price_svc.trading_day_offset_close(self.db, ticker, anchor_date, offset)
-            market_target = price_svc.trading_day_offset_close(self.db, "KOSDAQ", m0_date, offset)
-            if not stock_target or not market_target:
+            if not stock_target:
                 continue
             _, p_n = stock_target
-            _, m_n = market_target
-            if p0 <= 0 or m0 <= 0:
-                continue
             stock_ret = (p_n - p0) / p0
-            market_ret = (m_n - m0) / m0
-            abnormal = stock_ret - market_ret
-
             setattr(h, f"validation_{label}_return", Decimal(f"{stock_ret:.5f}"))
-            setattr(h, f"market_{label}_return", Decimal(f"{market_ret:.5f}"))
-            setattr(h, f"abnormal_{label}", Decimal(f"{abnormal:.5f}"))
+
+            if has_benchmark:
+                market_target = price_svc.trading_day_offset_close(
+                    self.db, "KOSDAQ", m0_date, offset
+                )
+                if market_target:
+                    _, m_n = market_target
+                    market_ret = (m_n - m0) / m0
+                    abnormal = stock_ret - market_ret
+                    setattr(h, f"market_{label}_return", Decimal(f"{market_ret:.5f}"))
+                    setattr(h, f"abnormal_{label}", Decimal(f"{abnormal:.5f}"))
             updated = True
 
-        # 적중 판정 (메인 KPI: T+5d)
-        if h.abnormal_t5d is not None:
+        # 적중 판정 (메인 KPI: T+5d) — abnormal 우선, 없으면 raw return
+        signal_t5d = h.abnormal_t5d if h.abnormal_t5d is not None else h.validation_t5d_return
+        if signal_t5d is not None:
             if h.impact_direction == "neutral":
-                # neutral → |abnormal| < 1% 면 적중
-                h.hit_t5d = abs(float(h.abnormal_t5d)) < 0.01
+                # neutral → |signal| < 1% 면 적중
+                h.hit_t5d = abs(float(signal_t5d)) < 0.01
             else:
                 expected_sign = 1 if h.impact_direction == "positive" else -1
-                actual_sign = 1 if float(h.abnormal_t5d) > 0 else -1
+                actual_sign = 1 if float(signal_t5d) > 0 else -1
                 h.hit_t5d = expected_sign == actual_sign
             h.validation_status = "validated"
             h.validated_at = datetime.utcnow()
             updated = True
-        elif h.abnormal_t1d is not None and h.validation_status == "pending":
+        elif (
+            (h.abnormal_t1d is not None or h.validation_t1d_return is not None)
+            and h.validation_status == "pending"
+        ):
             h.validation_status = "partial"
             updated = True
 
-        if h.abnormal_t30d is not None:
+        # 30d 데이터 확보 시 closed 처리
+        signal_t30d = h.abnormal_t30d if h.abnormal_t30d is not None else h.validation_t30d_return
+        if signal_t30d is not None:
             h.validation_status = "closed"
             updated = True
 
