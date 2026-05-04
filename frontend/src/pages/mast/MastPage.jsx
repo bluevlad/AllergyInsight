@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../shared/services/apiClient';
 import MedicalDisclaimer from '../../shared/components/MedicalDisclaimer';
+import BackToHomeBar from '../../shared/components/BackToHomeBar';
 import MastInputForm from './MastInputForm';
 import MastResultView from './MastResultView';
 
@@ -46,6 +47,7 @@ const MastPage = () => {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f5f6fa' }}>
+      <BackToHomeBar />
       <div
         style={{
           background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',

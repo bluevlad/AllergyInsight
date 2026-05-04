@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { subscribeApi } from '../../services/subscribeApi';
+import BackToHomeBar from '../../shared/components/BackToHomeBar';
 
 const KEYWORD_OPTIONS = [
   { value: 'regulatory', label: '규제/인허가' },
@@ -53,6 +54,7 @@ const SubscribePage = () => {
 
   return (
     <div className="subscribe-page">
+      <BackToHomeBar />
       <div className="subscribe-container">
         <h1>AllergyInsight 뉴스 구독</h1>
         <p className="subtitle">알러지 진단/체외진단 업계 최신 뉴스를 매일 이메일로 받아보세요.</p>

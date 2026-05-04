@@ -8,6 +8,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../shared/services/apiClient';
+import BackToHomeBar from '../../shared/components/BackToHomeBar';
 import AllergenInputForm from './AllergenInputForm';
 import AllergyReportView from './AllergyReportView';
 
@@ -41,6 +42,9 @@ function AllergyReportPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f5f6fa' }}>
+      <div className="no-print">
+        <BackToHomeBar />
+      </div>
       {/* 헤더 (인쇄 시 숨김) */}
       <div className="no-print" style={{
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
