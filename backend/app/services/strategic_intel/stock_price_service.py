@@ -43,8 +43,9 @@ TRACKED_TICKERS: list[TrackedTicker] = [
     TrackedTicker(code="253840", label="253840", market="KOSDAQ", company_code="sugentech"),
     TrackedTicker(code="142280", label="142280", market="KOSDAQ", company_code="greencross"),
     TrackedTicker(code="206640", label="206640", market="KOSDAQ", company_code="bodytech"),
-    # 벤치마크: KOSDAQ 종합지수
-    TrackedTicker(code="2001", label="KOSDAQ", market="INDEX", is_index=True),
+    # NOTE: KOSDAQ 종합지수("2001")는 환경에서 KRX API fetch 차단되어 비활성화.
+    # 벤치마크 미보유 시 검증기는 종목 자체 수익률(raw return) 기준으로 hit 판정.
+    # 추후 별도 데이터 소스 (FinanceDataReader 등) 도입 시 재활성화.
 ]
 
 
