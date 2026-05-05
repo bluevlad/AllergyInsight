@@ -208,6 +208,9 @@ def strategic_intel_daily(
     from scripts.backfill_strategic_intel import (
         stage_prices,
         stage_disclosures,
+        stage_fda_510k,
+        stage_clinical_trials,
+        stage_pubmed_ivd,
         stage_classify,
         stage_generate,
         stage_qualitative,
@@ -220,6 +223,7 @@ def strategic_intel_daily(
         prices_window_start = today - timedelta(days=4)
         classify_window_start = today - timedelta(days=classify_window_days)
         disclosures_window_start = today - timedelta(days=7)  # DART 1주 윈도우
+        ext_window_start = today - timedelta(days=14)  # 외부 트리거 2주 윈도우
 
         prices_result = stage_prices(db, prices_window_start, today)
         logger.info(f"strategic_intel_daily prices: {prices_result}")
@@ -227,6 +231,26 @@ def strategic_intel_daily(
         # Phase D — DART 공시 (분류기 픽업 전 적재)
         disclosures_result = stage_disclosures(db, disclosures_window_start, today)
         logger.info(f"strategic_intel_daily disclosures: {disclosures_result}")
+
+        # Phase D-잔여 — FDA 510(k) / ClinicalTrials.gov / PubMed IVD
+        try:
+            fda_result = stage_fda_510k(db, ext_window_start, today)
+            logger.info(f"strategic_intel_daily fda_510k: {fda_result}")
+        except Exception as e:
+            logger.warning(f"strategic_intel_daily fda_510k 실패 — 다음 단계 진행: {e}")
+            fda_result = {"stage": "fda_510k", "error": str(e)}
+        try:
+            ct_result = stage_clinical_trials(db, ext_window_start, today)
+            logger.info(f"strategic_intel_daily clinical_trials: {ct_result}")
+        except Exception as e:
+            logger.warning(f"strategic_intel_daily clinical_trials 실패 — 다음 단계 진행: {e}")
+            ct_result = {"stage": "clinical_trials", "error": str(e)}
+        try:
+            ivd_result = stage_pubmed_ivd(db, ext_window_start, today)
+            logger.info(f"strategic_intel_daily pubmed_ivd: {ivd_result}")
+        except Exception as e:
+            logger.warning(f"strategic_intel_daily pubmed_ivd 실패 — 다음 단계 진행: {e}")
+            ivd_result = {"stage": "pubmed_ivd", "error": str(e)}
 
         classify_result = stage_classify(
             db,
@@ -252,6 +276,9 @@ def strategic_intel_daily(
         return {
             "prices": prices_result,
             "disclosures": disclosures_result,
+            "fda_510k": fda_result,
+            "clinical_trials": ct_result,
+            "pubmed_ivd": ivd_result,
             "classify": classify_result,
             "generate": generate_result,
             "qualitative": qualitative_result,

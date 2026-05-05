@@ -402,6 +402,65 @@ def stage_disclosures(db, start: date, end: date) -> dict:
     }
 
 
+def stage_fda_510k(db, start: date, end: date) -> dict:
+    """Stage 2.6 (Phase D-잔여): FDA 510(k) 알러지 IVD 승인 → competitor_news ('industry')"""
+    from app.services.strategic_intel.external_triggers import Fda510kService
+
+    t0 = time.time()
+    result = Fda510kService().collect(db, since=start, until=end)
+    logger.info("[fda_510k] fetched=%d inserted=%d err=%s (%.2fs)",
+                result.fetched, result.inserted, result.error, time.time() - t0)
+    return {
+        "stage": "fda_510k",
+        "fetched": result.fetched,
+        "inserted": result.inserted,
+        **({"error": result.error} if result.error else {}),
+        "elapsed_s": round(time.time() - t0, 2),
+    }
+
+
+def stage_clinical_trials(db, start: date, end: date) -> dict:
+    """Stage 2.7 (Phase D-잔여): ClinicalTrials.gov 알러지 IVD trial → competitor_news"""
+    from app.services.strategic_intel.external_triggers import ClinicalTrialsService
+
+    t0 = time.time()
+    results = ClinicalTrialsService().collect(db, since=start, until=end)
+    summary = [
+        {
+            "company": r.company_code,
+            "fetched": r.fetched,
+            "inserted": r.inserted,
+            **({"error": r.error} if r.error else {}),
+        }
+        for r in results
+    ]
+    logger.info("[clinical_trials] %s (%.2fs)", summary, time.time() - t0)
+    return {
+        "stage": "clinical_trials",
+        "results": summary,
+        "elapsed_s": round(time.time() - t0, 2),
+    }
+
+
+def stage_pubmed_ivd(db, start: date, end: date, *, max_per_query: int = 10) -> dict:
+    """Stage 2.8 (Phase D-잔여): 알러지 IVD 도메인 PubMed 강화 → papers 테이블"""
+    from app.services.strategic_intel.pubmed_ivd_service import PubmedIvdService
+
+    t0 = time.time()
+    results = PubmedIvdService(max_per_query=max_per_query).collect(db, since=start, until=end)
+    total_fetched = sum(r.fetched for r in results)
+    total_inserted = sum(r.inserted for r in results)
+    logger.info("[pubmed_ivd] queries=%d fetched=%d inserted=%d (%.2fs)",
+                len(results), total_fetched, total_inserted, time.time() - t0)
+    return {
+        "stage": "pubmed_ivd",
+        "queries": len(results),
+        "total_fetched": total_fetched,
+        "total_inserted": total_inserted,
+        "elapsed_s": round(time.time() - t0, 2),
+    }
+
+
 def stage_validate(db, batch_limit: int = 1000) -> dict:
     """Stage 5: 가설 검증 (T+1d/T+5d/T+30d abnormal return + hit 판정)"""
     from app.services.strategic_intel.hypothesis_engine import HypothesisValidator
@@ -473,7 +532,11 @@ def stage_qualitative(
 # ---------------------------------------------------------------------------
 
 
-STAGES_ORDER = ["seed", "prices", "disclosures", "classify", "generate", "validate", "qualitative"]
+STAGES_ORDER = [
+    "seed", "prices",
+    "disclosures", "fda_510k", "clinical_trials", "pubmed_ivd",
+    "classify", "generate", "validate", "qualitative",
+]
 
 
 def parse_date(s: str) -> date:
@@ -539,6 +602,12 @@ def main():
                 summary.append(stage_prices(db, args.start, args.end))
             elif stage == "disclosures":
                 summary.append(stage_disclosures(db, args.start, args.end))
+            elif stage == "fda_510k":
+                summary.append(stage_fda_510k(db, args.start, args.end))
+            elif stage == "clinical_trials":
+                summary.append(stage_clinical_trials(db, args.start, args.end))
+            elif stage == "pubmed_ivd":
+                summary.append(stage_pubmed_ivd(db, args.start, args.end))
             elif stage == "classify":
                 summary.append(stage_classify(
                     db, args.start, args.end, args.classify_limit,

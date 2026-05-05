@@ -113,6 +113,9 @@ frontend/src/apps/admin/pages/
 | `pykrx` | 한국 3사 일별 OHLCV (primary) | 종목은 pykrx 우선, 실패 시 FDR fallback |
 | `FinanceDataReader` | KOSDAQ 종합지수 (primary) + 종목 fallback | pykrx KRX 메타 차단 환경 우회. `daily_prices.source` 컬럼에 실제 사용 소스 기록 |
 | DART Open API (`opendart.fss.or.kr`) | 한국 3사 정기·수시 공시 (Phase D) | `DART_API_KEY` 필요. 미설정 시 disclosures 단계 graceful skip. competitor_news 에 `source='dart'` 로 적재 |
+| openFDA (`api.fda.gov/device/510k.json`) | 알러지 IVD 510(k) 신규 승인 (Phase D-잔여) | API 키 불필요. competitor_news 에 `source='fda_510k'`, 'industry' 회사로 매핑 |
+| ClinicalTrials.gov v2 (`clinicaltrials.gov/api/v2/studies`) | 알러지 IVD 임상시험 (Phase D-잔여) | API 키 불필요. sponsor 매칭 → 4사/'industry' 분류, `source='clinicaltrials'` |
+| PubMed E-utilities (IVD 큐) | 알러지 IVD 도메인 한정 논문 강화 (Phase D-잔여) | 기존 pubmed_service 재사용. 9개 IVD 쿼리 큐, papers 테이블 적재 |
 | LLM (`OllamaService` 추상화, 현재 Gemini 2.5 Flash) | 분류기 + 리포트 생성 | 무료 티어 한도 15 RPM / 1,500 RPD — 백필 페이싱 필수 |
 | PostgreSQL | 모든 영속 데이터 | `ON CONFLICT` 기반 upsert (asyncpg/psycopg2) |
 
