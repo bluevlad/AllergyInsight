@@ -109,7 +109,8 @@ frontend/src/apps/admin/pages/
 
 | 의존성 | 용도 | 운영 비고 |
 |---|---|---|
-| `pykrx` | 한국 3사 일별 OHLCV | KOSDAQ 종합 인덱스 fetch는 환경에서 차단 → 종목 데이터만 사용 |
+| `pykrx` | 한국 3사 일별 OHLCV (primary) | 종목은 pykrx 우선, 실패 시 FDR fallback |
+| `FinanceDataReader` | KOSDAQ 종합지수 (primary) + 종목 fallback | pykrx KRX 메타 차단 환경 우회. `daily_prices.source` 컬럼에 실제 사용 소스 기록 |
 | LLM (`OllamaService` 추상화, 현재 Gemini 2.5 Flash) | 분류기 + 리포트 생성 | 무료 티어 한도 15 RPM / 1,500 RPD — 백필 페이싱 필수 |
 | PostgreSQL | 모든 영속 데이터 | `ON CONFLICT` 기반 upsert (asyncpg/psycopg2) |
 

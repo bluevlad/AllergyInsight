@@ -63,6 +63,7 @@ aiosmtplib>=3.0.1
 
 # Stock price data (KOSDAQ — Strategic Intel module)
 pykrx>=1.0.45
+finance-datareader>=0.9.50  # 벤치마크 지수 fallback (pykrx KRX 메타 차단 환경 우회)
 
 # Testing
 pytest==7.4.4
