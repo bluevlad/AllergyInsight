@@ -21,6 +21,12 @@ docs/
 │   ├── CHANGELOG.md                   # API 변경 이력
 │   └── PAPER_COLLECTION_SOURCES.md    # 데이터 수집 소스
 │
+├── architecture/                      # 시스템 구조 (모듈 단위)
+│   └── STRATEGIC_INTEL_OVERVIEW.md    # Strategic Intel — 데이터 모델/처리 흐름/임계값
+│
+├── admin/                             # 운영 Runbook (super_admin)
+│   └── STRATEGIC_INTEL_RUNBOOK.md     # Strategic Intel — 백필/UI/임계값 튜닝/트러블슈팅
+│
 ├── dev/                               # 개발자 가이드
 │   ├── SETUP.md                       # 개발 환경 설정
 │   ├── DEPLOYMENT.md                  # 배포 절차
