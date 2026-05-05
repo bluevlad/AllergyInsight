@@ -14,10 +14,11 @@
 | Stage | 내용 | 입력 | 출력 |
 |---|---|---|---|
 | `seed` | Tech Taxonomy + Fit Matrix v1 시드 | (constants) | `tech_categories`, `company_tech_fits` |
-| `prices` | 일별 OHLCV 백필 | pykrx | `daily_prices` |
+| `prices` | 일별 OHLCV + market_cap 백필 | pykrx + FDR | `daily_prices` |
 | `classify` | papers/news LLM 라벨링 | LLM | `paper_tech_links`, `news_tech_links` |
 | `generate` | 라벨된 트리거 → 4사 가설 | (룰) | `hypothesis_logs` |
-| `validate` | 가설 → T+1d/5d/30d abnormal return | `daily_prices` | `hypothesis_logs.*_return` + `hit_t5d` |
+| `validate` | 가설 → T+1d/5d/30d abnormal return + 보조 시그널 | `daily_prices` | `hypothesis_logs.*_return` + `hit_t5d` + `volume_zscore_t1d` |
+| `qualitative` | 가설 → LLM 정성 보강 (Phase B) | LLM + fit context | `hypothesis_logs.qualitative_*` |
 
 ### 1.1 전체 실행 (기본 — 2025-12-01부터 오늘까지)
 
@@ -34,6 +35,7 @@ python -m scripts.backfill_strategic_intel --only prices --start 2026-01-01 --en
 python -m scripts.backfill_strategic_intel --only classify --max-per-run 1400 --rpm-limit 12
 python -m scripts.backfill_strategic_intel --only generate
 python -m scripts.backfill_strategic_intel --only validate
+python -m scripts.backfill_strategic_intel --only qualitative --qualitative-limit 100 --rpm-limit 12
 ```
 
 ### 1.3 단계 제외
@@ -136,7 +138,7 @@ FDR 도 차단되면:
 |---|---|---|
 | `strategic_intel_validate` | 매일 06:30 | pending/partial 가설 → T+1d/5d/30d abnormal return 검증 (batch 500) |
 | `strategic_intel_event_scan` | 매일 09:00 | 검증 완료 가설 중 \|abnormal_t5d\|≥5% → 이벤트 리포트 자동 발행 (최근 60일 내) |
-| `strategic_intel_daily` | 매일 19:00 (장마감 후) | 최근 4일 시세 + 30일 미분류 항목 분류 (max 400/run, RPM 12) + 가설 생성 |
+| `strategic_intel_daily` | 매일 19:00 (장마감 후) | 최근 4일 시세 + 30일 미분류 항목 분류 (max 400/run, RPM 12) + 가설 생성 + LLM 정성 보강 (max 80/run) |
 | `strategic_intel_monthly` | 매월 1일 09:30 | 전월 종합 리포트 자동 발행 |
 
 배치 실패 / 수동 재실행:

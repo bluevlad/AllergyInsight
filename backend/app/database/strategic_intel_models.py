@@ -200,6 +200,16 @@ class HypothesisLog(Base):
     market_cap_change_t5d = Column(Numeric(8, 5), nullable=True)
     # T+5d 시가총액 변화율 — abnormal_t5d 와 평소 동일하지만 유증/감자/배당 등에서 분기
 
+    # LLM 정성 보강 (Phase B) — 룰 결정 위에 정성 분석 레이어
+    qualitative_score = Column(Numeric(4, 2), nullable=True)
+    # LLM의 정성 점수 (-1.0 ~ 1.0). 룰 impact_score 와 별도로 비교/모니터링.
+    qualitative_rationale = Column(Text, nullable=True)
+    # LLM 보강 rationale — 트리거 본문 + fit context 반영한 정성 분석
+    qualitative_override = Column(Boolean, nullable=True)
+    # True 이면 LLM 이 룰 방향(direction)을 뒤집을 정황 발견. drift 모니터링 KPI.
+    qualitative_version = Column(String(30), nullable=True)
+    # 정성 보강기 버전 — 'qual-v1-2026-05' 등. 미보강 가설은 NULL.
+
     validation_status = Column(String(20), default="pending")
     # 'pending' / 'partial' (T+1d) / 'validated' (T+5d 완료) / 'closed' (T+30d) / 'no_data'
 

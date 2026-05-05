@@ -53,6 +53,11 @@ class HypothesisItem(BaseModel):
     # Phase A-3 보조 시그널
     volume_zscore_t1d: Optional[float] = None
     market_cap_change_t5d: Optional[float] = None
+    # Phase B — LLM 정성 보강
+    qualitative_score: Optional[float] = None
+    qualitative_rationale: Optional[str] = None
+    qualitative_override: Optional[bool] = None
+    qualitative_version: Optional[str] = None
 
 
 class UnhitTechItem(BaseModel):
@@ -125,12 +130,22 @@ class HitRateBucket(DirectionStats):
     by_direction: dict[str, DirectionStats] = {}
 
 
+class QualitativeDrift(BaseModel):
+    """LLM 정성 보강 vs 룰 결정 drift KPI (Phase B)"""
+    n_total: int = 0
+    n_enhanced: int = 0
+    n_override: int = 0
+    coverage: Optional[float] = None         # n_enhanced / n_total
+    override_rate: Optional[float] = None    # n_override / n_enhanced
+
+
 class StatsResponse(BaseModel):
     period_start: Optional[date] = None
     hit_rate: dict[str, HitRateBucket] = {}
     n_hypotheses: int
     n_validated: int
     tech_pulse: dict[str, int] = {}  # {tech_id: trigger_count}
+    qualitative_drift: Optional[QualitativeDrift] = None
 
 
 class GenerateMonthlyRequest(BaseModel):

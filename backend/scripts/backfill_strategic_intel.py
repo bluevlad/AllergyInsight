@@ -378,12 +378,67 @@ def stage_validate(db, batch_limit: int = 1000) -> dict:
     return {"stage": "validate", **result, "elapsed_s": round(time.time() - t0, 2)}
 
 
+def stage_qualitative(
+    db,
+    *,
+    since: date | None = None,
+    limit: int = 100,
+    rpm_limit: int = 12,
+) -> dict:
+    """Stage 6 (Phase B): LLM 정성 보강 — 룰 결정 위에 정성 분석 레이어.
+
+    Gemini 무료 한도(15 RPM / 1,500 RPD) 안전 마진 적용 — limit + 호출 간격.
+    `qualitative_version` 가 현재 버전과 다른 가설만 처리 (idempotent).
+    """
+    from app.services.strategic_intel.qualitative_enhancer import (
+        HypothesisQualitativeEnhancer,
+    )
+
+    t0 = time.time()
+    interval = max(0, 60.0 / rpm_limit) if rpm_limit > 0 else 0
+    enhancer = HypothesisQualitativeEnhancer(db)
+
+    # 페이싱: enhance_pending 은 1회 호출에 limit 만큼 처리하므로 단일 호출.
+    # rpm_limit 은 enhance_one 사이에 sleep 으로 유지.
+    from app.database.strategic_intel_models import HypothesisLog
+    q = db.query(HypothesisLog).filter(
+        (HypothesisLog.qualitative_version.is_(None))
+        | (HypothesisLog.qualitative_version != enhancer.VERSION)
+    )
+    if since is not None:
+        q = q.filter(HypothesisLog.trigger_date >= since)
+    rows = (
+        q.order_by(HypothesisLog.trigger_date.desc(), HypothesisLog.id.desc())
+        .limit(limit)
+        .all()
+    )
+
+    updated = 0
+    for i, h in enumerate(rows):
+        try:
+            if enhancer.enhance_one(h):
+                updated += 1
+        except Exception as e:
+            logger.warning("enhance_one failed h=%s: %s", h.id, e)
+        if interval and i + 1 < len(rows):
+            time.sleep(interval)
+
+    logger.info("[qualitative] checked=%d updated=%d (%.2fs)",
+                len(rows), updated, time.time() - t0)
+    return {
+        "stage": "qualitative",
+        "checked": len(rows),
+        "updated": updated,
+        "elapsed_s": round(time.time() - t0, 2),
+    }
+
+
 # ---------------------------------------------------------------------------
 # 메인
 # ---------------------------------------------------------------------------
 
 
-STAGES_ORDER = ["seed", "prices", "classify", "generate", "validate"]
+STAGES_ORDER = ["seed", "prices", "classify", "generate", "validate", "qualitative"]
 
 
 def parse_date(s: str) -> date:
@@ -415,6 +470,10 @@ def main():
     parser.add_argument(
         "--regenerate", action="store_true",
         help="generate 단계에서 기존 가설(현재 generator_version)을 삭제 후 재생성",
+    )
+    parser.add_argument(
+        "--qualitative-limit", type=int, default=100,
+        help="qualitative 단계에서 1회 처리할 가설 수 상한 (LLM 비용 안전 마진)",
     )
     parser.add_argument("--dry-run", action="store_true", help="DB 커밋 없이 카운트만")
     args = parser.parse_args()
@@ -454,6 +513,13 @@ def main():
                 summary.append(stage_generate(db, args.start, args.end, regenerate=args.regenerate))
             elif stage == "validate":
                 summary.append(stage_validate(db, args.validate_limit))
+            elif stage == "qualitative":
+                summary.append(stage_qualitative(
+                    db,
+                    since=args.start,
+                    limit=args.qualitative_limit,
+                    rpm_limit=args.rpm_limit,
+                ))
 
             if args.dry_run:
                 db.rollback()

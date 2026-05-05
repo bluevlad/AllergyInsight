@@ -190,14 +190,18 @@ def strategic_intel_daily(
     classify_window_days: int = 30,
     classify_max_per_run: int = 400,
     classify_rpm_limit: int = 12,
+    qualitative_limit: int = 80,
 ):
-    """매일 장마감 후 — 시세 갱신 + 신규 분류 + 가설 생성.
+    """매일 장마감 후 — 시세 갱신 + 신규 분류 + 가설 생성 + LLM 정성 보강.
 
     범위:
-      - prices : 최근 4일 (휴장/지연 흡수)
-      - classify/generate : 최근 classify_window_days (기본 30일) 내 미분류 항목
+      - prices       : 최근 4일 (휴장/지연 흡수)
+      - classify     : 최근 classify_window_days (기본 30일) 내 미분류 항목
+      - generate     : 같은 윈도우의 라벨된 트리거 → 가설
+      - qualitative  : qualitative_version 미설정 가설 최대 qualitative_limit 건
 
-    Gemini 무료 티어 한도 (15 RPM / 1,500 RPD) 안전 마진 적용.
+    Gemini 무료 티어 한도 (15 RPM / 1,500 RPD) 분배 — classify 400 + qualitative 80
+    + 여유분.
     상세: docs/admin/STRATEGIC_INTEL_RUNBOOK.md
     """
     from datetime import date, timedelta
@@ -205,6 +209,7 @@ def strategic_intel_daily(
         stage_prices,
         stage_classify,
         stage_generate,
+        stage_qualitative,
     )
 
     today = date.today()
@@ -230,10 +235,19 @@ def strategic_intel_daily(
         generate_result = stage_generate(db, classify_window_start, today)
         logger.info(f"strategic_intel_daily generate: {generate_result}")
 
+        qualitative_result = stage_qualitative(
+            db,
+            since=classify_window_start,
+            limit=qualitative_limit,
+            rpm_limit=classify_rpm_limit,
+        )
+        logger.info(f"strategic_intel_daily qualitative: {qualitative_result}")
+
         return {
             "prices": prices_result,
             "classify": classify_result,
             "generate": generate_result,
+            "qualitative": qualitative_result,
         }
     except Exception as e:
         logger.error(f"strategic_intel_daily 실패: {e}", exc_info=True)

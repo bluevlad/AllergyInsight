@@ -47,6 +47,7 @@ from ..services.strategic_intel.hypothesis_engine import (
     hypothesis_hit_rate,
     unhit_clusters,
 )
+from ..services.strategic_intel.qualitative_enhancer import qualitative_drift
 from ..services.strategic_intel.report_service import StrategicIntelReportService
 
 router = APIRouter(prefix="/strategic-intel", tags=["Strategic Intel"])
@@ -178,6 +179,10 @@ def _to_hypothesis_item(h: HypothesisLog) -> HypothesisItem:
         benchmark_ticker=h.benchmark_ticker,
         volume_zscore_t1d=float(h.volume_zscore_t1d) if h.volume_zscore_t1d is not None else None,
         market_cap_change_t5d=float(h.market_cap_change_t5d) if h.market_cap_change_t5d is not None else None,
+        qualitative_score=float(h.qualitative_score) if h.qualitative_score is not None else None,
+        qualitative_rationale=h.qualitative_rationale,
+        qualitative_override=h.qualitative_override,
+        qualitative_version=h.qualitative_version,
     )
 
 
@@ -316,6 +321,7 @@ def get_stats(
         n_hypotheses=len(hypos),
         n_validated=n_validated,
         tech_pulse=dict(tech_pulse),
+        qualitative_drift=qualitative_drift(db, since=since),
     )
 
 

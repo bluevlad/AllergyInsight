@@ -159,11 +159,17 @@ def run_migrations():
                     ))
                     logger.info(f"Migration: competitor_news.{col_name} 컬럼 추가")
 
-        # hypothesis_logs 테이블 마이그레이션 (Phase A-3): 보조 시그널 컬럼 추가
+        # hypothesis_logs 테이블 마이그레이션 (Phase A-3 + B): 보조 시그널 + 정성 보강 컬럼
         if _table_exists(conn, "hypothesis_logs"):
             hl_new_columns = [
+                # Phase A-3
                 ("volume_zscore_t1d", "NUMERIC(8, 3)"),
                 ("market_cap_change_t5d", "NUMERIC(8, 5)"),
+                # Phase B — LLM 정성 보강
+                ("qualitative_score", "NUMERIC(4, 2)"),
+                ("qualitative_rationale", "TEXT"),
+                ("qualitative_override", "BOOLEAN"),
+                ("qualitative_version", "VARCHAR(30)"),
             ]
             for col_name, col_def in hl_new_columns:
                 if not _column_exists(conn, "hypothesis_logs", col_name):

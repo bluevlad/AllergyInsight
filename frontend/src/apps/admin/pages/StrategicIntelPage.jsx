@@ -331,9 +331,46 @@ const HypothesisDetail = ({ hypothesis, onClose, onReportGenerated }) => {
         </tbody>
       </table>
       <div style={{ marginTop: '0.75rem', padding: '0.5rem', background: '#fafafa', borderLeft: '3px solid #ccc', fontSize: '0.875rem' }}>
-        <strong>Rationale</strong>
+        <strong>룰 Rationale</strong>
         <p style={{ margin: '0.25rem 0 0', whiteSpace: 'pre-line' }}>{hypothesis.rationale}</p>
       </div>
+      {hypothesis.qualitative_version && (
+        <div
+          style={{
+            marginTop: '0.5rem',
+            padding: '0.5rem',
+            background: hypothesis.qualitative_override ? '#fff3e0' : '#f3e5f5',
+            borderLeft: `3px solid ${hypothesis.qualitative_override ? '#ef6c00' : '#8e44ad'}`,
+            fontSize: '0.875rem',
+          }}
+        >
+          <strong>
+            LLM 정성 보강
+            {hypothesis.qualitative_score != null && (
+              <span style={{ marginLeft: '0.5rem', fontWeight: 400, color: '#555' }}>
+                score {hypothesis.qualitative_score >= 0 ? '+' : ''}
+                {hypothesis.qualitative_score.toFixed(2)}
+              </span>
+            )}
+            {hypothesis.qualitative_override && (
+              <span style={{
+                marginLeft: '0.5rem',
+                padding: '0.1rem 0.4rem',
+                background: '#ef6c00',
+                color: 'white',
+                borderRadius: '4px',
+                fontSize: '0.7rem',
+                fontWeight: 500,
+              }}>
+                ⚠ 룰 방향 override 후보
+              </span>
+            )}
+          </strong>
+          <p style={{ margin: '0.25rem 0 0', whiteSpace: 'pre-line' }}>
+            {hypothesis.qualitative_rationale || '(rationale 없음)'}
+          </p>
+        </div>
+      )}
       <button
         onClick={generate}
         disabled={generating}
@@ -600,6 +637,56 @@ const StatsTab = () => {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div style={cardStyle}>
+        <h3 style={{ marginTop: 0 }}>LLM 정성 보강 — 룰 vs LLM Drift (Phase B)</h3>
+        {data.qualitative_drift ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', fontSize: '0.875rem' }}>
+            <div>
+              <div style={{ color: '#777', fontSize: '0.78rem' }}>가설 전체</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 600 }}>{data.qualitative_drift.n_total}</div>
+            </div>
+            <div>
+              <div style={{ color: '#777', fontSize: '0.78rem' }}>정성 보강 적용</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 600 }}>
+                {data.qualitative_drift.n_enhanced}
+                {data.qualitative_drift.coverage != null && (
+                  <span style={{ marginLeft: '0.4rem', fontSize: '0.85rem', color: '#777' }}>
+                    ({(data.qualitative_drift.coverage * 100).toFixed(0)}%)
+                  </span>
+                )}
+              </div>
+            </div>
+            <div>
+              <div style={{ color: '#777', fontSize: '0.78rem' }}>Override 후보</div>
+              <div style={{
+                fontSize: '1.2rem',
+                fontWeight: 600,
+                color: data.qualitative_drift.n_override > 0 ? '#ef6c00' : '#333',
+              }}>
+                {data.qualitative_drift.n_override}
+              </div>
+            </div>
+            <div>
+              <div style={{ color: '#777', fontSize: '0.78rem' }}>Override 비율</div>
+              <div style={{
+                fontSize: '1.2rem',
+                fontWeight: 600,
+                color: (data.qualitative_drift.override_rate ?? 0) >= 0.15 ? '#c62828' : '#333',
+              }}>
+                {data.qualitative_drift.override_rate == null
+                  ? '—'
+                  : `${(data.qualitative_drift.override_rate * 100).toFixed(1)}%`}
+              </div>
+            </div>
+            <p style={{ gridColumn: 'span 2', margin: 0, color: '#777', fontSize: '0.78rem' }}>
+              Override 비율이 15% 이상이면 룰 캘리브레이션 신호. (Phase A-4 클러스터와 함께 검토)
+            </p>
+          </div>
+        ) : (
+          <p style={{ color: '#999', fontSize: '0.85rem' }}>데이터 없음</p>
+        )}
       </div>
 
       <div style={cardStyle}>
