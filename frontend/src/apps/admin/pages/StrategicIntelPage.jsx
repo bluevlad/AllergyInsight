@@ -31,6 +31,26 @@ const STATUS_LABELS = {
 const fmtPct = (v, precision = 2) =>
   v == null ? '—' : `${(v * 100 >= 0 ? '+' : '')}${(v * 100).toFixed(precision)}%`;
 
+const fmtHitRateCI = (b) => {
+  if (b == null || b.hit_rate == null) return '—';
+  const rate = (b.hit_rate * 100).toFixed(1);
+  if (b.ci_low == null || b.ci_high == null) return `${rate}%`;
+  return `${rate}% [${(b.ci_low * 100).toFixed(1)}, ${(b.ci_high * 100).toFixed(1)}]`;
+};
+
+const fmtVerdict = (b) => {
+  if (b == null) return '—';
+  if (b.insufficient_n) {
+    return <span style={{ color: '#888', fontSize: '0.78rem' }}>판단 보류 (n&lt;30)</span>;
+  }
+  if (b.is_significant === true) {
+    const dir = b.hit_rate > 0.5 ? '유의 (적중)' : '유의 (미적중)';
+    const color = b.hit_rate > 0.5 ? '#2e7d32' : '#c62828';
+    return <span style={{ color, fontWeight: 600, fontSize: '0.78rem' }}>{dir}</span>;
+  }
+  return <span style={{ color: '#666', fontSize: '0.78rem' }}>유의차 없음</span>;
+};
+
 const TABS = [
   { key: 'hypotheses', label: '가설 검증' },
   { key: 'reports', label: '리포트' },
@@ -539,15 +559,19 @@ const StatsTab = () => {
       <div style={cardStyle}>
         <h3 style={{ marginTop: 0 }}>적중률 (T+5d 기준)</h3>
         <p style={{ color: '#777', fontSize: '0.85rem' }}>
-          가설 {data.n_hypotheses}건 / 검증 완료 {data.n_validated}건
+          가설 {data.n_hypotheses}건 / 검증 완료 {data.n_validated}건<br />
+          <span style={{ fontSize: '0.75rem' }}>
+            Wilson 95% CI · 양측 이항검정 (H₀: p=0.5) · n&lt;30 시 판단 보류
+          </span>
         </p>
         <table style={{ width: '100%', fontSize: '0.875rem', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: '#fafafa', textAlign: 'left' }}>
               <th style={thStyle}>회사</th>
-              <th style={thStyle}>총</th>
-              <th style={thStyle}>적중</th>
-              <th style={thStyle}>적중률</th>
+              <th style={thStyle}>n</th>
+              <th style={thStyle}>적중률 [95% CI]</th>
+              <th style={thStyle}>p-value</th>
+              <th style={thStyle}>판정</th>
             </tr>
           </thead>
           <tbody>
@@ -555,8 +579,9 @@ const StatsTab = () => {
               <tr key={code} style={{ borderBottom: '1px solid #f0f0f0' }}>
                 <td style={tdStyle}>{COMPANY_LABELS[code] || code}</td>
                 <td style={tdStyle}>{b.total}</td>
-                <td style={tdStyle}>{b.hit}</td>
-                <td style={tdStyle}>{b.hit_rate == null ? '—' : `${(b.hit_rate * 100).toFixed(1)}%`}</td>
+                <td style={tdStyle}>{fmtHitRateCI(b)}</td>
+                <td style={tdStyle}>{b.p_value == null ? '—' : b.p_value.toFixed(3)}</td>
+                <td style={tdStyle}>{fmtVerdict(b)}</td>
               </tr>
             ))}
           </tbody>

@@ -428,19 +428,96 @@ class HypothesisValidator:
 # 적중률 통계
 # ---------------------------------------------------------------------------
 
+# 통계적 유의성 판정 — n 이 작으면 신뢰 구간이 넓어 의미 없음
+MIN_N_FOR_SIGNIFICANCE = 30
+WILSON_Z_95 = 1.959963984540054  # 95% CI z-score
+SIGNIFICANCE_ALPHA = 0.05
+
+
+def _wilson_ci(k: int, n: int, z: float = WILSON_Z_95) -> tuple[float, float] | tuple[None, None]:
+    """Wilson score interval — 표본 작을 때 정규근사 CI 보다 robust.
+
+    Returns: (lower, upper) clipped to [0, 1], n=0 시 (None, None)
+    """
+    import math
+
+    if n == 0:
+        return None, None
+    p = k / n
+    z2 = z * z
+    denom = 1 + z2 / n
+    center = (p + z2 / (2 * n)) / denom
+    margin = (z * math.sqrt((p * (1 - p) + z2 / (4 * n)) / n)) / denom
+    return max(0.0, center - margin), min(1.0, center + margin)
+
+
+def _binomial_two_sided_pvalue(k: int, n: int, p0: float = 0.5) -> float | None:
+    """양측 이항검정 — H0: 적중률 = p0 (기본 0.5, "동전던지기").
+
+    n 이 큰 경우(>~500) 누적이 느려질 수 있으나 실제 가설 수는 회사당 수백건 수준.
+    Returns: p-value ∈ [0, 1], n=0 시 None.
+    """
+    from math import comb
+
+    if n == 0:
+        return None
+    expected = n * p0
+    if k >= expected:
+        tail = sum(comb(n, i) * (p0 ** i) * ((1 - p0) ** (n - i)) for i in range(k, n + 1))
+    else:
+        tail = sum(comb(n, i) * (p0 ** i) * ((1 - p0) ** (n - i)) for i in range(0, k + 1))
+    return min(1.0, 2 * tail)
+
+
+def _bucket_with_stats(total: int, hit: int) -> dict:
+    """공통 통계 계산 — total/hit → hit_rate + CI + p-value + 충분성 판정"""
+    if total == 0:
+        return {
+            "total": 0,
+            "hit": 0,
+            "hit_rate": None,
+            "ci_low": None,
+            "ci_high": None,
+            "p_value": None,
+            "is_significant": None,
+            "insufficient_n": True,
+        }
+    hit_rate = hit / total
+    ci_low, ci_high = _wilson_ci(hit, total)
+    p_value = _binomial_two_sided_pvalue(hit, total)
+    insufficient = total < MIN_N_FOR_SIGNIFICANCE
+    is_significant = (
+        None
+        if insufficient or p_value is None
+        else p_value < SIGNIFICANCE_ALPHA
+    )
+    return {
+        "total": total,
+        "hit": hit,
+        "hit_rate": round(hit_rate, 3),
+        "ci_low": round(ci_low, 3) if ci_low is not None else None,
+        "ci_high": round(ci_high, 3) if ci_high is not None else None,
+        "p_value": round(p_value, 4) if p_value is not None else None,
+        "is_significant": is_significant,
+        "insufficient_n": insufficient,
+    }
+
 
 def hypothesis_hit_rate(db: Session, *, since: date | None = None) -> dict[str, dict]:
-    """회사별 / 방향별 적중률 통계 (T+5d 기준)"""
+    """회사별 / 방향별 적중률 통계 (T+5d 기준).
+
+    각 버킷에 Wilson 95% CI + 양측 이항검정 p-value 포함.
+    n < MIN_N_FOR_SIGNIFICANCE (=30) 인 경우 insufficient_n=True 로 표시 → UI 에서 "판단 보류".
+    """
     q = db.query(HypothesisLog).filter(HypothesisLog.hit_t5d.isnot(None))
     if since:
         q = q.filter(HypothesisLog.trigger_date >= since)
     rows = q.all()
 
-    summary: dict[str, dict] = {}
+    # 1차 집계: total/hit 만
+    raw: dict[str, dict] = {}
     for r in rows:
-        bucket = summary.setdefault(
-            r.company_code, {"total": 0, "hit": 0, "by_direction": {}}
-        )
+        bucket = raw.setdefault(r.company_code, {"total": 0, "hit": 0, "by_direction": {}})
         bucket["total"] += 1
         bucket["hit"] += 1 if r.hit_t5d else 0
         d_bucket = bucket["by_direction"].setdefault(
@@ -449,9 +526,14 @@ def hypothesis_hit_rate(db: Session, *, since: date | None = None) -> dict[str, 
         d_bucket["total"] += 1
         d_bucket["hit"] += 1 if r.hit_t5d else 0
 
-    for code, b in summary.items():
-        b["hit_rate"] = round(b["hit"] / b["total"], 3) if b["total"] else None
-        for d in b["by_direction"].values():
-            d["hit_rate"] = round(d["hit"] / d["total"], 3) if d["total"] else None
+    # 2차 보강: 통계 지표 부여
+    summary: dict[str, dict] = {}
+    for code, b in raw.items():
+        company_stats = _bucket_with_stats(b["total"], b["hit"])
+        company_stats["by_direction"] = {
+            direction: _bucket_with_stats(d["total"], d["hit"])
+            for direction, d in b["by_direction"].items()
+        }
+        summary[code] = company_stats
 
     return summary

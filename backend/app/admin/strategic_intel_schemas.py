@@ -1,6 +1,6 @@
 """Strategic Intel Admin API 스키마"""
 from datetime import date, datetime
-from typing import Any, Optional
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -81,11 +81,21 @@ class ReportListResponse(BaseModel):
     total: int
 
 
-class HitRateBucket(BaseModel):
+class DirectionStats(BaseModel):
+    """방향별 적중률 + 통계적 유의성"""
     total: int
     hit: int
     hit_rate: Optional[float] = None
-    by_direction: dict[str, dict[str, Any]] = {}
+    ci_low: Optional[float] = None         # Wilson 95% CI 하한
+    ci_high: Optional[float] = None        # Wilson 95% CI 상한
+    p_value: Optional[float] = None        # 양측 이항검정 p-value (H0: p=0.5)
+    is_significant: Optional[bool] = None  # p < 0.05 AND n >= 30
+    insufficient_n: bool = False           # n < 30 — 판단 보류
+
+
+class HitRateBucket(DirectionStats):
+    """회사별 종합 적중률 — DirectionStats + 방향별 분해"""
+    by_direction: dict[str, DirectionStats] = {}
 
 
 class StatsResponse(BaseModel):
