@@ -38,6 +38,16 @@ const fmtHitRateCI = (b) => {
   return `${rate}% [${(b.ci_low * 100).toFixed(1)}, ${(b.ci_high * 100).toFixed(1)}]`;
 };
 
+const fmtZScore = (v) => {
+  if (v == null) return '—';
+  const flagged = Math.abs(v) >= 2.0;
+  return (
+    <span style={flagged ? { color: '#c62828', fontWeight: 600 } : null}>
+      {v.toFixed(2)}{flagged ? ' ⚠' : ''}
+    </span>
+  );
+};
+
 const fmtVerdict = (b) => {
   if (b == null) return '—';
   if (b.insufficient_n) {
@@ -316,6 +326,8 @@ const HypothesisDetail = ({ hypothesis, onClose, onReportGenerated }) => {
           <tr><td style={ktdStyle}>적중(T+5d)</td><td style={vtdStyle}>{hypothesis.hit_t5d == null ? '—' : hypothesis.hit_t5d ? '적중' : '미적중'}</td></tr>
           <tr><td style={ktdStyle}>상태</td><td style={vtdStyle}>{STATUS_LABELS[hypothesis.validation_status] || hypothesis.validation_status}</td></tr>
           <tr><td style={ktdStyle}>벤치마크</td><td style={vtdStyle}>{hypothesis.benchmark_ticker || '—'}</td></tr>
+          <tr><td style={ktdStyle}>거래량 z-score (T+1d)</td><td style={vtdStyle}>{fmtZScore(hypothesis.volume_zscore_t1d)}</td></tr>
+          <tr><td style={ktdStyle}>시총 변화 (T+5d)</td><td style={vtdStyle}>{fmtPct(hypothesis.market_cap_change_t5d)}</td></tr>
         </tbody>
       </table>
       <div style={{ marginTop: '0.75rem', padding: '0.5rem', background: '#fafafa', borderLeft: '3px solid #ccc', fontSize: '0.875rem' }}>
@@ -547,9 +559,11 @@ const heatColor = (score) => {
 
 const StatsTab = () => {
   const [data, setData] = useState(null);
+  const [unhit, setUnhit] = useState(null);
 
   useEffect(() => {
     adminApi.strategicIntel.stats().then(setData).catch(console.error);
+    adminApi.strategicIntel.unhitClusters().then(setUnhit).catch(console.error);
   }, []);
 
   if (!data) return <p>불러오는 중...</p>;
@@ -608,6 +622,74 @@ const StatsTab = () => {
               ))}
           </tbody>
         </table>
+      </div>
+
+      <div style={{ ...cardStyle, gridColumn: 'span 2' }}>
+        <h3 style={{ marginTop: 0 }}>룰 캘리브레이션 후보 (Phase A-4)</h3>
+        <p style={{ color: '#777', fontSize: '0.8rem', marginTop: 0 }}>
+          n≥5 그룹 중 적중률 50% 이하 — 분기 룰 점검 시 우선 검토
+        </p>
+        {!unhit && <p style={{ color: '#999' }}>불러오는 중...</p>}
+        {unhit && (unhit.by_tech?.length || unhit.by_company_direction?.length) ? (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div>
+              <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.9rem' }}>Tech 카테고리 축</h4>
+              {unhit.by_tech?.length ? (
+                <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#fafafa', textAlign: 'left' }}>
+                      <th style={thStyle}>카테고리</th>
+                      <th style={thStyle}>n</th>
+                      <th style={thStyle}>적중률 [CI]</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {unhit.by_tech.map((u) => (
+                      <tr key={u.tech_id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                        <td style={tdStyle}>{u.tech_id}</td>
+                        <td style={tdStyle}>{u.total}</td>
+                        <td style={tdStyle}>{fmtHitRateCI(u)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p style={{ color: '#999', fontSize: '0.85rem' }}>해당 그룹 없음</p>
+              )}
+            </div>
+            <div>
+              <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.9rem' }}>회사 × 방향 축</h4>
+              {unhit.by_company_direction?.length ? (
+                <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#fafafa', textAlign: 'left' }}>
+                      <th style={thStyle}>회사</th>
+                      <th style={thStyle}>방향</th>
+                      <th style={thStyle}>n</th>
+                      <th style={thStyle}>적중률 [CI]</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {unhit.by_company_direction.map((u, i) => (
+                      <tr key={`${u.company}-${u.direction}-${i}`} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                        <td style={tdStyle}>{COMPANY_LABELS[u.company] || u.company}</td>
+                        <td style={tdStyle}>
+                          <DirectionPill direction={u.direction} />
+                        </td>
+                        <td style={tdStyle}>{u.total}</td>
+                        <td style={tdStyle}>{fmtHitRateCI(u)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p style={{ color: '#999', fontSize: '0.85rem' }}>해당 그룹 없음</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          unhit && <p style={{ color: '#999', fontSize: '0.85rem' }}>표본 부족 — 미적중 클러스터 미식별</p>
+        )}
       </div>
     </div>
   );

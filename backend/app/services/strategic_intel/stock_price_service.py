@@ -80,6 +80,31 @@ def _fetch_pykrx(ticker: TrackedTicker, start: date, end: date):
     return df
 
 
+def _fetch_pykrx_market_cap(ticker: TrackedTicker, start: date, end: date):
+    """pykrx 일별 시가총액 — 종목 전용 (지수는 N/A).
+
+    Returns: dict {date: market_cap_int}, 실패 시 빈 dict.
+    """
+    if ticker.is_index:
+        return {}
+    try:
+        from pykrx import stock
+        df = stock.get_market_cap_by_date(_yyyymmdd(start), _yyyymmdd(end), ticker.code)
+        if df is None or df.empty:
+            return {}
+        # pykrx 컬럼: 시가총액 / 거래량 / 거래대금 / 상장주식수
+        out: dict = {}
+        for ts, row in df.iterrows():
+            d = ts.date() if hasattr(ts, "date") else ts
+            cap = _safe_int(row.get("시가총액"))
+            if cap is not None:
+                out[d] = cap
+        return out
+    except Exception as e:
+        logger.warning("market_cap fetch failed for %s: %s", ticker.label, e)
+        return {}
+
+
 def _fetch_fdr(symbol: str, start: date, end: date):
     """FinanceDataReader에서 OHLCV — 영문 컬럼(Open/High/Low/Close/Volume) 반환"""
     import FinanceDataReader as fdr  # lazy import
@@ -202,6 +227,11 @@ def collect_ticker(
         logger.warning("all sources returned empty for %s (%s ~ %s)", ticker.label, start, end)
         return 0
 
+    # 시가총액 보조 fetch — pykrx 사용 시 종목만 (지수 N/A)
+    cap_by_date: dict = {}
+    if used_source == "pykrx" and not ticker.is_index:
+        cap_by_date = _fetch_pykrx_market_cap(ticker, start, end)
+
     rows = []
     for ts, row in df.iterrows():
         # pandas Timestamp → date 변환 (pykrx/fdr 모두 동일)
@@ -215,7 +245,7 @@ def collect_ticker(
                 "market": ticker.market,
                 "trade_date": trade_date,
                 **ohlcv,
-                "market_cap": None,  # 시가총액은 별도 API — Phase A-3에서 추가
+                "market_cap": cap_by_date.get(trade_date),
                 "source": used_source,
                 "collected_at": datetime.utcnow(),
             }
@@ -301,6 +331,75 @@ def trading_day_offset_close(
         return None
     target = rows[offset_days]
     return target[0], float(target[1])
+
+
+def trailing_volume_zscore(
+    db: Session,
+    ticker: str,
+    anchor_date: date,
+    *,
+    lookback_days: int = 60,
+    min_n: int = 20,
+) -> float | None:
+    """anchor_date 거래량의 직전 lookback_days 영업일 분포 대비 z-score.
+
+    표본 < min_n 또는 표준편차 0 이면 None.
+    """
+    import statistics
+
+    past = (
+        db.query(DailyPrice.volume)
+        .filter(
+            DailyPrice.ticker == ticker,
+            DailyPrice.trade_date < anchor_date,
+            DailyPrice.volume.isnot(None),
+        )
+        .order_by(DailyPrice.trade_date.desc())
+        .limit(lookback_days)
+        .all()
+    )
+    if len(past) < min_n:
+        return None
+    volumes = [float(r[0]) for r in past]
+    mu = statistics.mean(volumes)
+    try:
+        sigma = statistics.stdev(volumes)
+    except statistics.StatisticsError:
+        return None
+    if sigma == 0:
+        return None
+    anchor_row = (
+        db.query(DailyPrice.volume)
+        .filter(DailyPrice.ticker == ticker, DailyPrice.trade_date == anchor_date)
+        .first()
+    )
+    if not anchor_row or anchor_row[0] is None:
+        return None
+    return (float(anchor_row[0]) - mu) / sigma
+
+
+def market_cap_change_ratio(
+    db: Session, ticker: str, anchor_date: date, target_date: date
+) -> float | None:
+    """anchor → target 시가총액 변화율 ((target - anchor) / anchor).
+
+    둘 중 하나라도 cap=NULL 또는 anchor=0 시 None.
+    """
+    rows = (
+        db.query(DailyPrice.trade_date, DailyPrice.market_cap)
+        .filter(
+            DailyPrice.ticker == ticker,
+            DailyPrice.trade_date.in_([anchor_date, target_date]),
+            DailyPrice.market_cap.isnot(None),
+        )
+        .all()
+    )
+    by_date = {r[0]: float(r[1]) for r in rows}
+    cap_anchor = by_date.get(anchor_date)
+    cap_target = by_date.get(target_date)
+    if cap_anchor is None or cap_target is None or cap_anchor == 0:
+        return None
+    return (cap_target - cap_anchor) / cap_anchor
 
 
 # ---------------------------------------------------------------------------

@@ -32,6 +32,7 @@ from .strategic_intel_schemas import (
     ReportListResponse,
     StatsResponse,
     TechCategoryItem,
+    UnhitClustersResponse,
 )
 from ..database.connection import get_db
 from ..database.models import User
@@ -44,6 +45,7 @@ from ..database.strategic_intel_models import (
 from ..services.strategic_intel.hypothesis_engine import (
     ALL_COMPANIES,
     hypothesis_hit_rate,
+    unhit_clusters,
 )
 from ..services.strategic_intel.report_service import StrategicIntelReportService
 
@@ -174,6 +176,8 @@ def _to_hypothesis_item(h: HypothesisLog) -> HypothesisItem:
         validation_status=h.validation_status,
         validated_at=h.validated_at,
         benchmark_ticker=h.benchmark_ticker,
+        volume_zscore_t1d=float(h.volume_zscore_t1d) if h.volume_zscore_t1d is not None else None,
+        market_cap_change_t5d=float(h.market_cap_change_t5d) if h.market_cap_change_t5d is not None else None,
     )
 
 
@@ -313,3 +317,19 @@ def get_stats(
         n_validated=n_validated,
         tech_pulse=dict(tech_pulse),
     )
+
+
+@router.get("/unhit-clusters", response_model=UnhitClustersResponse)
+def get_unhit_clusters(
+    since: Optional[date] = None,
+    min_n: int = Query(5, ge=1, le=100, description="그룹 최소 표본"),
+    top_k: int = Query(5, ge=1, le=20, description="각 축당 표시 그룹 수"),
+    _: User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """미적중 클러스터 — 룰 캘리브레이션 후보 (Phase A-4).
+
+    n>=min_n, hit_rate <= 0.5 인 그룹을 hit_rate 오름차순 top_k 반환.
+    축: tech_category / company × direction.
+    """
+    return UnhitClustersResponse(**unhit_clusters(db, since=since, min_n=min_n, top_k=top_k))

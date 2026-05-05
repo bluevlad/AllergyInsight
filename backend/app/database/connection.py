@@ -159,4 +159,17 @@ def run_migrations():
                     ))
                     logger.info(f"Migration: competitor_news.{col_name} 컬럼 추가")
 
+        # hypothesis_logs 테이블 마이그레이션 (Phase A-3): 보조 시그널 컬럼 추가
+        if _table_exists(conn, "hypothesis_logs"):
+            hl_new_columns = [
+                ("volume_zscore_t1d", "NUMERIC(8, 3)"),
+                ("market_cap_change_t5d", "NUMERIC(8, 5)"),
+            ]
+            for col_name, col_def in hl_new_columns:
+                if not _column_exists(conn, "hypothesis_logs", col_name):
+                    conn.execute(text(
+                        f"ALTER TABLE hypothesis_logs ADD COLUMN {col_name} {col_def}"
+                    ))
+                    logger.info(f"Migration: hypothesis_logs.{col_name} 컬럼 추가")
+
     logger.info("Database migration completed")

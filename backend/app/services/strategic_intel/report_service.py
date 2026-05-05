@@ -33,6 +33,7 @@ from .hypothesis_engine import (
     ALL_COMPANIES,
     VALIDATED_COMPANIES,
     hypothesis_hit_rate,
+    unhit_clusters,
 )
 
 logger = logging.getLogger(__name__)
@@ -298,6 +299,9 @@ INSTRUCTIONS:
 
         hit_rate = hypothesis_hit_rate(self.db, since=period_start)
 
+        # Phase A-4 — 룰 캘리브레이션 후보 (미적중 클러스터)
+        unhit = unhit_clusters(self.db, since=period_start)
+
         # Tech pulse — 트리거 빈도
         tech_freq: dict[str, int] = defaultdict(int)
         for h in hypos:
@@ -342,6 +346,7 @@ INSTRUCTIONS:
             tech_names_map,
             whitespace,
             top_events,
+            unhit,
             narrative,
         )
 
@@ -361,6 +366,7 @@ INSTRUCTIONS:
                 "hit_rate": hit_rate,
                 "tech_pulse": dict(tech_freq),
                 "whitespace": whitespace,
+                "unhit_clusters": unhit,
             },
             generator_version=GENERATOR_VERSION,
         )
@@ -418,6 +424,7 @@ Write a Korean markdown executive briefing with 4 sections (1500자 내외):
         tech_names_map: dict[str, str],
         whitespace: list[dict],
         top_events: list[HypothesisLog],
+        unhit: dict,
         narrative: str,
     ) -> str:
         lines = [
@@ -476,6 +483,54 @@ Write a Korean markdown executive briefing with 4 sections (1500자 내외):
                     f"| {h.trigger_date} | {h.company_code} | {h.impact_direction} | "
                     f"{_pct(_to_float(h.abnormal_t5d))} | {(h.trigger_title or '')[:60]} |"
                 )
+
+        # Phase A-4 — 룰 캘리브레이션 후보 (n>=5, hit_rate <= 0.5 인 그룹 top 5)
+        unhit_tech = (unhit or {}).get("by_tech") or []
+        unhit_cd = (unhit or {}).get("by_company_direction") or []
+        if unhit_tech or unhit_cd:
+            lines += [
+                "",
+                "## 룰 캘리브레이션 후보 (Phase A-4)",
+                "",
+                "n>=5 그룹 중 적중률 50% 이하 — 분기 룰 점검 시 우선 검토.",
+            ]
+            if unhit_tech:
+                lines += [
+                    "",
+                    "**Tech 카테고리 축**:",
+                    "",
+                    "| 카테고리 | n | 적중 | 적중률 [95% CI] |",
+                    "|---|---|---|---|",
+                ]
+                for u in unhit_tech:
+                    name = tech_names_map.get(u["tech_id"], u["tech_id"])
+                    ci = (
+                        f"[{(u['ci_low'] * 100):.1f}, {(u['ci_high'] * 100):.1f}]"
+                        if u.get("ci_low") is not None and u.get("ci_high") is not None
+                        else "—"
+                    )
+                    lines.append(
+                        f"| {name} | {u['total']} | {u['hit']} | "
+                        f"{(u['hit_rate'] * 100):.1f}% {ci} |"
+                    )
+            if unhit_cd:
+                lines += [
+                    "",
+                    "**회사 × 방향 축**:",
+                    "",
+                    "| 회사 | 방향 | n | 적중 | 적중률 [95% CI] |",
+                    "|---|---|---|---|---|",
+                ]
+                for u in unhit_cd:
+                    ci = (
+                        f"[{(u['ci_low'] * 100):.1f}, {(u['ci_high'] * 100):.1f}]"
+                        if u.get("ci_low") is not None and u.get("ci_high") is not None
+                        else "—"
+                    )
+                    lines.append(
+                        f"| {u['company']} | {u['direction']} | {u['total']} | "
+                        f"{u['hit']} | {(u['hit_rate'] * 100):.1f}% {ci} |"
+                    )
 
         lines += ["", "---", "", f"> {DISCLAIMER}"]
         return "\n".join(lines)

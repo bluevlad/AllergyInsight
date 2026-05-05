@@ -193,6 +193,13 @@ class HypothesisLog(Base):
     # 적중 여부 (abnormal_t5d 부호와 impact_direction 일치 여부)
     hit_t5d = Column(Boolean, nullable=True)
 
+    # 보조 시그널 (Phase A-3) — abnormal_t5d 단일 의존 회피
+    volume_zscore_t1d = Column(Numeric(8, 3), nullable=True)
+    # 트리거 직후 첫 거래일의 거래량 z-score (직전 60 영업일 분포 기준)
+    # |z| >= 2.0 이면 비정상 거래량 — 정보 누출/거래 집중 신호
+    market_cap_change_t5d = Column(Numeric(8, 5), nullable=True)
+    # T+5d 시가총액 변화율 — abnormal_t5d 와 평소 동일하지만 유증/감자/배당 등에서 분기
+
     validation_status = Column(String(20), default="pending")
     # 'pending' / 'partial' (T+1d) / 'validated' (T+5d 완료) / 'closed' (T+30d) / 'no_data'
 

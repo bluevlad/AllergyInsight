@@ -143,6 +143,8 @@ export const adminApi = {
     generateMonthlyReport: (year, month) =>
       apiClient.post('/admin/strategic-intel/reports/monthly', { year, month }),
     stats: (params = {}) => apiClient.get('/admin/strategic-intel/stats', { params }),
+    unhitClusters: (params = {}) =>
+      apiClient.get('/admin/strategic-intel/unhit-clusters', { params }),
   },
 };
 

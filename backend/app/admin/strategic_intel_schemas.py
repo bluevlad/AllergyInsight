@@ -50,6 +50,33 @@ class HypothesisItem(BaseModel):
     validation_status: str
     validated_at: Optional[datetime] = None
     benchmark_ticker: Optional[str] = None
+    # Phase A-3 보조 시그널
+    volume_zscore_t1d: Optional[float] = None
+    market_cap_change_t5d: Optional[float] = None
+
+
+class UnhitTechItem(BaseModel):
+    tech_id: str
+    total: int
+    hit: int
+    hit_rate: Optional[float] = None
+    ci_low: Optional[float] = None
+    ci_high: Optional[float] = None
+
+
+class UnhitCompanyDirectionItem(BaseModel):
+    company: str
+    direction: str
+    total: int
+    hit: int
+    hit_rate: Optional[float] = None
+    ci_low: Optional[float] = None
+    ci_high: Optional[float] = None
+
+
+class UnhitClustersResponse(BaseModel):
+    by_tech: list[UnhitTechItem] = []
+    by_company_direction: list[UnhitCompanyDirectionItem] = []
 
 
 class HypothesisListResponse(BaseModel):

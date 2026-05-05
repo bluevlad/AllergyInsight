@@ -357,11 +357,14 @@ class HypothesisValidator:
         has_benchmark = m0 is not None and m0 > 0
 
         updated = False
+        t5d_target_date: date | None = None  # market_cap 변화 계산용 anchor
         for label, offset in T_PLUS_DAYS.items():
             stock_target = price_svc.trading_day_offset_close(self.db, ticker, anchor_date, offset)
             if not stock_target:
                 continue
-            _, p_n = stock_target
+            target_date, p_n = stock_target
+            if label == "t5d":
+                t5d_target_date = target_date
             stock_ret = (p_n - p0) / p0
             setattr(h, f"validation_{label}_return", Decimal(f"{stock_ret:.5f}"))
 
@@ -376,6 +379,18 @@ class HypothesisValidator:
                     setattr(h, f"market_{label}_return", Decimal(f"{market_ret:.5f}"))
                     setattr(h, f"abnormal_{label}", Decimal(f"{abnormal:.5f}"))
             updated = True
+
+        # Phase A-3 보조 시그널 — abnormal_t5d 단일 의존 회피
+        if h.volume_zscore_t1d is None:
+            vz = price_svc.trailing_volume_zscore(self.db, ticker, anchor_date)
+            if vz is not None:
+                h.volume_zscore_t1d = Decimal(f"{vz:.3f}")
+        if h.market_cap_change_t5d is None and t5d_target_date is not None:
+            mcc = price_svc.market_cap_change_ratio(
+                self.db, ticker, anchor_date, t5d_target_date
+            )
+            if mcc is not None:
+                h.market_cap_change_t5d = Decimal(f"{mcc:.5f}")
 
         # 적중 판정 (메인 KPI: T+5d) — abnormal 우선, 없으면 raw return
         signal_t5d = h.abnormal_t5d if h.abnormal_t5d is not None else h.validation_t5d_return
@@ -500,6 +515,82 @@ def _bucket_with_stats(total: int, hit: int) -> dict:
         "p_value": round(p_value, 4) if p_value is not None else None,
         "is_significant": is_significant,
         "insufficient_n": insufficient,
+    }
+
+
+def unhit_clusters(
+    db: Session,
+    *,
+    since: date | None = None,
+    min_n: int = 5,
+    top_k: int = 5,
+) -> dict:
+    """미적중 케이스를 (tech_category) 와 (company × direction) 두 축으로 클러스터링.
+
+    어떤 영역에서 룰이 무뎌지는지 발견하기 위함 — 분기별 룰 캘리브레이션 후보.
+
+    Returns: {
+      "by_tech":           [{"tech_id", "total", "hit", "hit_rate", "ci_low", "ci_high"}, ...],
+      "by_company_direction": [{"company", "direction", "total", "hit", "hit_rate", "ci_low", "ci_high"}, ...]
+    }
+
+    필터:
+      - 검증 완료된 가설만 (`hit_t5d IS NOT NULL`)
+      - 그룹 표본 >= min_n (디폴트 5건)
+      - hit_rate <= 0.5 인 그룹만 ("미적중 우세" 그룹)
+      - hit_rate 오름차순 (가장 안 맞는 그룹 우선) top_k 반환
+    """
+    q = db.query(HypothesisLog).filter(HypothesisLog.hit_t5d.isnot(None))
+    if since:
+        q = q.filter(HypothesisLog.trigger_date >= since)
+    rows = q.all()
+
+    # 1) tech 카테고리 축
+    tech_agg: dict[str, dict] = {}
+    for r in rows:
+        for c in (r.tech_categories or []):
+            tid = c.get("id") if isinstance(c, dict) else None
+            if not tid:
+                continue
+            bucket = tech_agg.setdefault(tid, {"total": 0, "hit": 0})
+            bucket["total"] += 1
+            bucket["hit"] += 1 if r.hit_t5d else 0
+
+    # 2) company × direction 축
+    cd_agg: dict[tuple[str, str], dict] = {}
+    for r in rows:
+        key = (r.company_code, r.impact_direction)
+        bucket = cd_agg.setdefault(key, {"total": 0, "hit": 0})
+        bucket["total"] += 1
+        bucket["hit"] += 1 if r.hit_t5d else 0
+
+    def _enrich_and_filter(items: list[dict]) -> list[dict]:
+        out: list[dict] = []
+        for item in items:
+            n = item["total"]
+            k = item["hit"]
+            if n < min_n:
+                continue
+            rate = k / n
+            if rate > 0.5:
+                continue  # 미적중 우세 그룹만
+            ci_low, ci_high = _wilson_ci(k, n)
+            item.update({
+                "hit_rate": round(rate, 3),
+                "ci_low": round(ci_low, 3) if ci_low is not None else None,
+                "ci_high": round(ci_high, 3) if ci_high is not None else None,
+            })
+            out.append(item)
+        return sorted(out, key=lambda x: x["hit_rate"])[:top_k]
+
+    by_tech = [{"tech_id": tid, **bucket} for tid, bucket in tech_agg.items()]
+    by_cd = [
+        {"company": company, "direction": direction, **bucket}
+        for (company, direction), bucket in cd_agg.items()
+    ]
+    return {
+        "by_tech": _enrich_and_filter(by_tech),
+        "by_company_direction": _enrich_and_filter(by_cd),
     }
 
 

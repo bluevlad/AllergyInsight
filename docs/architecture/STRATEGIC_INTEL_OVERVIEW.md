@@ -16,7 +16,7 @@
 | `paper_tech_links` | 논문 ↔ 카테고리 다중 라벨 (LLM 분류, conf≥0.50) |
 | `news_tech_links` | 뉴스 ↔ 카테고리 다중 라벨 |
 | `daily_prices` | 일별 OHLCV (수젠텍 253840 / 녹십자MS 142280 / 바디텍메드 206640) |
-| `hypothesis_logs` | 트리거 → 4사 가설 → T+1d/5d/30d abnormal return 검증 |
+| `hypothesis_logs` | 트리거 → 4사 가설 → T+1d/5d/30d abnormal return 검증 + 보조 시그널(volume_zscore_t1d, market_cap_change_t5d) |
 | `strategic_intel_reports` | 이벤트(\|abnormal_t5d\|≥5%) + 월간 종합 LLM 리포트 (markdown 본문) |
 
 `hypothesis_logs.tech_categories`, `strategic_intel_reports.metrics` 등 JSON 컬럼은 트리거 시점의 라벨/지표를 **스냅샷**으로 보존한다 (분류기 재학습·fit matrix 변경에 의한 사후 흔들림 방지).
