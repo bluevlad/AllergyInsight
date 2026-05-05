@@ -1,12 +1,15 @@
-"""주가/지수 일별 시세 수집기 (pykrx 기반)
+"""주가/지수 일별 시세 수집기 (pykrx + FinanceDataReader 멀티소스)
 
-대상 종목:
+대상 종목 (pykrx 우선):
   - 수젠텍       : KOSDAQ 253840
   - 녹십자엠에스 : KOSDAQ 142280
   - 바디텍메드   : KOSDAQ 206640
 
-벤치마크 지수 (시장 abnormal return 계산용):
-  - KOSDAQ 종합지수 : 2001 → ticker 'KOSDAQ'
+벤치마크 지수 (FinanceDataReader 우선 — pykrx KRX 메타 차단 환경 우회):
+  - KOSDAQ 종합지수 : FDR 'KQ11' → ticker 라벨 'KOSDAQ'
+
+각 종목/지수는 primary_source 로 우선 시도하고, 실패 시 fallback 소스로 재시도.
+실제 사용된 소스는 daily_prices.source 컬럼에 기록 ('pykrx' | 'fdr').
 
 Strategic Intel 모듈 전용. 외부 사용자 노출 금지.
 """
@@ -37,15 +40,20 @@ class TrackedTicker:
     market: str          # 'KOSDAQ' | 'INDEX'
     company_code: str | None = None  # competitor_companies.code
     is_index: bool = False
+    fdr_symbol: str | None = None    # FinanceDataReader 심볼 (보조/우선 소스)
+    primary_source: str = "pykrx"    # 'pykrx' | 'fdr' — 우선 시도할 소스
 
 
 TRACKED_TICKERS: list[TrackedTicker] = [
-    TrackedTicker(code="253840", label="253840", market="KOSDAQ", company_code="sugentech"),
-    TrackedTicker(code="142280", label="142280", market="KOSDAQ", company_code="greencross"),
-    TrackedTicker(code="206640", label="206640", market="KOSDAQ", company_code="bodytech"),
-    # NOTE: KOSDAQ 종합지수("2001")는 환경에서 KRX API fetch 차단되어 비활성화.
-    # 벤치마크 미보유 시 검증기는 종목 자체 수익률(raw return) 기준으로 hit 판정.
-    # 추후 별도 데이터 소스 (FinanceDataReader 등) 도입 시 재활성화.
+    TrackedTicker(code="253840", label="253840", market="KOSDAQ", company_code="sugentech",
+                  fdr_symbol="253840"),
+    TrackedTicker(code="142280", label="142280", market="KOSDAQ", company_code="greencross",
+                  fdr_symbol="142280"),
+    TrackedTicker(code="206640", label="206640", market="KOSDAQ", company_code="bodytech",
+                  fdr_symbol="206640"),
+    # KOSDAQ 종합지수: pykrx KRX 메타 fetch 차단 환경 → FinanceDataReader 우선
+    TrackedTicker(code="2001", label="KOSDAQ", market="INDEX", is_index=True,
+                  fdr_symbol="KQ11", primary_source="fdr"),
 ]
 
 
@@ -61,18 +69,78 @@ def _yyyymmdd(d: date) -> str:
     return d.strftime("%Y%m%d")
 
 
-def fetch_ticker_ohlcv(ticker: TrackedTicker, start: date, end: date):
-    """pykrx에서 일별 OHLCV DataFrame 가져오기 (지수/종목 모두 지원)
-
-    Returns: pandas DataFrame (index=date, columns=시가/고가/저가/종가/거래량/거래대금)
-    """
-    from pykrx import stock  # lazy import — 테스트 환경에서 import 비용 회피
+def _fetch_pykrx(ticker: TrackedTicker, start: date, end: date):
+    """pykrx에서 OHLCV — 한국어 컬럼(시가/고가/저가/종가/거래량) 반환"""
+    from pykrx import stock  # lazy import
 
     if ticker.is_index:
         df = stock.get_index_ohlcv(_yyyymmdd(start), _yyyymmdd(end), ticker.code)
     else:
         df = stock.get_market_ohlcv(_yyyymmdd(start), _yyyymmdd(end), ticker.code)
     return df
+
+
+def _fetch_fdr(symbol: str, start: date, end: date):
+    """FinanceDataReader에서 OHLCV — 영문 컬럼(Open/High/Low/Close/Volume) 반환"""
+    import FinanceDataReader as fdr  # lazy import
+    return fdr.DataReader(symbol, start, end)
+
+
+def _normalize_ohlcv_row(row, source: str) -> dict:
+    """소스별 컬럼명 차이를 흡수하여 OHLCV 표준 dict 반환"""
+    if source == "pykrx":
+        return {
+            "open_price": _safe_num(row.get("시가")),
+            "high_price": _safe_num(row.get("고가")),
+            "low_price": _safe_num(row.get("저가")),
+            "close_price": _safe_num(row.get("종가")),
+            "volume": _safe_int(row.get("거래량")),
+        }
+    if source == "fdr":
+        return {
+            "open_price": _safe_num(row.get("Open")),
+            "high_price": _safe_num(row.get("High")),
+            "low_price": _safe_num(row.get("Low")),
+            "close_price": _safe_num(row.get("Close")),
+            "volume": _safe_int(row.get("Volume")),
+        }
+    raise ValueError(f"unknown source: {source}")
+
+
+def fetch_ticker_ohlcv(ticker: TrackedTicker, start: date, end: date) -> tuple:
+    """primary_source 우선, 실패 시 fallback 소스로 재시도.
+
+    Returns: (DataFrame, used_source) — 모두 실패 시 (None, None)
+    """
+    # 시도 순서 결정: primary 우선, fdr_symbol 있으면 fallback 추가
+    order: list[str] = [ticker.primary_source]
+    if ticker.primary_source == "pykrx" and ticker.fdr_symbol:
+        order.append("fdr")
+    elif ticker.primary_source == "fdr":
+        order.append("pykrx")
+
+    last_error: Exception | None = None
+    for source in order:
+        try:
+            if source == "pykrx":
+                df = _fetch_pykrx(ticker, start, end)
+            elif source == "fdr":
+                if not ticker.fdr_symbol:
+                    continue
+                df = _fetch_fdr(ticker.fdr_symbol, start, end)
+            else:
+                continue
+            if df is None or df.empty:
+                logger.info("source %s returned empty for %s", source, ticker.label)
+                continue
+            return df, source
+        except Exception as e:
+            last_error = e
+            logger.warning("source %s failed for %s: %s", source, ticker.label, e)
+
+    if last_error:
+        logger.error("all sources failed for %s: %s", ticker.label, last_error)
+    return None, None
 
 
 def upsert_daily_prices(db: Session, rows: Iterable[dict]) -> int:
@@ -125,37 +193,37 @@ def collect_ticker(
     start: date,
     end: date,
 ) -> int:
-    """단일 종목/지수 수집 → daily_prices 적재
+    """단일 종목/지수 수집 → daily_prices 적재 (멀티소스 fallback 적용)
 
     Returns: upsert된 행 수
     """
-    df = fetch_ticker_ohlcv(ticker, start, end)
-    if df is None or df.empty:
-        logger.warning("pykrx returned empty for %s (%s ~ %s)", ticker.label, start, end)
+    df, used_source = fetch_ticker_ohlcv(ticker, start, end)
+    if df is None or df.empty or used_source is None:
+        logger.warning("all sources returned empty for %s (%s ~ %s)", ticker.label, start, end)
         return 0
 
     rows = []
     for ts, row in df.iterrows():
-        # pykrx index는 Timestamp — date로 변환
+        # pandas Timestamp → date 변환 (pykrx/fdr 모두 동일)
         trade_date = ts.date() if hasattr(ts, "date") else ts
+        ohlcv = _normalize_ohlcv_row(row, used_source)
+        if ohlcv["close_price"] is None:
+            continue  # 종가 결측 row skip
         rows.append(
             {
                 "ticker": ticker.label,
                 "market": ticker.market,
                 "trade_date": trade_date,
-                "open_price": _safe_num(row.get("시가")),
-                "high_price": _safe_num(row.get("고가")),
-                "low_price": _safe_num(row.get("저가")),
-                "close_price": _safe_num(row.get("종가")),
-                "volume": _safe_int(row.get("거래량")),
-                "market_cap": None,  # 시가총액은 별도 API 필요 — v1.1에서 추가
-                "source": "pykrx",
+                **ohlcv,
+                "market_cap": None,  # 시가총액은 별도 API — Phase A-3에서 추가
+                "source": used_source,
                 "collected_at": datetime.utcnow(),
             }
         )
 
     n = upsert_daily_prices(db, rows)
-    logger.info("collected %d rows for %s (%s ~ %s)", n, ticker.label, start, end)
+    logger.info("collected %d rows for %s (source=%s, %s ~ %s)",
+                n, ticker.label, used_source, start, end)
     return n
 
 

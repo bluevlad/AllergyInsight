@@ -105,7 +105,11 @@ LLM 응답 dedupe 가드(`tech_classifier._parse_response`)와 세션 손상 가
 
 ### 4.2 KOSDAQ 종합지수 수집 실패
 
-운영 환경에서 pykrx KRX 메타 fetch 차단 (commit `781e5aa`). 현재는 종목 자체 raw return 으로 hit 판정. 향후 FinanceDataReader 등 멀티소스 fallback 도입 예정.
+pykrx KRX 메타 fetch 가 차단된 환경에서는 **FinanceDataReader 가 자동 fallback** (`fdr_symbol="KQ11"`, `primary_source="fdr"`). 두 소스 모두 실패 시 종목 자체 raw return 으로 hit 판정. 적재된 row 의 `daily_prices.source` 컬럼에서 실제 사용된 소스 확인 가능 ('pykrx' | 'fdr').
+
+FDR 도 차단되면:
+1. 일시적: 다른 거래일에 재시도 (휴장/일시장애)
+2. 지속적: `TRACKED_TICKERS` 의 KOSDAQ 항목 `primary_source` 를 변경하거나 별도 소스 어댑터 추가
 
 ### 4.3 가설 미생성
 
