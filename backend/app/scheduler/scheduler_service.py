@@ -50,13 +50,15 @@ class NewsSchedulerService:
         self.add_paper_trend_job()
         self.add_treatment_extraction_job()
         self.add_drug_ingest_job()
+        self.add_strategic_intel_jobs()
 
         self._scheduler.start()
         self._running = True
         logger.info(
             f"스케줄러 시작: 논문=02:00, 번역=04:00, RAG/보강=05:00, "
             f"뉴스={crawl_hour:02d}:{crawl_minute:02d}, 인사이트=매월 1일 03:00, "
-            f"논문트렌드=매월 1일 04:00, 치료법추출=매주 일 05:00"
+            f"논문트렌드=매월 1일 04:00, 치료법추출=매주 일 05:00, "
+            f"strategic-intel: 검증=06:30 / 이벤트스캔=09:00 / 일배치=19:00 / 월간=매월 1일 09:30"
         )
 
     def stop(self):
@@ -231,6 +233,82 @@ class NewsSchedulerService:
         """약물 수집 즉시 실행"""
         from .jobs import ingest_drugs
         return ingest_drugs(source=source, limit=limit)
+
+    # ------------------------------------------------------------------
+    # Strategic Intel 작업 — 4사 알러지 IVD 추적 (super_admin 전용)
+    # ------------------------------------------------------------------
+
+    def add_strategic_intel_jobs(self):
+        """Strategic Intel 4개 Job 등록.
+
+          - strategic_intel_validate    : 매일 06:30 KST (T+1d 검증)
+          - strategic_intel_event_scan  : 매일 09:00 KST (이벤트 후보 → 자동 발행)
+          - strategic_intel_daily       : 매일 19:00 KST (시세 + 분류 + 가설 생성)
+          - strategic_intel_monthly     : 매월 1일 09:30 KST (전월 종합 리포트)
+        """
+        from .jobs import (
+            strategic_intel_daily,
+            strategic_intel_validate,
+            strategic_intel_event_scan,
+            strategic_intel_monthly,
+        )
+
+        for job_id in (
+            "strategic_intel_validate",
+            "strategic_intel_event_scan",
+            "strategic_intel_daily",
+            "strategic_intel_monthly",
+        ):
+            if self._scheduler.get_job(job_id):
+                self._scheduler.remove_job(job_id)
+
+        self._scheduler.add_job(
+            strategic_intel_validate,
+            trigger=CronTrigger(hour=6, minute=30, timezone=self.KST),
+            id="strategic_intel_validate",
+            name="Strategic Intel — 가설 시장 검증",
+            replace_existing=True,
+        )
+        self._scheduler.add_job(
+            strategic_intel_event_scan,
+            trigger=CronTrigger(hour=9, minute=0, timezone=self.KST),
+            id="strategic_intel_event_scan",
+            name="Strategic Intel — 이벤트 후보 스캔",
+            replace_existing=True,
+        )
+        self._scheduler.add_job(
+            strategic_intel_daily,
+            trigger=CronTrigger(hour=19, minute=0, timezone=self.KST),
+            id="strategic_intel_daily",
+            name="Strategic Intel — 일배치 (시세+분류+가설)",
+            replace_existing=True,
+        )
+        self._scheduler.add_job(
+            strategic_intel_monthly,
+            trigger=CronTrigger(day=1, hour=9, minute=30, timezone=self.KST),
+            id="strategic_intel_monthly",
+            name="Strategic Intel — 월간 종합 리포트",
+            replace_existing=True,
+        )
+        logger.info(
+            "Strategic Intel 작업 등록: 검증=06:30 / 이벤트스캔=09:00 / 일배치=19:00 / 월간=매월 1일 09:30"
+        )
+
+    def run_strategic_intel_daily_once(self):
+        from .jobs import strategic_intel_daily
+        return strategic_intel_daily()
+
+    def run_strategic_intel_validate_once(self):
+        from .jobs import strategic_intel_validate
+        return strategic_intel_validate()
+
+    def run_strategic_intel_event_scan_once(self):
+        from .jobs import strategic_intel_event_scan
+        return strategic_intel_event_scan()
+
+    def run_strategic_intel_monthly_once(self):
+        from .jobs import strategic_intel_monthly
+        return strategic_intel_monthly()
 
     def run_paper_search_once(self):
         """논문 검색 즉시 실행"""

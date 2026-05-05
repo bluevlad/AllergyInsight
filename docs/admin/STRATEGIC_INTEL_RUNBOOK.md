@@ -130,15 +130,25 @@ FDR 도 차단되면:
 
 ## 5. 일상 운영 체크리스트
 
+자동 스케줄 (KST, `app/scheduler/scheduler_service.py`):
+
+| Job ID | 시간 | 내용 |
+|---|---|---|
+| `strategic_intel_validate` | 매일 06:30 | pending/partial 가설 → T+1d/5d/30d abnormal return 검증 (batch 500) |
+| `strategic_intel_event_scan` | 매일 09:00 | 검증 완료 가설 중 \|abnormal_t5d\|≥5% → 이벤트 리포트 자동 발행 (최근 60일 내) |
+| `strategic_intel_daily` | 매일 19:00 (장마감 후) | 최근 4일 시세 + 30일 미분류 항목 분류 (max 400/run, RPM 12) + 가설 생성 |
+| `strategic_intel_monthly` | 매월 1일 09:30 | 전월 종합 리포트 자동 발행 |
+
+배치 실패 / 수동 재실행:
+- 백필 스크립트 (`backfill_strategic_intel.py --only ...`) 또는
+- 스케줄러 admin API: `run_strategic_intel_daily_once` / `run_strategic_intel_validate_once` / `run_strategic_intel_event_scan_once` / `run_strategic_intel_monthly_once`
+
+수기로 점검:
 | 주기 | 작업 |
 |---|---|
-| 일 (장마감 후) | `prices` + `classify` (--max-per-run 1400) + `generate` |
-| 일 (오전) | `validate` (T+1d 데이터 확보) |
 | 주 | 미적중 가설 클러스터 점검 (Stats 탭) |
-| 월 (1일) | 전월 월간 리포트 발행 (Admin UI) |
+| 월 | 발행된 월간 리포트 검토 (Admin UI) |
 | 분기 | Fit Matrix 재검토 — 회사 신제품 출시·전략 변경 반영 (`effective_from` 갱신) |
-
-> 자동 스케줄러 통합은 다음 단계 (Phase C) 작업. 그 전까지는 cron 또는 수동 실행.
 
 ---
 

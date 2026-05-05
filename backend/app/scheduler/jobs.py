@@ -181,3 +181,143 @@ def tag_and_generate_insights():
         db.close()
 
 
+# ============================================================================
+# Strategic Intel — 4사 알러지 IVD 추적 (super_admin 전용 모듈)
+# ============================================================================
+
+def strategic_intel_daily(
+    *,
+    classify_window_days: int = 30,
+    classify_max_per_run: int = 400,
+    classify_rpm_limit: int = 12,
+):
+    """매일 장마감 후 — 시세 갱신 + 신규 분류 + 가설 생성.
+
+    범위:
+      - prices : 최근 4일 (휴장/지연 흡수)
+      - classify/generate : 최근 classify_window_days (기본 30일) 내 미분류 항목
+
+    Gemini 무료 티어 한도 (15 RPM / 1,500 RPD) 안전 마진 적용.
+    상세: docs/admin/STRATEGIC_INTEL_RUNBOOK.md
+    """
+    from datetime import date, timedelta
+    from scripts.backfill_strategic_intel import (
+        stage_prices,
+        stage_classify,
+        stage_generate,
+    )
+
+    today = date.today()
+    logger.info(f"[{datetime.now().isoformat()}] strategic_intel_daily 시작")
+    db = SessionLocal()
+    try:
+        prices_window_start = today - timedelta(days=4)
+        classify_window_start = today - timedelta(days=classify_window_days)
+
+        prices_result = stage_prices(db, prices_window_start, today)
+        logger.info(f"strategic_intel_daily prices: {prices_result}")
+
+        classify_result = stage_classify(
+            db,
+            classify_window_start,
+            today,
+            max_per_run=classify_max_per_run,
+            rpm_limit=classify_rpm_limit,
+            target="all",
+        )
+        logger.info(f"strategic_intel_daily classify: {classify_result}")
+
+        generate_result = stage_generate(db, classify_window_start, today)
+        logger.info(f"strategic_intel_daily generate: {generate_result}")
+
+        return {
+            "prices": prices_result,
+            "classify": classify_result,
+            "generate": generate_result,
+        }
+    except Exception as e:
+        logger.error(f"strategic_intel_daily 실패: {e}", exc_info=True)
+        return None
+    finally:
+        db.close()
+
+
+def strategic_intel_validate(*, batch_limit: int = 500):
+    """매일 오전 — pending/partial 가설 시장 검증 (T+1d/5d/30d abnormal return)."""
+    from scripts.backfill_strategic_intel import stage_validate
+
+    logger.info(f"[{datetime.now().isoformat()}] strategic_intel_validate 시작 limit={batch_limit}")
+    db = SessionLocal()
+    try:
+        result = stage_validate(db, batch_limit)
+        logger.info(f"strategic_intel_validate: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"strategic_intel_validate 실패: {e}", exc_info=True)
+        return None
+    finally:
+        db.close()
+
+
+def strategic_intel_event_scan():
+    """매일 — 검증 완료 가설 중 |abnormal_t5d|>=5% 인 후보 → 이벤트 리포트 자동 발행.
+
+    중복 방지: trigger_hypothesis_id 매칭으로 이미 발행된 가설은 skip.
+    """
+    from datetime import date, timedelta
+    from ..services.strategic_intel.report_service import StrategicIntelReportService
+
+    logger.info(f"[{datetime.now().isoformat()}] strategic_intel_event_scan 시작")
+    db = SessionLocal()
+    try:
+        svc = StrategicIntelReportService(db)
+        # 최근 60일 내 검증 완료 가설만 스캔 (오래된 가설 재발행 방지)
+        candidates = svc.find_event_candidates(since=date.today() - timedelta(days=60))
+        published = 0
+        failed = 0
+        for h in candidates:
+            try:
+                if svc.generate_event_report(h):
+                    published += 1
+            except Exception as inner:
+                failed += 1
+                logger.warning(f"event report 발행 실패 hypothesis_id={h.id}: {inner}")
+        logger.info(
+            f"strategic_intel_event_scan: candidates={len(candidates)} published={published} failed={failed}"
+        )
+        return {"candidates": len(candidates), "published": published, "failed": failed}
+    except Exception as e:
+        logger.error(f"strategic_intel_event_scan 실패: {e}", exc_info=True)
+        return None
+    finally:
+        db.close()
+
+
+def strategic_intel_monthly():
+    """매월 1일 — 전월 종합 리포트 자동 발행."""
+    from datetime import date
+    from ..services.strategic_intel.report_service import StrategicIntelReportService
+
+    today = date.today()
+    if today.month == 1:
+        target_year, target_month = today.year - 1, 12
+    else:
+        target_year, target_month = today.year, today.month - 1
+
+    logger.info(
+        f"[{datetime.now().isoformat()}] strategic_intel_monthly 시작 — {target_year}년 {target_month:02d}월"
+    )
+    db = SessionLocal()
+    try:
+        svc = StrategicIntelReportService(db)
+        report = svc.generate_monthly_report(target_year, target_month)
+        if report:
+            logger.info(f"월간 리포트 생성: id={report.id} {report.title}")
+            return {"report_id": report.id, "title": report.title}
+        logger.info("월간 리포트: 가설 데이터 없음 — skip")
+        return {"report_id": None, "skipped": True}
+    except Exception as e:
+        logger.error(f"strategic_intel_monthly 실패: {e}", exc_info=True)
+        return None
+    finally:
+        db.close()
