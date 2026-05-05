@@ -28,6 +28,19 @@ const STATUS_LABELS = {
   no_data: '검증 제외 (비상장)',
 };
 
+const ACTION_LABELS = {
+  view_matrix: 'Matrix 조회',
+  view_matrix_history: 'Matrix 이력',
+  list_hypotheses: '가설 목록',
+  view_hypothesis: '가설 상세',
+  list_reports: '리포트 목록',
+  view_report: '리포트 열람',
+  generate_event_report: '이벤트 리포트 발행',
+  generate_monthly_report: '월간 리포트 발행',
+  view_stats: '통계 조회',
+  view_unhit_clusters: '미적중 클러스터 조회',
+};
+
 const fmtPct = (v, precision = 2) =>
   v == null ? '—' : `${(v * 100 >= 0 ? '+' : '')}${(v * 100).toFixed(precision)}%`;
 
@@ -66,10 +79,74 @@ const TABS = [
   { key: 'reports', label: '리포트' },
   { key: 'matrix', label: 'Fit Matrix' },
   { key: 'stats', label: '통계' },
+  { key: 'audit', label: 'Audit' },
 ];
+
+const CONSENT_KEY = 'strategic_intel_consent_v1';
+
+const ConsentModal = ({ onAccept }) => (
+  <div style={{
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
+  }}>
+    <div style={{
+      background: 'white', borderRadius: '8px', maxWidth: '560px', width: '100%',
+      padding: '1.5rem 1.75rem', boxShadow: '0 10px 40px rgba(0,0,0,0.25)',
+    }}>
+      <h3 style={{ margin: '0 0 0.75rem', color: '#5e35b1' }}>
+        🔒 Strategic Intel — 내부 자료 접근
+      </h3>
+      <p style={{ fontSize: '0.95rem', color: '#444', lineHeight: 1.5 }}>
+        본 페이지는 알러지 IVD 4사 추적 분석을 담은 <strong>내부 경영 의사결정 보조 자료</strong>입니다.
+        외부 공유·인용·배포가 금지되며, 투자 자문이나 매매 추천이 아닙니다.
+      </p>
+      <ul style={{ fontSize: '0.85rem', color: '#555', paddingLeft: '1.2rem', margin: '0.5rem 0 1rem' }}>
+        <li>가설은 사후 주가 흐름과의 정합성을 1차 검증한 결과 — 인과관계 단정 X</li>
+        <li>리포트 본문에는 열람자 email + 시각이 워터마크로 자동 기록됩니다</li>
+        <li>모든 조회·발행 액션은 audit 로그에 영구 기록됩니다</li>
+      </ul>
+      <p style={{ fontSize: '0.85rem', color: '#777', marginBottom: '1rem' }}>
+        위 사항을 확인하셨다면 [동의하고 입장] 을 눌러주세요. 이 동의는 현재 세션 동안만 유효합니다.
+      </p>
+      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+        <button
+          onClick={() => { window.history.back(); }}
+          style={{
+            padding: '0.5rem 1rem', border: '1px solid #ccc', borderRadius: '4px',
+            background: 'white', cursor: 'pointer', fontSize: '0.9rem',
+          }}
+        >
+          취소
+        </button>
+        <button
+          onClick={onAccept}
+          style={{
+            padding: '0.5rem 1rem', border: 'none', borderRadius: '4px',
+            background: '#5e35b1', color: 'white', cursor: 'pointer',
+            fontSize: '0.9rem', fontWeight: 500,
+          }}
+        >
+          동의하고 입장
+        </button>
+      </div>
+    </div>
+  </div>
+);
 
 const StrategicIntelPage = () => {
   const [tab, setTab] = useState('hypotheses');
+  const [consented, setConsented] = useState(
+    () => sessionStorage.getItem(CONSENT_KEY) === '1'
+  );
+
+  const handleConsent = () => {
+    sessionStorage.setItem(CONSENT_KEY, '1');
+    setConsented(true);
+  };
+
+  if (!consented) {
+    return <ConsentModal onAccept={handleConsent} />;
+  }
 
   return (
     <div style={{ padding: '1.5rem' }}>
@@ -91,6 +168,7 @@ const StrategicIntelPage = () => {
         >
           ⚠️ 본 분석은 내부 의사결정 보조용이며, 투자 자문이나 매매 추천이 아닙니다.
           가설은 사후 주가 흐름과의 동시 발생을 1차 검증한 결과로, 인과관계를 단정하지 않습니다.
+          모든 조회·발행은 audit 로그에 기록됩니다.
         </div>
       </div>
 
@@ -126,6 +204,7 @@ const StrategicIntelPage = () => {
       {tab === 'reports' && <ReportsTab />}
       {tab === 'matrix' && <MatrixTab />}
       {tab === 'stats' && <StatsTab />}
+      {tab === 'audit' && <AuditTab />}
     </div>
   );
 };
@@ -640,6 +719,44 @@ const StatsTab = () => {
       </div>
 
       <div style={cardStyle}>
+        <h3 style={{ marginTop: 0 }}>접근 Audit (최근 24시간) · Phase E</h3>
+        {data.audit_summary ? (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.875rem' }}>
+            <div>
+              <div style={{ color: '#777', fontSize: '0.78rem' }}>총 액션</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 600 }}>{data.audit_summary.total}</div>
+            </div>
+            <div>
+              <div style={{ color: '#777', fontSize: '0.78rem' }}>고유 사용자</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 600 }}>{data.audit_summary.distinct_users}</div>
+            </div>
+            <div style={{ gridColumn: 'span 2' }}>
+              <div style={{ color: '#777', fontSize: '0.78rem', marginBottom: '0.25rem' }}>액션 분포</div>
+              {Object.entries(data.audit_summary.by_action || {}).length === 0 ? (
+                <span style={{ color: '#999', fontSize: '0.85rem' }}>기록 없음</span>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                  {Object.entries(data.audit_summary.by_action).map(([k, v]) => (
+                    <span key={k} style={{
+                      padding: '0.2rem 0.5rem', background: '#f3e5f5', borderRadius: '4px',
+                      fontSize: '0.78rem', color: '#5e35b1',
+                    }}>
+                      {ACTION_LABELS[k] || k}: {v}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <p style={{ gridColumn: 'span 2', margin: 0, color: '#777', fontSize: '0.78rem' }}>
+              상세 기록은 [Audit] 탭에서 확인.
+            </p>
+          </div>
+        ) : (
+          <p style={{ color: '#999', fontSize: '0.85rem' }}>데이터 없음</p>
+        )}
+      </div>
+
+      <div style={cardStyle}>
         <h3 style={{ marginTop: 0 }}>LLM 정성 보강 — 룰 vs LLM Drift (Phase B)</h3>
         {data.qualitative_drift ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', fontSize: '0.875rem' }}>
@@ -777,6 +894,115 @@ const StatsTab = () => {
         ) : (
           unhit && <p style={{ color: '#999', fontSize: '0.85rem' }}>표본 부족 — 미적중 클러스터 미식별</p>
         )}
+      </div>
+    </div>
+  );
+};
+
+// =============================================================================
+// Audit 탭 (Phase E)
+// =============================================================================
+
+const AuditTab = () => {
+  const [data, setData] = useState({ items: [], total: 0 });
+  const [loading, setLoading] = useState(false);
+  const [filters, setFilters] = useState({ user_email: '', action_type: '' });
+  const [page, setPage] = useState(1);
+  const pageSize = 50;
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const params = { page, page_size: pageSize };
+      if (filters.user_email) params.user_email = filters.user_email;
+      if (filters.action_type) params.action_type = filters.action_type;
+      const res = await adminApi.strategicIntel.auditLogs(params);
+      setData(res);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [page]);
+
+  const totalPages = Math.max(1, Math.ceil(data.total / pageSize));
+
+  return (
+    <div style={cardStyle}>
+      <h3 style={{ marginTop: 0 }}>접근 Audit 로그 (Phase E)</h3>
+      <p style={{ color: '#777', fontSize: '0.8rem', marginTop: 0 }}>
+        Strategic Intel 조회·발행 액션 영구 기록. IP 는 SHA-256 hash 로 비식별 저장.
+      </p>
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+        <input
+          placeholder="user email"
+          value={filters.user_email}
+          onChange={(e) => setFilters((f) => ({ ...f, user_email: e.target.value }))}
+          style={{ ...selectStyle, minWidth: '200px' }}
+        />
+        <select
+          value={filters.action_type}
+          onChange={(e) => setFilters((f) => ({ ...f, action_type: e.target.value }))}
+          style={selectStyle}
+        >
+          <option value="">전체 action</option>
+          {Object.entries(ACTION_LABELS).map(([k, v]) => (
+            <option key={k} value={k}>{v}</option>
+          ))}
+        </select>
+        <button onClick={() => { setPage(1); load(); }} style={btnStyle}>
+          조회
+        </button>
+      </div>
+      {loading && <p style={{ color: '#999' }}>불러오는 중...</p>}
+      <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ background: '#fafafa', textAlign: 'left' }}>
+            <th style={thStyle}>시각 (UTC)</th>
+            <th style={thStyle}>사용자</th>
+            <th style={thStyle}>Action</th>
+            <th style={thStyle}>Resource</th>
+            <th style={thStyle}>IP hash</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.items.map((row) => (
+            <tr key={row.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+              <td style={tdStyle}>
+                {row.accessed_at ? new Date(row.accessed_at).toISOString().replace('T', ' ').slice(0, 19) : '—'}
+              </td>
+              <td style={tdStyle}>{row.user_email || '—'}</td>
+              <td style={tdStyle}>{ACTION_LABELS[row.action_type] || row.action_type}</td>
+              <td style={tdStyle}>
+                {row.resource_type}
+                {row.resource_id ? ` #${row.resource_id}` : ''}
+              </td>
+              <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: '0.78rem', color: '#777' }}>
+                {row.ip_hash || '—'}
+              </td>
+            </tr>
+          ))}
+          {!data.items.length && !loading && (
+            <tr>
+              <td colSpan={5} style={{ ...tdStyle, color: '#999', textAlign: 'center' }}>
+                기록 없음
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.75rem' }}>
+        <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} style={btnStyle}>
+          이전
+        </button>
+        <span style={{ fontSize: '0.85rem', color: '#666' }}>
+          {page} / {totalPages} (총 {data.total}건)
+        </span>
+        <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} style={btnStyle}>
+          다음
+        </button>
       </div>
     </div>
   );

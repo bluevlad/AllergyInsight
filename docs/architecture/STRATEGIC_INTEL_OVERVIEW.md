@@ -18,6 +18,7 @@
 | `daily_prices` | 일별 OHLCV (수젠텍 253840 / 녹십자MS 142280 / 바디텍메드 206640) |
 | `hypothesis_logs` | 트리거 → 4사 가설 → T+1d/5d/30d abnormal return 검증 + 보조 시그널(volume_zscore_t1d, market_cap_change_t5d) + LLM 정성 보강(qualitative_score/rationale/override/version, Phase B) |
 | `strategic_intel_reports` | 이벤트(\|abnormal_t5d\|≥5%) + 월간 종합 LLM 리포트 (markdown 본문) |
+| `strategic_intel_audit_logs` | super_admin 조회·발행·접근 audit (Phase E) — 외부 유출 추적 |
 
 `hypothesis_logs.tech_categories`, `strategic_intel_reports.metrics` 등 JSON 컬럼은 트리거 시점의 라벨/지표를 **스냅샷**으로 보존한다 (분류기 재학습·fit matrix 변경에 의한 사후 흔들림 방지).
 
@@ -123,6 +124,11 @@ frontend/src/apps/admin/pages/
 - **UI**: `/admin/strategic-intel` 진입은 super_admin 세션 필수 (Admin 라우팅에서 가드)
 - **리포트 본문**: markdown 그대로 저장, 외부 소비자/일반 admin 노출 금지
 - **면책**: 모든 리포트 본문 + UI 상단에 "내부 의사결정 보조용 / 투자 자문 아님" 명시
+- **거버넌스 (Phase E)**:
+  - 진입 동의 모달 (sessionStorage 토큰 1회)
+  - 리포트 열람 워터마크 (응답 단계 prepend, DB 미변경)
+  - Audit 로그 (`strategic_intel_audit_logs`) — IP는 SHA-256 hash로 비식별
+  - Fit Matrix 변경 이력 노출 (`/matrix/history`)
 
 ---
 

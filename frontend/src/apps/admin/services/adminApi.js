@@ -145,6 +145,10 @@ export const adminApi = {
     stats: (params = {}) => apiClient.get('/admin/strategic-intel/stats', { params }),
     unhitClusters: (params = {}) =>
       apiClient.get('/admin/strategic-intel/unhit-clusters', { params }),
+    matrixHistory: (params = {}) =>
+      apiClient.get('/admin/strategic-intel/matrix/history', { params }),
+    auditLogs: (params = {}) =>
+      apiClient.get('/admin/strategic-intel/audit-logs', { params }),
   },
 };
 

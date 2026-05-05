@@ -20,12 +20,18 @@ class FitCellItem(BaseModel):
     rationale: Optional[str] = None
     version: str
     effective_from: date
+    effective_to: Optional[date] = None  # Phase E — 시점성 변경 이력
 
 
 class FitMatrixResponse(BaseModel):
     categories: list[TechCategoryItem]
     cells: list[FitCellItem]
     effective_on: date
+
+
+class FitMatrixHistoryResponse(BaseModel):
+    """Fit Matrix 변경 이력 — Phase E"""
+    cells: list[FitCellItem]
 
 
 class HypothesisItem(BaseModel):
@@ -139,6 +145,33 @@ class QualitativeDrift(BaseModel):
     override_rate: Optional[float] = None    # n_override / n_enhanced
 
 
+class AuditSummary(BaseModel):
+    """최근 N시간 audit 요약 — Phase E"""
+    window_hours: int
+    total: int = 0
+    distinct_users: int = 0
+    by_action: dict[str, int] = {}
+
+
+class AuditLogItem(BaseModel):
+    """audit 로그 단건 — Phase E"""
+    id: int
+    user_email: Optional[str] = None
+    action_type: str
+    resource_type: Optional[str] = None
+    resource_id: Optional[str] = None
+    metadata_json: Optional[dict] = None
+    ip_hash: Optional[str] = None
+    accessed_at: datetime
+
+
+class AuditLogListResponse(BaseModel):
+    items: list[AuditLogItem]
+    total: int
+    page: int
+    page_size: int
+
+
 class StatsResponse(BaseModel):
     period_start: Optional[date] = None
     hit_rate: dict[str, HitRateBucket] = {}
@@ -146,6 +179,7 @@ class StatsResponse(BaseModel):
     n_validated: int
     tech_pulse: dict[str, int] = {}  # {tech_id: trigger_count}
     qualitative_drift: Optional[QualitativeDrift] = None
+    audit_summary: Optional[AuditSummary] = None
 
 
 class GenerateMonthlyRequest(BaseModel):

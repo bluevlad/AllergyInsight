@@ -230,6 +230,37 @@ class HypothesisLog(Base):
     )
 
 
+class StrategicIntelAuditLog(Base):
+    """Strategic Intel 접근 audit 로그 (Phase E)
+
+    super_admin 의 조회·발행·접근을 모두 기록 — 외부 유출 추적 + 운영 가시성.
+    민감 정보(IP)는 hash 로만 보관.
+    """
+    __tablename__ = "strategic_intel_audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_email = Column(String(255), nullable=True, index=True)
+    # 접근 시점의 super_admin email — User 객체에서 추출, 향후 이메일 변경 시에도 보존
+    action_type = Column(String(50), nullable=False)
+    # 'access_page' | 'view_report' | 'view_hypothesis' | 'generate_report' |
+    # 'view_matrix' | 'view_stats' | 'view_unhit_clusters'
+    resource_type = Column(String(50), nullable=True)
+    # 'report' | 'hypothesis' | 'page' | 'matrix' | 'stats' | 'unhit_clusters'
+    resource_id = Column(String(100), nullable=True)
+    # report.id / hypothesis.id / page name 등
+    metadata_json = Column(JSON, nullable=True)
+    # 추가 컨텍스트 (예: 발행 month, 필터 파라미터)
+    ip_hash = Column(String(64), nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    accessed_at = Column(DateTime, default=utc_now, index=True)
+
+    __table_args__ = (
+        Index("idx_si_audit_user_time", "user_email", "accessed_at"),
+        Index("idx_si_audit_action", "action_type", "accessed_at"),
+        Index("idx_si_audit_resource", "resource_type", "resource_id"),
+    )
+
+
 class StrategicIntelReport(Base):
     """Strategic Intel 경영진 리포트 (이벤트 트리거 + 월말 종합)
 

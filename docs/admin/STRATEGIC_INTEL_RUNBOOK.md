@@ -177,3 +177,16 @@ FDR 도 차단되면:
 - 본 모듈의 가설·리포트는 **내부 경영 의사결정 보조용**. 투자 자문 아님.
 - API/DB 의 어떤 응답도 일반 사용자 페이지·뉴스레터·외부 통합에 사용하지 말 것.
 - 리포트 본문에 면책 (`DISCLAIMER`) 자동 포함됨 — 추출·복사 시에도 면책 같이 유지.
+
+## 8. 거버넌스 가드 (Phase E)
+
+| 가드 | 동작 |
+|---|---|
+| 진입 동의 모달 | `/admin/strategic-intel` 진입 시 면책 모달 — sessionStorage `strategic_intel_consent_v1` 토큰 (브라우저 닫으면 리셋) |
+| 리포트 열람 워터마크 | `/reports/{id}` 응답 본문 상단에 `🔒 열람: <email> · <UTC>` 자동 prepend (DB 본문은 변경 X — 응답 단계에서만 조립) |
+| Audit 로그 | 모든 조회·발행 액션을 `strategic_intel_audit_logs` 에 기록. IP 는 SHA-256 hash 16자만 보관 (비식별) |
+| Audit 조회 | `GET /admin/strategic-intel/audit-logs` — user_email/action_type/시간 필터, 페이지네이션 |
+| Stats 24h 요약 | Stats 응답에 `audit_summary` 필드 — 최근 24시간 총 액션 / 고유 사용자 / 액션 분포 |
+| Fit Matrix 이력 | `GET /admin/strategic-intel/matrix/history` — `effective_from / effective_to` 시점성 변화 전체 |
+
+audit 실패는 본 요청 흐름을 절대 막지 않음 (try/except + warning log). audit-logs 조회 자체는 audit 하지 않음 (재귀 회피).
