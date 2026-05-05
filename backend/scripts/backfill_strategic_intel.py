@@ -367,6 +367,41 @@ def stage_generate(db, start: date, end: date, *, regenerate: bool = False) -> d
     }
 
 
+def stage_disclosures(db, start: date, end: date) -> dict:
+    """Stage 2.5 (Phase D): DART 공시 → competitor_news 적재 (3사)
+
+    DART_API_KEY 가 없으면 graceful skip.
+    """
+    from app.services.strategic_intel.disclosure_service import DartDisclosureService
+
+    t0 = time.time()
+    svc = DartDisclosureService()
+    if not svc._has_key():
+        logger.warning("[disclosures] DART_API_KEY 미설정 — skip")
+        return {
+            "stage": "disclosures",
+            "skipped": True,
+            "reason": "DART_API_KEY missing",
+            "elapsed_s": round(time.time() - t0, 2),
+        }
+    results = svc.collect_all(db, since=start, until=end)
+    summary = [
+        {
+            "company": r.company_code,
+            "fetched": r.fetched,
+            "inserted": r.inserted,
+            **({"error": r.error} if r.error else {}),
+        }
+        for r in results
+    ]
+    logger.info("[disclosures] %s (%.2fs)", summary, time.time() - t0)
+    return {
+        "stage": "disclosures",
+        "results": summary,
+        "elapsed_s": round(time.time() - t0, 2),
+    }
+
+
 def stage_validate(db, batch_limit: int = 1000) -> dict:
     """Stage 5: 가설 검증 (T+1d/T+5d/T+30d abnormal return + hit 판정)"""
     from app.services.strategic_intel.hypothesis_engine import HypothesisValidator
@@ -438,7 +473,7 @@ def stage_qualitative(
 # ---------------------------------------------------------------------------
 
 
-STAGES_ORDER = ["seed", "prices", "classify", "generate", "validate", "qualitative"]
+STAGES_ORDER = ["seed", "prices", "disclosures", "classify", "generate", "validate", "qualitative"]
 
 
 def parse_date(s: str) -> date:
@@ -502,6 +537,8 @@ def main():
                 summary.append(stage_seed(db))
             elif stage == "prices":
                 summary.append(stage_prices(db, args.start, args.end))
+            elif stage == "disclosures":
+                summary.append(stage_disclosures(db, args.start, args.end))
             elif stage == "classify":
                 summary.append(stage_classify(
                     db, args.start, args.end, args.classify_limit,

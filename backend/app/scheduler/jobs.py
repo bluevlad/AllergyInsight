@@ -207,6 +207,7 @@ def strategic_intel_daily(
     from datetime import date, timedelta
     from scripts.backfill_strategic_intel import (
         stage_prices,
+        stage_disclosures,
         stage_classify,
         stage_generate,
         stage_qualitative,
@@ -218,9 +219,14 @@ def strategic_intel_daily(
     try:
         prices_window_start = today - timedelta(days=4)
         classify_window_start = today - timedelta(days=classify_window_days)
+        disclosures_window_start = today - timedelta(days=7)  # DART 1주 윈도우
 
         prices_result = stage_prices(db, prices_window_start, today)
         logger.info(f"strategic_intel_daily prices: {prices_result}")
+
+        # Phase D — DART 공시 (분류기 픽업 전 적재)
+        disclosures_result = stage_disclosures(db, disclosures_window_start, today)
+        logger.info(f"strategic_intel_daily disclosures: {disclosures_result}")
 
         classify_result = stage_classify(
             db,
@@ -245,6 +251,7 @@ def strategic_intel_daily(
 
         return {
             "prices": prices_result,
+            "disclosures": disclosures_result,
             "classify": classify_result,
             "generate": generate_result,
             "qualitative": qualitative_result,

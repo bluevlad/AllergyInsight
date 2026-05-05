@@ -141,6 +141,7 @@ PUBMED_API_KEY=         # PubMed API
 PUBMED_EMAIL=
 SEMANTIC_SCHOLAR_API_KEY=
 OPENAI_API_KEY=         # OpenAI API
+DART_API_KEY=           # DART 공시 (Strategic Intel 모듈, 선택 — 미설정 시 disclosures 단계 graceful skip)
 ```
 
 ## Database Notes
