@@ -1,0 +1,218 @@
+"""ClinicalImplicationService + OllamaService.extract_clinical_implication 단위 테스트.
+
+LLM 호출은 monkeypatch 로 mock 한다 — 실제 LLM 호출 없음.
+
+핵심 검증:
+- abstract 가 너무 짧으면 None
+- 정상 응답: 임상 함의 1~2문장 반환, 잡음 제거
+- 빈 응답 / LLM 예외 → None, 240자 트림
+- 단일 추출 + 배치: skip_extracted, limit, errors 카운트
+"""
+from __future__ import annotations
+
+from unittest.mock import patch
+
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from app.database.connection import Base
+from app.database.models import Paper
+from app.services.ollama_service import OllamaService
+from app.services.clinical_implication_service import (
+    ClinicalImplicationService,
+)
+
+
+@pytest.fixture
+def session():
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    _Session = sessionmaker(bind=engine)
+    sess = _Session()
+    yield sess
+    sess.close()
+
+
+def _make_paper(
+    session: Session,
+    title: str = "Sample paper",
+    abstract: str = "x" * 400,
+    implication: str | None = None,
+) -> Paper:
+    p = Paper(
+        title=title,
+        abstract=abstract,
+        clinical_implication=implication,
+        paper_type="research",
+        is_verified=True,
+    )
+    session.add(p)
+    session.commit()
+    return p
+
+
+# ────────────────────────────────────────────────────────────────────
+# OllamaService.extract_clinical_implication — 추출 정책
+# ────────────────────────────────────────────────────────────────────
+
+
+def test_extract_skips_short_abstract():
+    svc = OllamaService.__new__(OllamaService)
+    # _chat 호출되면 안 됨 — short-circuit
+    with patch.object(OllamaService, "_chat", side_effect=AssertionError("LLM should not be called")):
+        result = svc.extract_clinical_implication("title", "too short " * 5)
+    assert result is None
+
+
+def test_extract_returns_none_if_abstract_empty():
+    svc = OllamaService.__new__(OllamaService)
+    assert svc.extract_clinical_implication("t", "") is None
+    assert svc.extract_clinical_implication("t", None) is None
+
+
+def test_extract_strips_noise_and_returns_text():
+    svc = OllamaService.__new__(OllamaService)
+    abs_long = "background. " * 30  # 360+ chars
+    raw = '  **임상 함의:** "땅콩 OIT 가 IgE 매개 알러지 환자에서 증상 점수 30% 감소를 보였다."  '
+    with patch.object(OllamaService, "_chat", return_value=raw):
+        result = svc.extract_clinical_implication("Peanut OIT", abs_long)
+    assert result is not None
+    assert "임상 함의" not in result  # 머리말 제거
+    assert "**" not in result          # markdown 제거
+    assert result.startswith("땅콩 OIT")
+    assert result.endswith("감소를 보였다.")
+
+
+def test_extract_truncates_long_output():
+    svc = OllamaService.__new__(OllamaService)
+    abs_long = "x" * 400
+    long_response = "긴 임상 함의 문장. " * 50  # 매우 긴 응답
+    with patch.object(OllamaService, "_chat", return_value=long_response):
+        result = svc.extract_clinical_implication("t", abs_long)
+    assert result is not None
+    # 240자 + ellipsis 정도
+    assert len(result) <= 245
+    assert result.endswith("…")
+
+
+def test_extract_returns_none_on_empty_llm_response():
+    svc = OllamaService.__new__(OllamaService)
+    with patch.object(OllamaService, "_chat", return_value=""):
+        assert svc.extract_clinical_implication("t", "x" * 400) is None
+    with patch.object(OllamaService, "_chat", return_value=None):
+        assert svc.extract_clinical_implication("t", "x" * 400) is None
+
+
+def test_extract_returns_none_on_llm_exception():
+    svc = OllamaService.__new__(OllamaService)
+    with patch.object(OllamaService, "_chat", side_effect=RuntimeError("api down")):
+        assert svc.extract_clinical_implication("t", "x" * 400) is None
+
+
+def test_extract_returns_none_when_only_noise():
+    """LLM 응답이 모두 잡음(머리말+따옴표만)이면 None."""
+    svc = OllamaService.__new__(OllamaService)
+    with patch.object(OllamaService, "_chat", return_value='  "임상 함의:" '):
+        assert svc.extract_clinical_implication("t", "x" * 400) is None
+
+
+# ────────────────────────────────────────────────────────────────────
+# ClinicalImplicationService — DB 영속화 + 배치
+# ────────────────────────────────────────────────────────────────────
+
+
+def test_extract_for_paper_persists(session: Session):
+    p = _make_paper(session, abstract="abstract " * 60)  # 540+ chars
+    svc = ClinicalImplicationService()
+    fake = "땅콩 OIT 가 IgE 매개 알러지 환자에서 증상 30% 감소."
+    with patch(
+        "app.services.clinical_implication_service.get_ollama_service"
+    ) as g:
+        g.return_value.extract_clinical_implication.return_value = fake
+        result = svc.extract_for_paper(session, p.id)
+    assert result == fake
+    session.refresh(p)
+    assert p.clinical_implication == fake
+
+
+def test_extract_for_paper_no_abstract_returns_none(session: Session):
+    p = Paper(title="t", abstract=None, paper_type="research", is_verified=True)
+    session.add(p)
+    session.commit()
+    svc = ClinicalImplicationService()
+    assert svc.extract_for_paper(session, p.id) is None
+    session.refresh(p)
+    assert p.clinical_implication is None
+
+
+def test_extract_for_paper_missing_returns_none(session: Session):
+    svc = ClinicalImplicationService()
+    assert svc.extract_for_paper(session, 99999) is None
+
+
+def test_batch_extract_skips_already_extracted(session: Session):
+    _make_paper(session, title="A", abstract="abs " * 60, implication="기존 함의")
+    p2 = _make_paper(session, title="B", abstract="abs " * 60)
+    svc = ClinicalImplicationService()
+    with patch(
+        "app.services.clinical_implication_service.get_ollama_service"
+    ) as g:
+        g.return_value.extract_clinical_implication.return_value = "신규 함의"
+        stats = svc.extract_from_papers(session, limit=10, skip_extracted=True)
+    assert stats["processed"] == 1   # B 만
+    assert stats["extracted"] == 1
+    session.refresh(p2)
+    assert p2.clinical_implication == "신규 함의"
+
+
+def test_batch_extract_respects_limit(session: Session):
+    for i in range(5):
+        _make_paper(session, title=f"P{i}", abstract="abs " * 60)
+    svc = ClinicalImplicationService()
+    with patch(
+        "app.services.clinical_implication_service.get_ollama_service"
+    ) as g:
+        g.return_value.extract_clinical_implication.return_value = "함의"
+        stats = svc.extract_from_papers(session, limit=2, skip_extracted=True)
+    assert stats["processed"] == 2
+    assert stats["extracted"] == 2
+
+
+def test_batch_extract_counts_skipped_when_llm_returns_none(session: Session):
+    _make_paper(session, title="A", abstract="abs " * 60)
+    _make_paper(session, title="B", abstract="abs " * 60)
+    svc = ClinicalImplicationService()
+    # 첫 호출 None, 두번째 호출 "ok" — alternating
+    with patch(
+        "app.services.clinical_implication_service.get_ollama_service"
+    ) as g:
+        g.return_value.extract_clinical_implication.side_effect = [None, "ok"]
+        stats = svc.extract_from_papers(session, limit=10, skip_extracted=True)
+    assert stats["processed"] == 2
+    assert stats["extracted"] == 1
+    assert stats["skipped"] == 1
+    assert stats["errors"] == 0
+
+
+def test_batch_extract_counts_errors(session: Session):
+    _make_paper(session, title="A", abstract="abs " * 60)
+    svc = ClinicalImplicationService()
+    with patch(
+        "app.services.clinical_implication_service.get_ollama_service"
+    ) as g:
+        g.return_value.extract_clinical_implication.side_effect = RuntimeError("x")
+        stats = svc.extract_from_papers(session, limit=10, skip_extracted=True)
+    assert stats["errors"] == 1
+    assert stats["extracted"] == 0
+
+
+def test_batch_extract_no_papers_returns_zero(session: Session):
+    svc = ClinicalImplicationService()
+    stats = svc.extract_from_papers(session, limit=10)
+    assert stats == {"processed": 0, "extracted": 0, "skipped": 0, "errors": 0}
