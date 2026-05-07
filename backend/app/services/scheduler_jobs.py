@@ -635,3 +635,56 @@ def job_preprint_and_trials(trigger_type: str = "scheduled") -> None:
     finally:
         db.close()
 
+
+
+# ============================================================================
+# Job: 임상 함의(clinical_implication) 일일 백필 — B2a-cron
+# ============================================================================
+
+def job_clinical_implication_backfill(trigger_type: str = "scheduled") -> None:
+    """매일 새벽 미처리 논문에 clinical_implication LLM 추출.
+
+    무료 티어 Gemini RPD 한도(Flash-Lite 1,000/일) 안에서 점진적 누적.
+    - 매 호출 사이 throttle 로 RPM 한도 회피
+    - 연속 실패/빈 응답 누적 시 early-stop 으로 호출 낭비 차단
+    - skip_extracted=True 로 멱등 — 매일 호출 시 새 논문만 처리
+
+    환경변수 오버라이드:
+      CLINICAL_IMPLICATION_BATCH_LIMIT (default: 300)
+      CLINICAL_IMPLICATION_INTERVAL_MS (default: 7000)
+      CLINICAL_IMPLICATION_EARLY_STOP  (default: 5)
+    """
+    db = SessionLocal()
+    log = _log_start(db, "clinical_implication_backfill", trigger_type)
+
+    try:
+        from .clinical_implication_service import (
+            get_clinical_implication_service,
+        )
+
+        service = get_clinical_implication_service()
+        limit = int(os.getenv("CLINICAL_IMPLICATION_BATCH_LIMIT", "300"))
+        interval_ms = int(os.getenv("CLINICAL_IMPLICATION_INTERVAL_MS", "7000"))
+        early_stop = int(os.getenv("CLINICAL_IMPLICATION_EARLY_STOP", "5"))
+
+        result = service.extract_from_papers(
+            db,
+            limit=limit,
+            skip_extracted=True,
+            interval_ms=interval_ms,
+            early_stop_after_failures=early_stop,
+        )
+        summary = {
+            "limit": limit,
+            "interval_ms": interval_ms,
+            "early_stop_after_failures": early_stop,
+            **result,
+        }
+        _log_complete(db, log, summary)
+        logger.info(f"[clinical_implication_backfill] 완료: {summary}")
+
+    except Exception as e:
+        _log_fail(db, log, str(e))
+        logger.error(f"[clinical_implication_backfill] 실패: {e}")
+    finally:
+        db.close()

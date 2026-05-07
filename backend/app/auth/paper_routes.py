@@ -581,6 +581,16 @@ async def extract_clinical_implications_batch(
             "작업 보존 + skip_extracted=True 로 재시도 멱등."
         ),
     ),
+    early_stop_after_failures: int = Query(
+        0,
+        ge=0,
+        le=100,
+        description=(
+            "연속 N회 결과 없음(빈 응답/예외) 시 즉시 종료. 0 = 비활성. "
+            "RPD 한도 도달 등으로 LLM 호출이 모두 실패하기 시작할 때 후속 "
+            "호출 낭비 차단. cron 자동화 시 5 권장."
+        ),
+    ),
     user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
@@ -600,6 +610,7 @@ async def extract_clinical_implications_batch(
         limit=limit,
         skip_extracted=skip_extracted,
         interval_ms=interval_ms,
+        early_stop_after_failures=early_stop_after_failures,
     )
 
 

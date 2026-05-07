@@ -50,6 +50,7 @@ class NewsSchedulerService:
         self.add_paper_trend_job()
         self.add_treatment_extraction_job()
         self.add_drug_ingest_job()
+        self.add_clinical_implication_backfill_job()
         self.add_strategic_intel_jobs()
 
         self._scheduler.start()
@@ -233,6 +234,34 @@ class NewsSchedulerService:
         """약물 수집 즉시 실행"""
         from .jobs import ingest_drugs
         return ingest_drugs(source=source, limit=limit)
+
+    def add_clinical_implication_backfill_job(self, hour: int = 3, minute: int = 30):
+        """임상 함의 백필 작업 (매일 03:30 KST) — B2a-cron.
+
+        무료 티어 Gemini RPD 1,000/일 한도 안에서 매일 미처리 논문에
+        한국어 임상 함의를 점진적으로 채운다.
+        - drug_ingest(01:00) / paper_search(02:00) 직후, korean_translation
+          (04:00) 보다 앞 — 해당 시간대 다른 Gemini 호출이 가장 적음.
+        - 환경변수로 limit/interval/early-stop 운영 튜닝 가능.
+        """
+        from ..services.scheduler_jobs import job_clinical_implication_backfill
+
+        if self._scheduler.get_job("clinical_implication_backfill"):
+            self._scheduler.remove_job("clinical_implication_backfill")
+
+        self._scheduler.add_job(
+            job_clinical_implication_backfill,
+            trigger=CronTrigger(hour=hour, minute=minute, timezone=self.KST),
+            id="clinical_implication_backfill",
+            name="임상 함의 백필",
+            replace_existing=True,
+        )
+        logger.info(f"임상 함의 백필 작업 등록: {hour:02d}:{minute:02d}")
+
+    def run_clinical_implication_backfill_once(self):
+        """임상 함의 백필 즉시 실행 (수동 트리거용)."""
+        from ..services.scheduler_jobs import job_clinical_implication_backfill
+        job_clinical_implication_backfill(trigger_type="manual")
 
     # ------------------------------------------------------------------
     # Strategic Intel 작업 — 4사 알러지 IVD 추적 (super_admin 전용)

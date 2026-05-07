@@ -64,6 +64,7 @@ class ClinicalImplicationService:
         limit: int = 50,
         skip_extracted: bool = True,
         interval_ms: int = 0,
+        early_stop_after_failures: int = 0,
     ) -> dict:
         """배치 추출.
 
@@ -78,9 +79,14 @@ class ClinicalImplicationService:
                 > 0 모드에서는 클라이언트 타임아웃 시에도 작업 보존을 위해
                 매 iteration 마다 commit 한다 (skip_extracted=True 와 함께
                 재시도 시 정확히 이어 처리).
+            early_stop_after_failures: 연속(consecutive) 실패 또는 LLM 빈
+                응답이 N회 누적되면 즉시 종료. 무료 티어 RPD 한도 도달 등으로
+                LLM 호출이 모두 실패하기 시작하면 이후 호출 낭비를 차단.
+                0 (기본) 이면 비활성. 권장 5 (cron 자동화 시).
+                성공(extracted) 시 카운터 리셋.
 
         Returns:
-            {processed, extracted, skipped, errors}
+            {processed, extracted, skipped, errors, stopped_early}
         """
         query = (
             db.query(Paper)
@@ -112,6 +118,8 @@ class ClinicalImplicationService:
         extracted = 0
         skipped = 0
         errors = 0
+        consecutive_no_result = 0
+        stopped_early = False
         sleep_seconds = max(0, interval_ms) / 1000.0
         commit_per_iter = sleep_seconds > 0
 
@@ -127,33 +135,50 @@ class ClinicalImplicationService:
                 if result:
                     paper.clinical_implication = result
                     extracted += 1
+                    consecutive_no_result = 0  # 성공 시 카운터 리셋
                 else:
                     skipped += 1
+                    consecutive_no_result += 1
             except Exception as e:
                 logger.warning(
                     "clinical_implication: paper_id=%d 추출 예외: %s",
                     paper.id, e,
                 )
                 errors += 1
+                consecutive_no_result += 1
 
             # throttle 모드: 매 iteration 영속화 (긴 sleep 도중 클라이언트 타임아웃
             # 발생해도 이전까지의 작업이 보존됨)
             if commit_per_iter:
                 db.commit()
 
+            # early-stop: 연속 N회 결과 없음 → 후속 호출 낭비 차단
+            if (
+                early_stop_after_failures > 0
+                and consecutive_no_result >= early_stop_after_failures
+            ):
+                logger.warning(
+                    "clinical_implication: 연속 %d회 결과 없음 — early-stop "
+                    "(LLM 한도 도달 의심)",
+                    consecutive_no_result,
+                )
+                stopped_early = True
+                break
+
         if not commit_per_iter:
             db.commit()
 
         logger.info(
             "clinical_implication 배치: processed=%d, extracted=%d, "
-            "skipped=%d, errors=%d, interval_ms=%d",
-            processed, extracted, skipped, errors, interval_ms,
+            "skipped=%d, errors=%d, interval_ms=%d, stopped_early=%s",
+            processed, extracted, skipped, errors, interval_ms, stopped_early,
         )
         return {
             "processed": processed,
             "extracted": extracted,
             "skipped": skipped,
             "errors": errors,
+            "stopped_early": stopped_early,
         }
 
 
