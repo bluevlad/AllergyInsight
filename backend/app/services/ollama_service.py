@@ -58,9 +58,15 @@ def _resolve_local_config() -> tuple[str, str]:
 
 
 def _resolve_gemini_config() -> tuple[Optional[str], str, str]:
-    """Gemini API 설정 반환: (api_key, url, model)"""
+    """Gemini API 설정 반환: (api_key, url, model).
+
+    Model 우선순위: GEMINI_MODEL env var → _GEMINI_MODEL 상수.
+    무료 티어 운영 시 `GEMINI_MODEL=gemini-2.5-flash-lite` 권장
+    (RPD 1,000 / RPM 15) — 한국어 1~2문장 요약에는 품질 차이 미미.
+    """
     api_key = os.getenv("GEMINI_API_KEY")
-    return api_key, _GEMINI_API_URL, _GEMINI_MODEL
+    model = os.getenv("GEMINI_MODEL") or _GEMINI_MODEL
+    return api_key, _GEMINI_API_URL, model
 
 
 class OllamaService:
