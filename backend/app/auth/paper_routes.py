@@ -524,6 +524,68 @@ async def extract_links_batch(
     }
 
 
+# ============================================================================
+# Clinical Implication Extraction (B2a)
+# abstract → 의료진 한 줄 임상 함의 LLM 추출. 외부에는 PaperResponse.
+# clinical_implication 필드로 자동 노출되며, 본 admin endpoint 들로 트리거.
+# ============================================================================
+
+@router.post("/{paper_id}/extract-implication")
+async def extract_clinical_implication(
+    paper_id: int,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db)
+):
+    """단일 논문의 clinical_implication 추출/갱신 (인증 필요)."""
+    from ..services.clinical_implication_service import (
+        get_clinical_implication_service,
+    )
+
+    paper = db.query(Paper).filter(Paper.id == paper_id).first()
+    if not paper:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Paper not found"
+        )
+    if not paper.abstract:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Paper has no abstract for implication extraction"
+        )
+
+    service = get_clinical_implication_service()
+    result = service.extract_for_paper(db, paper_id)
+    return {
+        "paper_id": paper_id,
+        "extracted": bool(result),
+        "clinical_implication": result,
+    }
+
+
+@router.post("/extract-implications/batch")
+async def extract_clinical_implications_batch(
+    limit: int = Query(50, ge=1, le=500, description="최대 처리 논문 수"),
+    skip_extracted: bool = Query(
+        True,
+        description="True 면 이미 implication 이 있는 논문 제외 (백필 모드)"
+    ),
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """배치 clinical_implication 추출 (관리자 전용).
+
+    LLM 비용 가드를 위해 limit 상한 500. 백필 작업은 여러 번 호출하여 누적.
+    """
+    from ..services.clinical_implication_service import (
+        get_clinical_implication_service,
+    )
+
+    service = get_clinical_implication_service()
+    return service.extract_from_papers(
+        db, limit=limit, skip_extracted=skip_extracted
+    )
+
+
 @router.get("/citations/by-specific-item")
 async def get_citations_by_specific_item(
     allergen_code: str,

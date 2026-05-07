@@ -249,6 +249,9 @@ class PaperResponse(BaseModel):
     citation_count: Optional[int] = None
     keywords: Optional[List[str]] = None
 
+    # B2a: abstract → 한국어 1~2문장 LLM 임상 함의 요약. 없으면 None.
+    clinical_implication: Optional[str] = None
+
     class Config:
         from_attributes = True
 

@@ -632,6 +632,64 @@ class OllamaService:
                 })
         return found
 
+    # --- 임상 함의 (clinical_implication) 추출 — B2a ---
+
+    # 너무 짧은 abstract 는 추출 가치 없음 (제목만 있는 인덱스 항목 등)
+    _CLINICAL_IMPLICATION_MIN_ABSTRACT_LEN = 200
+    # 의료진에게 노출되는 한 줄 카드용 — 너무 길면 잘림
+    _CLINICAL_IMPLICATION_MAX_OUTPUT_CHARS = 240
+
+    def extract_clinical_implication(
+        self, title: str, abstract: str
+    ) -> Optional[str]:
+        """논문 abstract → 의료진 대상 한국어 1~2문장 임상 함의 요약.
+
+        뉴스레터 논문 카드 등 외부 소비자에게 "한 줄 요약" 을 제공하기 위함.
+        - abstract 가 너무 짧으면 (< 200자) None — 노이즈 차단.
+        - LLM 호출 실패 / 빈 응답 → None.
+        - 응답에서 따옴표·markdown 제거 후 240자 안에서 잘라 반환.
+
+        주의: 의료 조언 아님. 호출자는 면책을 함께 노출해야 한다.
+        """
+        if not abstract or len(abstract.strip()) < self._CLINICAL_IMPLICATION_MIN_ABSTRACT_LEN:
+            return None
+
+        prompt = (
+            "당신은 알레르기·면역학 임상 전문가입니다. "
+            "다음 논문 초록을 읽고, 의료진(알러지내과·소아과·이비인후과)에게 "
+            "전달할 \"한 줄 임상 함의\"를 한국어로 1~2문장(최대 200자)으로 작성하세요.\n\n"
+            "지침:\n"
+            "- 초록에 명시된 사실만 사용. 추정/일반화 금지.\n"
+            "- 환자에게 직접 전하는 조언 형식 금지 (의료 조언 아님).\n"
+            "- 통계 수치가 있으면 1개까지 인용 가능 (% 포함).\n"
+            "- 마크다운/번호/머리말 금지. 평문 한국어.\n\n"
+            f"제목: {title}\n"
+            f"초록: {abstract[:3000]}\n\n"
+            "임상 함의 (1~2문장):"
+        )
+
+        try:
+            raw = self._chat(prompt, max_tokens=200, provider="news")
+        except Exception as e:
+            logger.warning(f"clinical_implication LLM 호출 실패: {e}")
+            return None
+
+        if not raw:
+            return None
+
+        # 흔한 잡음 제거: 머리말, 따옴표, markdown, 줄바꿈
+        text = raw.strip()
+        for noise in ("임상 함의:", "임상함의:", "임상 함의 (1~2문장):", "**", "__"):
+            text = text.replace(noise, "")
+        text = text.strip().strip('"').strip("'").strip()
+        text = " ".join(text.split())  # 다중 공백/개행 → 단일 공백
+
+        if not text:
+            return None
+        if len(text) > self._CLINICAL_IMPLICATION_MAX_OUTPUT_CHARS:
+            text = text[: self._CLINICAL_IMPLICATION_MAX_OUTPUT_CHARS].rstrip() + "…"
+        return text
+
     # --- 역학 데이터 추출 ---
 
     EPIDEMIOLOGY_TYPES = ["prevalence", "incidence", "patient_count", "sensitization_rate"]

@@ -183,6 +183,11 @@ class Paper(Base):
     # year만 있을 때보다 정밀한 trigger_date 산출에 사용 (Strategic Intel 모듈)
     published_at = Column(Date, nullable=True)
 
+    # B2a — abstract → 한국어 1~2문장 임상 함의 LLM 요약.
+    # 뉴스레터 등 외부 소비자에게 "의료진 액션 한 줄"을 제공하기 위한 필드.
+    # null 허용 — 추출 실패 / abstract 부재 시 미생성.
+    clinical_implication = Column(Text, nullable=True)
+
     # Metadata
     created_at = Column(DateTime, default=utc_now)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)

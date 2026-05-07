@@ -111,6 +111,8 @@ def run_migrations():
         ("keywords", "JSONB"),
         ("last_synced_at", "TIMESTAMP"),
         ("published_at", "DATE"),  # Strategic Intel 모듈 — 정확한 발행일
+        # B2a: abstract → 한국어 1~2문장 LLM 임상 함의 요약
+        ("clinical_implication", "TEXT"),
     ]
 
     with engine.begin() as conn:
