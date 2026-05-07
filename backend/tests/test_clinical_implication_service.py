@@ -263,6 +263,91 @@ def test_batch_no_throttle_when_interval_zero(session: Session):
     assert mock_sleep.call_count == 0
 
 
+# ────────────────────────────────────────────────────────────────────
+# Early-stop on consecutive failures (B2a-cron)
+# ────────────────────────────────────────────────────────────────────
+
+
+def test_early_stop_triggers_after_consecutive_no_result(session: Session):
+    """연속 N회 None 응답 시 break — RPD 한도 도달 시 후속 호출 차단."""
+    for i in range(10):
+        _make_paper(session, title=f"P{i}", abstract="abs " * 60)
+    svc = ClinicalImplicationService()
+    with patch(
+        "app.services.clinical_implication_service.get_ollama_service"
+    ) as g:
+        # 모든 호출이 None 반환 (RPD 도달 시뮬레이션)
+        g.return_value.extract_clinical_implication.return_value = None
+        stats = svc.extract_from_papers(
+            session, limit=10, skip_extracted=True,
+            early_stop_after_failures=3,
+        )
+    # 정확히 3회 호출 후 break
+    assert stats["processed"] == 3
+    assert stats["extracted"] == 0
+    assert stats["skipped"] == 3
+    assert stats["stopped_early"] is True
+
+
+def test_early_stop_resets_on_success(session: Session):
+    """성공 응답 사이에 끼어 있으면 카운터 리셋 — 산발적 실패는 건너뛰지 않음."""
+    for i in range(8):
+        _make_paper(session, title=f"P{i}", abstract="abs " * 60)
+    svc = ClinicalImplicationService()
+    # 패턴: None None ok None None ok None ok
+    pattern = [None, None, "ok-1", None, None, "ok-2", None, "ok-3"]
+    with patch(
+        "app.services.clinical_implication_service.get_ollama_service"
+    ) as g:
+        g.return_value.extract_clinical_implication.side_effect = pattern
+        stats = svc.extract_from_papers(
+            session, limit=8, skip_extracted=True,
+            early_stop_after_failures=3,
+        )
+    # threshold 3 미달 (최대 연속 None=2) — 8건 모두 처리
+    assert stats["processed"] == 8
+    assert stats["extracted"] == 3
+    assert stats["skipped"] == 5
+    assert stats["stopped_early"] is False
+
+
+def test_early_stop_disabled_when_zero(session: Session):
+    """early_stop_after_failures=0 (기본) → 비활성, 전부 처리."""
+    for i in range(5):
+        _make_paper(session, title=f"P{i}", abstract="abs " * 60)
+    svc = ClinicalImplicationService()
+    with patch(
+        "app.services.clinical_implication_service.get_ollama_service"
+    ) as g:
+        g.return_value.extract_clinical_implication.return_value = None
+        stats = svc.extract_from_papers(
+            session, limit=5, skip_extracted=True,
+            early_stop_after_failures=0,
+        )
+    assert stats["processed"] == 5
+    assert stats["stopped_early"] is False
+
+
+def test_early_stop_counts_exceptions_too(session: Session):
+    """LLM 예외도 consecutive failure 로 카운트."""
+    for i in range(5):
+        _make_paper(session, title=f"P{i}", abstract="abs " * 60)
+    svc = ClinicalImplicationService()
+    with patch(
+        "app.services.clinical_implication_service.get_ollama_service"
+    ) as g:
+        g.return_value.extract_clinical_implication.side_effect = (
+            RuntimeError("api down")
+        )
+        stats = svc.extract_from_papers(
+            session, limit=5, skip_extracted=True,
+            early_stop_after_failures=2,
+        )
+    assert stats["processed"] == 2
+    assert stats["errors"] == 2
+    assert stats["stopped_early"] is True
+
+
 def test_batch_throttle_commits_per_iteration(session: Session):
     """interval_ms > 0 모드: 매 iteration commit — 중간 abort 시 작업 보존.
 
