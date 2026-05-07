@@ -1,19 +1,22 @@
-"""임상 함의(clinical_implication) 추출 서비스 — B2a
+"""임상 함의(clinical_implication) 추출 서비스 — B2a (+ throttle 확장)
 
 논문 abstract → 의료진 대상 한국어 1~2문장 임상 함의를 LLM 으로 추출하여
 `Paper.clinical_implication` 컬럼에 저장한다.
 
 - 단일 추출: extract_for_paper(db, paper_id)
-- 배치 백필: extract_from_papers(db, limit, skip_extracted=True)
+- 배치 백필: extract_from_papers(db, limit, skip_extracted=True, interval_ms=0)
 - LLM: OllamaService 사용 (Gemini 우선, 로컬 LLM fallback). 추출 정책은
   OllamaService.extract_clinical_implication 가 담당 — 본 서비스는 영속화·
   스케줄링 책임만.
+- 배치 throttle: interval_ms > 0 면 호출 사이 sleep 으로 RPM 한도 회피.
+  이 모드에서는 매 iteration 마다 commit 하여 클라이언트 타임아웃에도 작업 보존.
 
 주의: 의료 조언 아님. 외부 노출 시 면책 동반 권장.
 """
 from __future__ import annotations
 
 import logging
+import time
 from typing import Optional
 
 from sqlalchemy import and_, or_
@@ -60,6 +63,7 @@ class ClinicalImplicationService:
         db: Session,
         limit: int = 50,
         skip_extracted: bool = True,
+        interval_ms: int = 0,
     ) -> dict:
         """배치 추출.
 
@@ -67,6 +71,13 @@ class ClinicalImplicationService:
             db: DB 세션.
             limit: 최대 처리 논문 수 (운영 비용 가드).
             skip_extracted: True 면 이미 clinical_implication 이 있는 논문 제외.
+            interval_ms: 호출 사이 sleep (밀리초). 무료 티어 RPM 한도 회피용.
+                Gemini 2.5 Flash 무료 티어는 10 RPM 이라 6500ms 이상 권장.
+                Flash-Lite 무료 티어는 15 RPM 이라 4500ms 이상 권장.
+                0 (기본) 이면 throttle 없음 — 유료 티어 또는 로컬 LLM 운영용.
+                > 0 모드에서는 클라이언트 타임아웃 시에도 작업 보존을 위해
+                매 iteration 마다 commit 한다 (skip_extracted=True 와 함께
+                재시도 시 정확히 이어 처리).
 
         Returns:
             {processed, extracted, skipped, errors}
@@ -101,8 +112,13 @@ class ClinicalImplicationService:
         extracted = 0
         skipped = 0
         errors = 0
+        sleep_seconds = max(0, interval_ms) / 1000.0
+        commit_per_iter = sleep_seconds > 0
 
-        for paper in papers:
+        for i, paper in enumerate(papers):
+            # 두번째 호출부터 throttle — 첫 호출은 즉시 시작
+            if sleep_seconds > 0 and i > 0:
+                time.sleep(sleep_seconds)
             processed += 1
             try:
                 result = ollama.extract_clinical_implication(
@@ -120,11 +136,18 @@ class ClinicalImplicationService:
                 )
                 errors += 1
 
-        db.commit()
+            # throttle 모드: 매 iteration 영속화 (긴 sleep 도중 클라이언트 타임아웃
+            # 발생해도 이전까지의 작업이 보존됨)
+            if commit_per_iter:
+                db.commit()
+
+        if not commit_per_iter:
+            db.commit()
+
         logger.info(
             "clinical_implication 배치: processed=%d, extracted=%d, "
-            "skipped=%d, errors=%d",
-            processed, extracted, skipped, errors,
+            "skipped=%d, errors=%d, interval_ms=%d",
+            processed, extracted, skipped, errors, interval_ms,
         )
         return {
             "processed": processed,

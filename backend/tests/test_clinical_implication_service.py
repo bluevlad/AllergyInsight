@@ -216,3 +216,90 @@ def test_batch_extract_no_papers_returns_zero(session: Session):
     svc = ClinicalImplicationService()
     stats = svc.extract_from_papers(session, limit=10)
     assert stats == {"processed": 0, "extracted": 0, "skipped": 0, "errors": 0}
+
+
+# ────────────────────────────────────────────────────────────────────
+# Throttle (interval_ms) — 무료 티어 RPM 한도 회피
+# ────────────────────────────────────────────────────────────────────
+
+
+def test_batch_throttle_sleeps_between_calls(session: Session):
+    """interval_ms > 0 → 첫 호출 외에는 매 호출 전에 sleep."""
+    for i in range(3):
+        _make_paper(session, title=f"P{i}", abstract="abs " * 60)
+    svc = ClinicalImplicationService()
+    sleep_calls: list[float] = []
+    with patch(
+        "app.services.clinical_implication_service.time.sleep",
+        side_effect=lambda s: sleep_calls.append(s),
+    ), patch(
+        "app.services.clinical_implication_service.get_ollama_service"
+    ) as g:
+        g.return_value.extract_clinical_implication.return_value = "ok"
+        stats = svc.extract_from_papers(
+            session, limit=3, skip_extracted=True, interval_ms=200
+        )
+    # 3건 처리 → 사이 sleep 2회 (마지막 직후엔 sleep 안 함)
+    assert stats["processed"] == 3
+    assert stats["extracted"] == 3
+    assert len(sleep_calls) == 2
+    assert all(abs(s - 0.2) < 1e-9 for s in sleep_calls)
+
+
+def test_batch_no_throttle_when_interval_zero(session: Session):
+    """interval_ms=0 (기본) → time.sleep 호출 없음."""
+    for i in range(2):
+        _make_paper(session, title=f"P{i}", abstract="abs " * 60)
+    svc = ClinicalImplicationService()
+    with patch(
+        "app.services.clinical_implication_service.time.sleep"
+    ) as mock_sleep, patch(
+        "app.services.clinical_implication_service.get_ollama_service"
+    ) as g:
+        g.return_value.extract_clinical_implication.return_value = "ok"
+        svc.extract_from_papers(
+            session, limit=2, skip_extracted=True, interval_ms=0
+        )
+    assert mock_sleep.call_count == 0
+
+
+def test_batch_throttle_commits_per_iteration(session: Session):
+    """interval_ms > 0 모드: 매 iteration commit — 중간 abort 시 작업 보존.
+
+    order_by(year desc, id desc) 라 처리 순서는 (p2 → p1) 이지만 본 테스트는
+    순서와 무관하게 *두 행 모두* 커밋된 결과가 DB 에 남았는지만 검증한다.
+    LLM mock 은 호출별로 다른 문자열을 반환해, 두 행이 같은 값으로 덮여쓰지
+    않았음(= 별개 호출 + 별개 commit) 을 함께 확인한다.
+    """
+    p1 = _make_paper(session, title="A", abstract="abs " * 60)
+    p2 = _make_paper(session, title="B", abstract="abs " * 60)
+    p1_id, p2_id = p1.id, p2.id
+
+    svc = ClinicalImplicationService()
+    call_count = [0]
+
+    def fake_extract(*args, **kwargs):
+        call_count[0] += 1
+        return f"impl-{call_count[0]}"
+
+    with patch(
+        "app.services.clinical_implication_service.time.sleep"
+    ), patch(
+        "app.services.clinical_implication_service.get_ollama_service"
+    ) as g:
+        g.return_value.extract_clinical_implication.side_effect = fake_extract
+        svc.extract_from_papers(
+            session, limit=2, skip_extracted=True, interval_ms=100
+        )
+
+    # 별도 read 로 영속화 확인 (commit 안 되었으면 None 일 것)
+    p1 = session.query(Paper).filter(Paper.id == p1_id).one()
+    p2 = session.query(Paper).filter(Paper.id == p2_id).one()
+    assert p1.clinical_implication is not None
+    assert p2.clinical_implication is not None
+    # 두 행이 각자 다른 mock 응답 — 별개 호출 + 별개 commit
+    assert p1.clinical_implication != p2.clinical_implication
+    assert {p1.clinical_implication, p2.clinical_implication} == {
+        "impl-1",
+        "impl-2",
+    }

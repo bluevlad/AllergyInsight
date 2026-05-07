@@ -569,12 +569,26 @@ async def extract_clinical_implications_batch(
         True,
         description="True 면 이미 implication 이 있는 논문 제외 (백필 모드)"
     ),
+    interval_ms: int = Query(
+        0,
+        ge=0,
+        le=60000,
+        description=(
+            "LLM 호출 사이 sleep (밀리초). 무료 티어 RPM 한도 회피용. "
+            "Gemini 2.5 Flash 무료 티어(10 RPM): 6500 권장. "
+            "Flash-Lite(15 RPM): 4500 권장. 0 = throttle 없음. "
+            "throttle 활성 시 매 iteration commit 으로 클라이언트 타임아웃 시 "
+            "작업 보존 + skip_extracted=True 로 재시도 멱등."
+        ),
+    ),
     user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     """배치 clinical_implication 추출 (관리자 전용).
 
     LLM 비용 가드를 위해 limit 상한 500. 백필 작업은 여러 번 호출하여 누적.
+    무료 티어 운영 시 interval_ms 와 함께 GEMINI_MODEL=gemini-2.5-flash-lite
+    환경변수 권장 (RPD 1,000 / RPM 15).
     """
     from ..services.clinical_implication_service import (
         get_clinical_implication_service,
@@ -582,7 +596,10 @@ async def extract_clinical_implications_batch(
 
     service = get_clinical_implication_service()
     return service.extract_from_papers(
-        db, limit=limit, skip_extracted=skip_extracted
+        db,
+        limit=limit,
+        skip_extracted=skip_extracted,
+        interval_ms=interval_ms,
     )
 
 
