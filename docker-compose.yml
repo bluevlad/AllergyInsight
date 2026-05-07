@@ -39,6 +39,7 @@ services:
       - SEND_MINUTE=${SEND_MINUTE:-0}
       # AI - Gemini (뉴스 분석, RAG 답변)
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-}
       - NEWS_LLM_PROVIDER=${NEWS_LLM_PROVIDER:-gemini}
       - RAG_LLM_PROVIDER=${RAG_LLM_PROVIDER:-gemini}
       # AI - Local LLM (번역, 알러젠 추출)
@@ -87,6 +88,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       # AI - Gemini (뉴스 분석, RAG 답변)
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-}
       - NEWS_LLM_PROVIDER=${NEWS_LLM_PROVIDER:-gemini}
       - RAG_LLM_PROVIDER=${RAG_LLM_PROVIDER:-gemini}
       # AI - Local LLM (번역, 알러젠 추출)
