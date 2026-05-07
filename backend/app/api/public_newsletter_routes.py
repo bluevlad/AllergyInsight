@@ -16,6 +16,24 @@ from ..database.connection import get_db
 from ..services.headline_selection_service import select_top_headlines
 from ..services.company_digest_service import build_company_digest
 
+
+def _parse_exclude_companies(raw: str) -> set[str]:
+    """콤마 구분 회사명(name_kr) 파싱. strip 후 빈 문자열은 제외."""
+    if not raw:
+        return set()
+    return {token.strip() for token in raw.split(",") if token.strip()}
+
+
+def _parse_since_date(raw: str) -> date | None:
+    """ISO YYYY-MM-DD 파싱. 잘못된 포맷은 None 폴백 + warning 로그."""
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw.strip())
+    except ValueError:
+        logger.warning("company-digest: 잘못된 since_date 포맷 무시: %r", raw)
+        return None
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -163,11 +181,42 @@ def get_company_digest(
     exclude_ids: str = Query("", description="콤마 구분 기사 ID (헤드라인 선정분 제외)"),
     limit_per_company: int = Query(1, ge=1, le=5),
     max_companies: int = Query(20, ge=1, le=50),
+    exclude_companies: str = Query(
+        "",
+        description=(
+            "콤마 구분 회사명(name_kr). 풀 단계에서 제외 — NewsLetterPlatform "
+            "최근 N일 발송 기업 dedup 용. strip 후 동등 매칭."
+        ),
+    ),
+    category_mix: bool = Query(
+        False,
+        description=(
+            "True 면 event_class 별 max_per_category 한도로 다양성 강제. "
+            "category_mix=False(기본) 일 때는 동작 없음."
+        ),
+    ),
+    max_per_category: int = Query(
+        3,
+        ge=1,
+        le=10,
+        description="category_mix=True 일 때 한 event_class 당 최대 기업 수.",
+    ),
+    since_date: str = Query(
+        "",
+        description=(
+            "ISO YYYY-MM-DD. 풀 기준일 — 이 시점 이후 published_at 만 집계. "
+            "제공 시 days 보다 우선. 응답 is_new_company 도 이 기준."
+        ),
+    ),
     db: Session = Depends(get_db),
 ):
     """산업·기업 동향 다이제스트.
 
     exclude_ids 로 헤드라인에 선정된 기사를 제외해 disjoint 보장.
+    B1 추가:
+      - exclude_companies / category_mix / max_per_category / since_date
+      - 응답 회사별 event_class, is_new_company
+    backwards compatible: 신규 파라미터 default 는 모두 무동작.
     """
     parsed_exclude: set[int] = set()
     if exclude_ids:
@@ -176,12 +225,19 @@ def get_company_digest(
             if token.isdigit():
                 parsed_exclude.add(int(token))
 
+    parsed_exclude_companies = _parse_exclude_companies(exclude_companies)
+    parsed_since_date = _parse_since_date(since_date)
+
     companies = build_company_digest(
         db,
         days=days,
         exclude_ids=parsed_exclude,
         limit_per_company=limit_per_company,
         max_companies=max_companies,
+        exclude_companies=parsed_exclude_companies,
+        category_mix=category_mix,
+        max_per_category=max_per_category,
+        since_date=parsed_since_date,
     )
 
     return {
@@ -191,5 +247,10 @@ def get_company_digest(
         "meta": {
             "days": days,
             "excluded_count": len(parsed_exclude),
+            "excluded_companies_count": len(parsed_exclude_companies),
+            "category_mix": category_mix,
+            "since_date": (
+                parsed_since_date.isoformat() if parsed_since_date else None
+            ),
         },
     }
