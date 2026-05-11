@@ -1,0 +1,198 @@
+# DomainPack v1 JSON Schema (참조용)
+#
+# 실제 검증은 hand-rolled validator (app/core/domains/pack_linter.py) 에서 수행한다.
+# 본 문서는 IDE / 외부 도구의 schema-aware 편집을 위한 참조 스펙이다.
+#
+# 상세 규약: plans/domain-pack-yaml-schema-v1.md §3, §10
+# WBS: P1-G-001
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://bluevlad.dev/vertical-insight/domain-pack-v1.schema.json"
+title: DomainPack v1
+type: object
+required: [version, domain, sources, taxonomy, rag, prompts]
+
+properties:
+  version:
+    const: 1
+
+  domain:
+    type: object
+    required: [id, name_kr, status]
+    properties:
+      id:
+        type: string
+        pattern: "^[a-z][a-z0-9_-]{2,30}$"
+      name_kr: { type: string, minLength: 1 }
+      name_en: { type: string }
+      description: { type: string }
+      accent_color:
+        type: string
+        pattern: "^#[0-9a-fA-F]{6}$"
+      status:
+        enum: [active, draft, deprecated]
+      owners:
+        type: array
+        items: { type: string }
+
+  sources:
+    type: object
+    required: [enabled]
+    properties:
+      enabled:
+        type: array
+        items: { type: string }
+      source_config:
+        type: object
+        additionalProperties:
+          type: object
+          properties:
+            max_per_query: { type: integer, minimum: 1 }
+            open_access_only: { type: boolean }
+            api_key_env: { type: string }
+            year_range:
+              type: array
+              minItems: 2
+              maxItems: 2
+              items: { type: integer }
+      rotation:
+        type: object
+        properties:
+          strategy:
+            enum: [tiered, topic_round_robin, random, fixed]
+          tiers:
+            type: array
+            items:
+              type: object
+              required: [period_days, topics]
+              properties:
+                period_days: { type: integer, minimum: 1, maximum: 30 }
+                topics: { type: array, items: { type: string } }
+                label: { type: string }
+
+  taxonomy:
+    type: object
+    required: [source]
+    properties:
+      source: { enum: [db_table, yaml, inline] }
+      table_name: { type: string }
+      id_field: { type: string }
+      name_field: { type: string }
+      category_field: { type: string }
+      active_filter: { type: string }
+      file: { type: string }
+      items:
+        type: array
+        items:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: string }
+            name: { type: string }
+            category: { type: string }
+      query_template: { type: string }
+
+  rag:
+    type: object
+    required: [vector_store, chunk, retrieval]
+    properties:
+      vector_store:
+        type: object
+        required: [backend, collection]
+        properties:
+          backend: { enum: [chromadb, pgvector] }
+          collection: { type: string }
+          persist_path: { type: string }
+      embedding:
+        type: object
+        properties:
+          provider: { enum: [chromadb_default, sentence_transformers, openai] }
+          model: { type: string }
+      chunk:
+        type: object
+        required: [size, overlap]
+        properties:
+          size: { type: integer, minimum: 200, maximum: 4000 }
+          overlap: { type: integer, minimum: 0 }
+          strategy: { enum: [fixed, sentence, semantic] }
+      retrieval:
+        type: object
+        properties:
+          top_k: { type: integer, minimum: 1 }
+          relevance_threshold: { type: number, minimum: 0.0, maximum: 1.0 }
+          distance: { enum: [cosine, l2, ip] }
+      guardrails:
+        type: array
+        items:
+          type: object
+          required: [text, severity]
+          properties:
+            text: { type: string, minLength: 1 }
+            severity: { enum: [hard, soft] }
+            tag: { type: string }
+
+  prompts:
+    type: object
+    additionalProperties:
+      type: object
+      properties:
+        inline: { type: string }
+        path: { type: string }
+        ref: { type: string }
+        model_preference: { enum: [gemini, local, openai] }
+        max_tokens: { type: integer, minimum: 1 }
+        temperature: { type: number, minimum: 0.0, maximum: 2.0 }
+
+  personas:
+    type: array
+    items:
+      type: object
+      required: [id, audience]
+      properties:
+        id:
+          type: string
+          pattern: "^[a-z][a-z0-9_]{2,20}$"
+        audience: { type: string }
+        digest:
+          type: object
+          properties:
+            frequency: { enum: [daily, weekly, monthly, on_demand] }
+            cron: { type: string }
+            max_items: { type: integer, minimum: 1 }
+        interests:
+          type: object
+          properties:
+            source: { enum: [subscriber_field, tag_match, embedding] }
+            field: { type: string }
+            group_filter: { type: string }
+            matching: { enum: [rule, embedding, hybrid] }
+        delivery:
+          type: object
+          properties:
+            channel: { enum: [email, slack, webhook] }
+            template: { type: string }
+            from_address: { type: string }
+
+  scheduler:
+    type: object
+    properties:
+      timezone: { type: string }
+      jobs:
+        type: array
+        items:
+          type: object
+          required: [id, task, cron]
+          properties:
+            id: { type: string }
+            task: { type: string }
+            cron: { type: string }
+            enabled: { type: boolean }
+            args: { type: object }
+
+  features:
+    type: object
+    properties:
+      rag_enabled: { type: boolean }
+      digest_enabled: { type: boolean }
+      newsletter_enabled: { type: boolean }
+      trend_analysis: { type: boolean }

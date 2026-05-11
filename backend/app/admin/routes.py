@@ -410,6 +410,11 @@ def _build_collection_reason(paper: Paper, allergen_links: List[AllergenLinkItem
     source_names = {
         "pubmed": "PubMed",
         "semantic_scholar": "Semantic Scholar",
+        "europe_pmc": "Europe PMC",
+        "openalex": "OpenAlex",
+        "biorxiv_medrxiv": "bioRxiv/medRxiv",
+        "clinicaltrials": "ClinicalTrials.gov",
+        "core": "CORE",
         "manual_upload": "직접 업로드",
         "manual": "직접 입력",
     }

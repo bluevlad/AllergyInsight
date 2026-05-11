@@ -1,0 +1,191 @@
+# AllergyInsight DomainPack v1
+#
+# 현행 운영 값을 그대로 반영 — 마이그레이션 시 회귀 0 보장이 목표.
+# 변경 시 `python -m app.core.domains lint --strict backend/app/domains/allergy/pack.yaml` 통과 필수.
+#
+# 상세 스키마: plans/domain-pack-yaml-schema-v1.md §3
+
+version: 1
+
+domain:
+  id: allergy
+  name_kr: 알러지
+  name_en: Allergy
+  description: |
+    알러지·면역학 연구 논문 + 뉴스를 수집하여 의료진 임상 함의 추출, RAG Q&A,
+    구독자 다이제스트를 제공하는 도메인.
+  accent_color: "#8b5cf6"
+  status: active
+  owners: [allergyinsight-team]
+
+# ───────── 수집 소스 ─────────
+sources:
+  enabled:
+    - pubmed
+    - semantic_scholar
+    - europe_pmc
+    - openalex
+    - biorxiv
+    - core
+    - naver_news
+    - google_news_rss
+  source_config:
+    pubmed:
+      max_per_query: 20
+      api_key_env: NCBI_API_KEY
+    semantic_scholar:
+      max_per_query: 20
+      api_key_env: SEMANTIC_SCHOLAR_API_KEY
+      open_access_only: false
+    core:
+      max_per_query: 20
+      api_key_env: CORE_API_KEY
+    openalex:
+      max_per_query: 20
+    naver_news:
+      max_per_query: 20
+      api_key_env: NAVER_CLIENT_ID
+  rotation:
+    strategy: tiered
+    tiers:
+      - period_days: 2
+        label: "Tier 1 — 고위험·고빈도 (식품 5종)"
+        topics: [peanut, tree_nut, shellfish, milk, egg]
+      - period_days: 3
+        label: "Tier 2 — 주요 식품 (4종)"
+        topics: [wheat, soy, fish, sesame]
+      - period_days: 4
+        label: "Tier 3 — 흡입·접촉·기타 (8종)"
+        topics: [dust_mite, cat, dog, pollen, mold, latex, insect, drug]
+
+# ───────── 분류 체계 ─────────
+taxonomy:
+  source: db_table
+  table_name: allergen_master
+  id_field: code
+  name_field: name_kr
+  category_field: category
+  active_filter: "is_active = true"
+  query_template: "{name_kr} OR {name_en} allergy"
+
+# ───────── 저장 / 임베딩 ─────────
+rag:
+  vector_store:
+    backend: chromadb
+    collection: papers_allergy
+    persist_path: data/chromadb
+  embedding:
+    provider: chromadb_default
+  chunk:
+    size: 800
+    overlap: 100
+    strategy: fixed
+  retrieval:
+    top_k: 5
+    relevance_threshold: 0.4
+    distance: cosine
+  guardrails:
+    - text: "임상 진단·처방을 직접 제공하지 말 것. 의료진 상담을 권장."
+      severity: hard
+      tag: medical_disclaimer
+    - text: "긴급 증상(아나필락시스 의심 등)은 응급실 방문을 최우선 안내."
+      severity: hard
+      tag: emergency
+
+# ───────── 프롬프트 ─────────
+prompts:
+  system:
+    path: prompts/system.md
+    model_preference: gemini
+    temperature: 0.2
+  digest_implication:
+    path: prompts/clinical_implication.md
+    model_preference: gemini
+    max_tokens: 200
+    temperature: 0.2
+  news_relevance:
+    path: prompts/news_relevance.md
+    model_preference: local
+    max_tokens: 50
+    temperature: 0.1
+
+# ───────── 페르소나 / 구독자 ─────────
+personas:
+  - id: clinician
+    audience: 의료진
+    digest:
+      frequency: daily
+      cron: "0 8 * * *"
+      max_items: 10
+      diversity:
+        category_min: 3
+    interests:
+      source: subscriber_field
+      field: keywords
+      group_filter: clinician
+      matching: hybrid
+    delivery:
+      channel: email
+      template: templates/clinician_digest.html
+      from_address: digest@allergyinsight.bluevlad.com
+  - id: consumer
+    audience: 일반 사용자
+    digest:
+      frequency: weekly
+      cron: "0 9 * * MON"
+      max_items: 5
+    interests:
+      source: subscriber_field
+      field: keywords
+      group_filter: general
+      matching: rule
+    delivery:
+      channel: email
+      template: templates/consumer_digest.html
+
+# ───────── 스케줄러 ─────────
+# scheduler_service.py 의 13 cron 중 도메인 관련 10 개 (drug_ingest, strategic_intel_* 제외).
+# Phase 1.G 에서는 데이터만 정의, 실제 cron 등록은 scheduler_service.py 가 담당.
+# Phase 2 이후 YAML 기반 자동 등록으로 전환 예정.
+scheduler:
+  timezone: Asia/Seoul
+  jobs:
+    - id: daily_paper_search
+      task: collect.papers
+      cron: "0 2 * * *"
+    - id: clinical_implication_backfill
+      task: analysis.clinical_implication
+      cron: "30 3 * * *"
+    - id: korean_translation
+      task: analysis.translate
+      cron: "0 4 * * *"
+    - id: rag_and_enrich
+      task: ingestion.rag_index
+      cron: "0 5 * * *"
+    - id: preprint_and_trials
+      task: collect.preprint
+      cron: "0 6 * * *"
+    - id: news_pipeline
+      task: collect.news
+      cron: "0 7 * * *"
+    - id: digest_clinician_daily
+      task: digest.send
+      cron: "0 8 * * *"
+      args: { persona: clinician }
+    - id: digest_consumer_weekly
+      task: digest.send
+      cron: "0 9 * * MON"
+      args: { persona: consumer }
+    - id: paper_trend
+      task: analytics.paper_trend
+      cron: "0 4 1 * *"
+    - id: treatment_extraction
+      task: analytics.treatment
+      cron: "0 5 * * SUN"
+
+# ───────── 기능 토글 ─────────
+features:
+  rag_enabled: true
+  digest_enabled: true
+  newsletter_enabled: true
+  trend_analysis: true

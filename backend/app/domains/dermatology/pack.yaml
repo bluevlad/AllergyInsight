@@ -1,0 +1,173 @@
+# DermatologyInsight DomainPack v1 — Phase 2 Entry Gate Fixture
+#
+# Phase 1 → 2 transition 의 핵심 검증:
+#   "두 번째 DomainPack 이 core/ 코드 수정 없이 동작" (ADR-011 Trigger #1)
+#
+# 본 pack 의 변경/추가는 모두 app/domains/dermatology/ 하위에서만 발생.
+# app/core/ 변경 0건이 보장되어야 Phase 2 entry 가능.
+#
+# Taxonomy 는 의도적으로 `inline` 으로 설정 (알러지의 `db_table` 과 다름) — taxonomy
+# swappability 검증.
+#
+# 임상 근거: atopic march 연구 (PMID: 14713908, 24290295) — 아토피 피부염은
+# 알러지 행진의 첫 단계. cross-promo 가능.
+
+version: 1
+
+domain:
+  id: dermatology
+  name_kr: 피부질환
+  name_en: Dermatology
+  description: |
+    피부과 영역 (아토피·건선·두드러기·여드름·SJS·약물 발진 등) 연구 논문을
+    수집·분석하여 의료진 임상 함의를 제공. ICD-10 L00~L99 기반 분류.
+  accent_color: "#ec4899"      # Pink — 피부 (allergy 의 #8b5cf6 violet 과 구분)
+  status: active
+  owners: [dermatology-team]
+
+# ───────── 수집 소스 (allergy 와 동일 — connector 재사용 검증) ─────────
+sources:
+  enabled:
+    - pubmed
+    - semantic_scholar
+    - europe_pmc
+    - openalex
+    - biorxiv
+    - core
+  source_config:
+    pubmed:
+      max_per_query: 20
+      api_key_env: NCBI_API_KEY
+    semantic_scholar:
+      max_per_query: 20
+      api_key_env: SEMANTIC_SCHOLAR_API_KEY
+    core:
+      max_per_query: 20
+      api_key_env: CORE_API_KEY
+  rotation:
+    strategy: tiered
+    tiers:
+      - period_days: 2
+        label: "Tier 1 — 고빈도 만성 (4종)"
+        topics: [atopic_dermatitis, psoriasis, urticaria, acne]
+      - period_days: 3
+        label: "Tier 2 — 색소·자가면역 (3종)"
+        topics: [vitiligo, alopecia, lichen_planus]
+      - period_days: 4
+        label: "Tier 3 — 접촉성·응급 (4종)"
+        topics: [contact_dermatitis, seborrheic_dermatitis, drug_eruption, sjs_ten]
+
+# ───────── 분류 체계 (inline — allergy 와 다름) ─────────
+taxonomy:
+  source: inline
+  query_template: "{name} OR {name_en}"
+  items:
+    - id: atopic_dermatitis
+      name: 아토피 피부염
+      category: chronic_inflammatory
+    - id: psoriasis
+      name: 건선
+      category: chronic_inflammatory
+    - id: urticaria
+      name: 두드러기
+      category: allergic
+    - id: acne
+      name: 여드름
+      category: sebaceous
+    - id: vitiligo
+      name: 백반증
+      category: pigmentation
+    - id: alopecia
+      name: 탈모
+      category: hair
+    - id: lichen_planus
+      name: 편평태선
+      category: autoimmune
+    - id: contact_dermatitis
+      name: 접촉성 피부염
+      category: allergic
+    - id: seborrheic_dermatitis
+      name: 지루성 피부염
+      category: chronic_inflammatory
+    - id: drug_eruption
+      name: 약물 발진
+      category: emergency
+    - id: sjs_ten
+      name: 스티븐스-존슨 증후군 / 독성표피괴사용해
+      category: emergency
+
+# ───────── 저장 / 임베딩 ─────────
+rag:
+  vector_store:
+    backend: chromadb
+    collection: papers_dermatology     # allergy 와 다른 collection — 격리
+    persist_path: data/chromadb
+  embedding:
+    provider: chromadb_default
+  chunk:
+    size: 800
+    overlap: 100
+    strategy: fixed
+  retrieval:
+    top_k: 5
+    relevance_threshold: 0.4
+    distance: cosine
+  guardrails:
+    - text: "임상 진단·처방을 직접 제공하지 말 것. 피부과 진료 권장."
+      severity: hard
+      tag: medical_disclaimer
+    - text: "SJS/TEN·드레스 증후군 의심 시 즉시 응급실 방문 안내."
+      severity: hard
+      tag: emergency
+    - text: "약물 발진 의심 시 원인 약물 즉시 중단 및 의료진 상담 안내."
+      severity: hard
+      tag: drug_safety
+
+# ───────── 프롬프트 (allergy 와 다른 본문) ─────────
+prompts:
+  digest_implication:
+    path: prompts/digest_implication.md
+    model_preference: gemini
+    max_tokens: 200
+    temperature: 0.2
+
+# ───────── 페르소나 ─────────
+personas:
+  - id: dermatologist
+    audience: 피부과 의료진
+    digest:
+      frequency: daily
+      cron: "0 8 * * *"
+      max_items: 10
+      diversity:
+        category_min: 3
+    interests:
+      source: subscriber_field
+      field: keywords
+      group_filter: dermatologist
+      matching: hybrid
+    delivery:
+      channel: email
+      template: templates/dermatologist_digest.html
+
+# ───────── 스케줄러 (최소 set — Phase 2 확장 예정) ─────────
+scheduler:
+  timezone: Asia/Seoul
+  jobs:
+    - id: derm_daily_paper_search
+      task: collect.papers
+      cron: "0 2 * * *"
+    - id: derm_clinical_implication
+      task: analysis.clinical_implication
+      cron: "30 3 * * *"
+    - id: derm_digest_send
+      task: digest.send
+      cron: "0 8 * * *"
+      args: { persona: dermatologist }
+
+# ───────── 기능 토글 ─────────
+features:
+  rag_enabled: true
+  digest_enabled: true
+  newsletter_enabled: false        # Phase 2 에서 활성화
+  trend_analysis: false

@@ -25,7 +25,9 @@ logger = logging.getLogger(__name__)
 # 알레르겐 로테이션 전략
 # ============================================================================
 
-ALLERGEN_TIERS = {
+# Legacy 폴백 (Phase 1.G-007) — DomainPack 미로딩 시 사용.
+# Phase 1.F 에서 DomainPack 정착 후 제거 예정.
+_ALLERGEN_TIERS_FALLBACK = {
     2: ["peanut", "tree_nut", "shellfish", "milk", "egg"],           # Tier 1: 매 2일
     3: ["wheat", "soy", "fish", "sesame"],                           # Tier 2: 매 3일
     4: [                                                              # Tier 3: 매 4일
@@ -34,9 +36,15 @@ ALLERGEN_TIERS = {
     ],
 }
 
+# Backward-compat alias — 기존 import 호환
+ALLERGEN_TIERS = _ALLERGEN_TIERS_FALLBACK
+
 
 def get_allergens_for_day(day_number: int) -> list[str]:
-    """주어진 일자에 검색할 알레르겐 목록을 반환 (결정적 로테이션)
+    """주어진 일자에 검색할 알레르겐 목록을 반환 (결정적 로테이션).
+
+    1차: DomainPack 의 sources.rotation.tiers (Phase 1.G-007).
+    2차: legacy ``_ALLERGEN_TIERS_FALLBACK`` (pack 미로딩 시).
 
     Args:
         day_number: 에포크 기준 일수 또는 연중 일수 등 정수값
@@ -44,8 +52,18 @@ def get_allergens_for_day(day_number: int) -> list[str]:
     Returns:
         해당일 검색 대상 알레르겐 코드 리스트
     """
-    result = []
-    for interval, allergens in ALLERGEN_TIERS.items():
+    try:
+        from ..core.domains import get_pack
+        pack = get_pack("allergy")
+    except Exception:
+        pack = None
+
+    if pack is not None:
+        return pack.get_allergens_for_day(day_number)
+
+    # Legacy fallback
+    result: list[str] = []
+    for interval, allergens in _ALLERGEN_TIERS_FALLBACK.items():
         for i, allergen in enumerate(allergens):
             if (day_number + i) % interval == 0:
                 result.append(allergen)

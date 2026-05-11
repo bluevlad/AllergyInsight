@@ -172,7 +172,7 @@ class Paper(Base):
     guideline_org = Column(String(50), nullable=True)  # 'EAACI', 'AAAAI', 'WAO'
 
     # Phase 1: 검색 결과 영속화를 위한 추가 컬럼
-    source = Column(String(30), nullable=True)  # 'pubmed', 'semantic_scholar', 'manual_upload'
+    source = Column(String(30), nullable=True)  # 'pubmed', 'semantic_scholar', 'europe_pmc', 'openalex', 'biorxiv_medrxiv', 'clinicaltrials', 'core', 'manual_upload'
     source_id = Column(String(100), nullable=True)  # PubMed ID 또는 Semantic Scholar Paper ID
     semantic_scholar_id = Column(String(100), nullable=True)  # S2 전용 ID
     citation_count = Column(Integer, nullable=True)

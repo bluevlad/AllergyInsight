@@ -141,14 +141,36 @@ class OllamaService:
                     self._gemini_available = False
         return self._gemini_available
 
-    # 알러지/면역학 도메인 시스템 프롬프트
-    SYSTEM_PROMPT = (
+    # 알러지/면역학 도메인 시스템 프롬프트 (Phase 1.G-008 폴백)
+    # 1차: DomainPack 의 prompts.system 슬롯 (domains/allergy/prompts/system.md).
+    # 2차: 아래 _SYSTEM_PROMPT_FALLBACK 상수 (pack 미로딩 시).
+    # Phase 1.F 에서 폴백 제거 예정.
+    _SYSTEM_PROMPT_FALLBACK = (
         "당신은 알러지 및 면역학 전문 의학 AI 어시스턴트입니다. "
         "반드시 한국어로만 답변하세요. 영어 논문을 참고하더라도 답변은 한국어로 작성하세요. "
         "의학 용어는 한국어 표기를 우선하되, 필요시 영문 약어를 괄호에 병기하세요. "
         "예: 경구 면역치료(OIT), 아나필락시스(Anaphylaxis). "
         "근거 없는 추측은 하지 마세요."
     )
+
+    @classmethod
+    def _resolve_prompt(cls, slot: str, fallback: str) -> str:
+        """DomainPack 의 prompts.{slot} → 본문 반환. 미로딩 시 fallback."""
+        try:
+            from ..core.domains import get_pack
+            pack = get_pack("allergy")
+            if pack is not None:
+                body = pack.get_prompt(slot)
+                if body:
+                    return body.strip()
+        except Exception:
+            pass
+        return fallback
+
+    @property
+    def SYSTEM_PROMPT(self) -> str:  # type: ignore[override]
+        """SYSTEM_PROMPT 를 동적으로 해석 — DomainPack 우선, fallback 보존."""
+        return self._resolve_prompt("system", self._SYSTEM_PROMPT_FALLBACK)
 
     def _chat_gemini(self, prompt: str, max_tokens: int = 500) -> Optional[str]:
         """Gemini API 호출 (OpenAI 호환)"""
@@ -260,22 +282,30 @@ class OllamaService:
         """긴 응답용 호출 (max_tokens 확장)"""
         return self._chat(prompt, max_tokens=2000, provider=provider)
 
+    _NEWS_RELEVANCE_PROMPT_FALLBACK = (
+        "다음 뉴스 기사가 알러지, 체외진단(IVD), 면역학, 진단키트, "
+        "알러젠, 또는 관련 의료기기 산업과 관련이 있는지 판단하세요.\n"
+        "0.0~1.0 사이 숫자로만 답하세요.\n"
+        "- 1.0: 직접적으로 관련됨 (알러지 진단, IVD 제품, 면역치료 등)\n"
+        "- 0.5: 간접적으로 관련됨 (의료기기 일반, 체외진단 기업의 사업 뉴스)\n"
+        "- 0.0: 전혀 관련 없음 (주식 투자분석, 일반 경제뉴스 등)\n\n"
+        "제목: {title}\n"
+        "내용: {description}\n\n"
+        "관련성 점수(숫자만):"
+    )
+
     def check_relevance(self, title: str, description: str) -> float:
         """알러지/체외진단/IVD 산업 관련성 점수 (0.0~1.0)
 
         Returns:
             관련성 점수. 0.3 미만이면 무관 기사로 판정.
         """
-        prompt = (
-            "다음 뉴스 기사가 알러지, 체외진단(IVD), 면역학, 진단키트, "
-            "알러젠, 또는 관련 의료기기 산업과 관련이 있는지 판단하세요.\n"
-            "0.0~1.0 사이 숫자로만 답하세요.\n"
-            "- 1.0: 직접적으로 관련됨 (알러지 진단, IVD 제품, 면역치료 등)\n"
-            "- 0.5: 간접적으로 관련됨 (의료기기 일반, 체외진단 기업의 사업 뉴스)\n"
-            "- 0.0: 전혀 관련 없음 (주식 투자분석, 일반 경제뉴스 등)\n\n"
-            f"제목: {title}\n"
-            f"내용: {description or '(내용 없음)'}\n\n"
-            "관련성 점수(숫자만):"
+        template = self._resolve_prompt(
+            "news_relevance", self._NEWS_RELEVANCE_PROMPT_FALLBACK
+        )
+        prompt = template.format(
+            title=title,
+            description=description or "(내용 없음)",
         )
 
         result = self._chat(prompt, max_tokens=50, provider="news")
@@ -645,6 +675,21 @@ class OllamaService:
     # 의료진에게 노출되는 한 줄 카드용 — 너무 길면 잘림
     _CLINICAL_IMPLICATION_MAX_OUTPUT_CHARS = 240
 
+    # Phase 1.G-008 폴백 — DomainPack 미로딩 시 사용 (Phase 1.F 에서 제거)
+    _CLINICAL_IMPLICATION_PROMPT_FALLBACK = (
+        "당신은 알레르기·면역학 임상 전문가입니다. "
+        "다음 논문 초록을 읽고, 의료진(알러지내과·소아과·이비인후과)에게 "
+        "전달할 \"한 줄 임상 함의\"를 한국어로 1~2문장(최대 200자)으로 작성하세요.\n\n"
+        "지침:\n"
+        "- 초록에 명시된 사실만 사용. 추정/일반화 금지.\n"
+        "- 환자에게 직접 전하는 조언 형식 금지 (의료 조언 아님).\n"
+        "- 통계 수치가 있으면 1개까지 인용 가능 (% 포함).\n"
+        "- 마크다운/번호/머리말 금지. 평문 한국어.\n\n"
+        "제목: {title}\n"
+        "초록: {abstract}\n\n"
+        "임상 함의 (1~2문장):"
+    )
+
     def extract_clinical_implication(
         self, title: str, abstract: str
     ) -> Optional[str]:
@@ -660,19 +705,11 @@ class OllamaService:
         if not abstract or len(abstract.strip()) < self._CLINICAL_IMPLICATION_MIN_ABSTRACT_LEN:
             return None
 
-        prompt = (
-            "당신은 알레르기·면역학 임상 전문가입니다. "
-            "다음 논문 초록을 읽고, 의료진(알러지내과·소아과·이비인후과)에게 "
-            "전달할 \"한 줄 임상 함의\"를 한국어로 1~2문장(최대 200자)으로 작성하세요.\n\n"
-            "지침:\n"
-            "- 초록에 명시된 사실만 사용. 추정/일반화 금지.\n"
-            "- 환자에게 직접 전하는 조언 형식 금지 (의료 조언 아님).\n"
-            "- 통계 수치가 있으면 1개까지 인용 가능 (% 포함).\n"
-            "- 마크다운/번호/머리말 금지. 평문 한국어.\n\n"
-            f"제목: {title}\n"
-            f"초록: {abstract[:3000]}\n\n"
-            "임상 함의 (1~2문장):"
+        template = self._resolve_prompt(
+            "digest_implication",
+            self._CLINICAL_IMPLICATION_PROMPT_FALLBACK,
         )
+        prompt = template.format(title=title, abstract=abstract[:3000])
 
         try:
             raw = self._chat(prompt, max_tokens=200, provider="news")

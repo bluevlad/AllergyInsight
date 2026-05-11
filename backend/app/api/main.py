@@ -46,6 +46,7 @@ from ..database.connection import engine, init_db, get_db, SessionLocal
 from ..database.seed_users import seed_users
 from ..database.seed_allergens import seed_allergens
 from ..database.normalize_grades import normalize_legacy_grades
+from ..database.normalize_core_source import normalize_core_source
 from ..config import settings
 from ..database.models import User
 from ..core.auth import require_auth
@@ -923,6 +924,22 @@ async def startup_event():
         logging.getLogger(__name__).warning("grade 정규화 실패 (무시): %s", e)
     finally:
         _db.close()
+
+    # Step 1.C-002: CoreService 행 source enum 보정 (manual_upload → core)
+    _db = SessionLocal()
+    try:
+        normalize_core_source(_db)
+    except Exception as e:
+        logging.getLogger(__name__).warning("CORE source 정규화 실패 (무시): %s", e)
+    finally:
+        _db.close()
+
+    # Step 1.G-012: DomainPack preload (fail-fast 미적용 — Phase 1 마이그레이션 중)
+    try:
+        from ..core.domains import preload_packs
+        preload_packs(fatal=False)
+    except Exception as e:
+        logging.getLogger(__name__).warning("DomainPack preload 실패 (무시): %s", e)
 
     # 스케줄러 초기화 (ENABLE_SCHEDULER=true일 때만)
     if os.getenv("ENABLE_SCHEDULER", "false").lower() == "true":

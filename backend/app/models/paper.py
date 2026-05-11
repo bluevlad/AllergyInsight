@@ -13,6 +13,7 @@ class PaperSource(str, Enum):
     OPENALEX = "openalex"
     CLINICALTRIALS = "clinicaltrials"
     BIORXIV_MEDRXIV = "biorxiv_medrxiv"
+    CORE = "core"
     MANUAL_UPLOAD = "manual_upload"
 
 

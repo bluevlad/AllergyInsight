@@ -71,7 +71,7 @@ class CoreService:
         if not client:
             return PaperSearchResult(
                 papers=[], total_count=0, query=query,
-                source=PaperSource.MANUAL_UPLOAD, search_time_ms=0,
+                source=PaperSource.CORE, search_time_ms=0,
             )
 
         try:
@@ -101,7 +101,7 @@ class CoreService:
             papers=papers,
             total_count=data.get("totalHits", len(papers)) if papers else 0,
             query=query,
-            source=PaperSource.MANUAL_UPLOAD,  # CORE 전용 enum 없음, 임시
+            source=PaperSource.CORE,
             search_time_ms=round(elapsed, 1),
         )
 
@@ -169,7 +169,7 @@ class CoreService:
             title=title,
             abstract=item.get("abstract", "") or "",
             authors=authors,
-            source=PaperSource.MANUAL_UPLOAD,  # 임시
+            source=PaperSource.CORE,
             source_id=f"core:{core_id}",
             doi=doi,
             year=year,
