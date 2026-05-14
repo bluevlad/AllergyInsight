@@ -45,6 +45,15 @@ class Settings:
     # 검색 결과 자동 저장
     AUTO_SAVE_SEARCH: bool = True
 
+    # 스케줄러 잡 튜닝 — scheduler_jobs.py 가 참조
+    SCHEDULER_PAPER_MAX_RESULTS: int = 20       # 알러젠당 소스당 최대 결과
+    SCHEDULER_TRANSLATION_BATCH_SIZE: int = 50  # 한국어 번역 배치 크기
+    SCHEDULER_NEWS_MAX_RESULTS: int = 10        # 업체당 뉴스 최대 결과
+
+    # legacy AllergyNewsLetter SQLite 증분 동기화 (선택)
+    # 미설정 시 job_newsletter_sync 가 graceful skip — os.path.exists("") = False
+    NEWSLETTER_DB_PATH: str = ""
+
     @classmethod
     def from_env(cls) -> "Settings":
         """환경 변수에서 설정 로드"""
@@ -58,6 +67,16 @@ class Settings:
             DEFAULT_MAX_RESULTS=int(os.getenv("DEFAULT_MAX_RESULTS", "20")),
             SEARCH_TIMEOUT=int(os.getenv("SEARCH_TIMEOUT", "30")),
             AUTO_SAVE_SEARCH=os.getenv("AUTO_SAVE_SEARCH", "true").lower() == "true",
+            SCHEDULER_PAPER_MAX_RESULTS=int(
+                os.getenv("SCHEDULER_PAPER_MAX_RESULTS", "20")
+            ),
+            SCHEDULER_TRANSLATION_BATCH_SIZE=int(
+                os.getenv("SCHEDULER_TRANSLATION_BATCH_SIZE", "50")
+            ),
+            SCHEDULER_NEWS_MAX_RESULTS=int(
+                os.getenv("SCHEDULER_NEWS_MAX_RESULTS", "10")
+            ),
+            NEWSLETTER_DB_PATH=os.getenv("NEWSLETTER_DB_PATH", ""),
         )
 
 
