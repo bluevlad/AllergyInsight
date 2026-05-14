@@ -202,6 +202,7 @@ async def bulk_collect_papers(
         from datetime import datetime
         from ..utils.timezone import utc_now
         from ..database.connection import SessionLocal
+        from ..services.scheduler_jobs import _as_utc
 
         db = SessionLocal()
         log = None
@@ -236,7 +237,7 @@ async def bulk_collect_papers(
             now = utc_now()
             log.status = "success"
             log.completed_at = now
-            log.duration_seconds = (now - log.started_at).total_seconds()
+            log.duration_seconds = (now - _as_utc(log.started_at)).total_seconds()
             log.result_summary = {
                 "years_processed": len(results),
                 "total_found": sum(r.get("total_found", 0) for r in results),
@@ -251,7 +252,7 @@ async def bulk_collect_papers(
                 now = utc_now()
                 log.status = "failed"
                 log.completed_at = now
-                log.duration_seconds = (now - log.started_at).total_seconds()
+                log.duration_seconds = (now - _as_utc(log.started_at)).total_seconds()
                 log.error_message = str(e)
                 db.commit()
             logger.error(f"[bulk_collect] 전체 실패: {e}")
