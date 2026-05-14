@@ -29,6 +29,34 @@ router = APIRouter(prefix="/public/drugs", tags=["Public Drugs"])
 _limiter = Limiter(key_func=get_remote_address)
 
 
+@router.get("/updates")
+async def list_drug_updates(
+    days: int = Query(7, ge=1, le=30, description="조회 기간(일)"),
+    type: str = Query("all", description="all | new_approvals | label_changes | blackbox_warnings | recalls"),
+):
+    """약물 업데이트 stub — NewsletterPlatform collector 연동 (P2 본 구현 전).
+
+    NewsletterPlatform 의 `_collect_drug_updates` 가 404 를 fatal 로
+    인식해 발송이 stale cache 모드로 빠지는 문제를 막기 위한 stub.
+    응답 스펙은 NEWSLETTER_REDESIGN_SPEC P2 / collector.py:427 의
+    fail-safe 빈 구조와 동일하다.
+
+    본 구현 시 drug_ingest(openFDA · MFDS) 기반 신규 승인/라벨 변경/
+    blackbox/recall 을 채워 넣을 자리이다. 현재는 total=0 으로 응답해
+    NewsletterPlatform template 이 섹션을 자동 숨김 처리한다.
+    """
+    return {
+        "new_approvals": [],
+        "label_changes": [],
+        "blackbox_warnings": [],
+        "recalls": [],
+        "total": 0,
+        "window_days": days,
+        "type": type,
+        "disclaimer": PUBLIC_DISCLAIMER,
+    }
+
+
 @router.get("/allergy-classes")
 async def list_allergy_classes():
     """알러지 치료 약물의 ATC 약리군 카탈로그 (7개 그룹).
