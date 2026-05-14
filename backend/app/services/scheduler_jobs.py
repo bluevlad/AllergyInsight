@@ -11,7 +11,7 @@ import logging
 import os
 import sqlite3
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from ..config import settings
@@ -20,6 +20,15 @@ from ..database.connection import SessionLocal
 from ..database.scheduler_models import SchedulerExecutionLog
 
 logger = logging.getLogger(__name__)
+
+# DB 컬럼이 DateTime(naive)이라 fetch 시 tz 정보가 사라진다. utc_now()(aware)와
+# 빼기 연산하려면 보정 필요 — 컬럼 마이그레이션을 미루기 위한 클라이언트 보정.
+_EPOCH = datetime(2024, 1, 1, tzinfo=timezone.utc)
+
+
+def _as_utc(dt: datetime) -> datetime:
+    """naive datetime 을 UTC aware 로 간주해서 반환 (이미 aware 면 그대로)."""
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 # ============================================================================
 # 알레르겐 로테이션 전략
@@ -89,7 +98,7 @@ def _log_complete(db, log: SchedulerExecutionLog, result_summary: dict) -> None:
     now = utc_now()
     log.status = "success"
     log.completed_at = now
-    log.duration_seconds = (now - log.started_at).total_seconds()
+    log.duration_seconds = (now - _as_utc(log.started_at)).total_seconds()
     log.result_summary = result_summary
     db.commit()
 
@@ -99,7 +108,7 @@ def _log_fail(db, log: SchedulerExecutionLog, error: str) -> None:
     now = utc_now()
     log.status = "failed"
     log.completed_at = now
-    log.duration_seconds = (now - log.started_at).total_seconds()
+    log.duration_seconds = (now - _as_utc(log.started_at)).total_seconds()
     log.error_message = error
     db.commit()
 
@@ -121,7 +130,7 @@ def job_daily_paper_search(trigger_type: str = "scheduled") -> None:
         from .paper_search_service import PaperSearchService
 
         service = PaperSearchService()
-        day_number = (utc_now() - datetime(2024, 1, 1)).days
+        day_number = (utc_now() - _EPOCH).days
         allergens = get_allergens_for_day(day_number)
 
         logger.info(f"[daily_paper_search] 대상 알레르겐: {allergens}")
