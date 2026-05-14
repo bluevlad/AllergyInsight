@@ -174,7 +174,13 @@ async def list_papers(
 
     # Pagination
     offset = (page - 1) * size
-    papers = query.distinct().order_by(Paper.year.desc(), Paper.id.desc()).offset(offset).limit(size).all()
+    papers = (
+        query.distinct()
+        .order_by(Paper.year.desc().nullslast(), Paper.id.desc())
+        .offset(offset)
+        .limit(size)
+        .all()
+    )
 
     return PaperListResponse(
         items=papers,
