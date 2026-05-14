@@ -25,6 +25,9 @@ services:
       - SEMANTIC_SCHOLAR_API_KEY=${SEMANTIC_SCHOLAR_API_KEY:-}
       - CORE_API_KEY=${CORE_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # Naver News API (competitor news 한국어 풀)
+      - NAVER_CLIENT_ID=${NAVER_CLIENT_ID:-}
+      - NAVER_CLIENT_SECRET=${NAVER_CLIENT_SECRET:-}
       - DOWNLOAD_DIR=/app/downloads/papers
       - DEFAULT_MAX_RESULTS=20
       - SEARCH_TIMEOUT=30
@@ -86,6 +89,9 @@ services:
       - PUBMED_EMAIL=${PUBMED_EMAIL:-}
       - SEMANTIC_SCHOLAR_API_KEY=${SEMANTIC_SCHOLAR_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # Naver News API (competitor news 한국어 풀)
+      - NAVER_CLIENT_ID=${NAVER_CLIENT_ID:-}
+      - NAVER_CLIENT_SECRET=${NAVER_CLIENT_SECRET:-}
       # AI - Gemini (뉴스 분석, RAG 답변)
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - GEMINI_MODEL=${GEMINI_MODEL:-}
