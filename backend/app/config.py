@@ -50,6 +50,11 @@ class Settings:
     SCHEDULER_TRANSLATION_BATCH_SIZE: int = 50  # 한국어 번역 배치 크기
     SCHEDULER_NEWS_MAX_RESULTS: int = 10        # 업체당 뉴스 최대 결과
 
+    # 논문 검색 소스별 future timeout (초) — PubMed/S2/EuropePMC 등 외부 API
+    # 호출 hang 방지. 짧을수록 잡 전체 wall-clock 짧아지지만 느린 응답이
+    # timeout 처리될 위험. 운영 환경 proxy 안정도에 맞춰 튜닝.
+    PAPER_SEARCH_SOURCE_TIMEOUT_S: int = 30
+
     # legacy AllergyNewsLetter SQLite 증분 동기화 (선택)
     # 미설정 시 job_newsletter_sync 가 graceful skip — os.path.exists("") = False
     NEWSLETTER_DB_PATH: str = ""
@@ -77,6 +82,9 @@ class Settings:
                 os.getenv("SCHEDULER_NEWS_MAX_RESULTS", "10")
             ),
             NEWSLETTER_DB_PATH=os.getenv("NEWSLETTER_DB_PATH", ""),
+            PAPER_SEARCH_SOURCE_TIMEOUT_S=int(
+                os.getenv("PAPER_SEARCH_SOURCE_TIMEOUT_S", "30")
+            ),
         )
 
 

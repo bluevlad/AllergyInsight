@@ -23,6 +23,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from ..config import settings
 # Layer 1 (registry-based)
 from ..core.sources import registry
 from ..core.sources.base import SourceKind
@@ -240,7 +241,7 @@ class PaperSearchService:
 
         for fut, name in list(futures.items()):
             try:
-                res = fut.result(timeout=60)
+                res = fut.result(timeout=settings.PAPER_SEARCH_SOURCE_TIMEOUT_S)
             except Exception as e:
                 logger.warning("%s search future 예외: %s", name, e)
                 errors[name] = f"{type(e).__name__}: {e}"
@@ -309,7 +310,7 @@ class PaperSearchService:
 
         for name, fut in futures.items():
             try:
-                r = fut.result(timeout=60)
+                r = fut.result(timeout=settings.PAPER_SEARCH_SOURCE_TIMEOUT_S)
                 all_papers.extend(r.papers)
                 counts[name] = r.total_count
             except Exception as e:
