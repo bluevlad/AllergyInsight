@@ -35,11 +35,12 @@
 | C3 | 뉴스 수집: 환경변수 기반 (기본 07:00) | Read add_crawl_job 기본값 hour=7, minute=0 |
 | C4 | 뉴스레터 발송: 환경변수 기반 (기본 08:00) | Read add_send_job 기본값 hour=8, minute=0 |
 | C5 | 인사이트 리포트: 매월 1일 03:00 | Read add_insight_job CronTrigger(day=1, hour=3, minute=0) |
+| C6 | 알러젠 직접 뉴스 수집: 매주 일요일 06:30 KST | Grep 'allergen_news_collection.*day_of_week="sun".*hour=6.*minute=30' in scheduler_service.py |
 
 ## D. 작업 간 의존성/충돌 (3항목)
 
 | ID | 항목 | 검증 방법 |
 |----|------|-----------|
-| D1 | 작업 시간 겹침 없음 (02:00, 04:00, 07:00, 08:00 모두 다름) | Read start() 메서드에서 시간 교차 확인 |
+| D1 | 작업 시간 겹침 없음 (02:00, 03:00, 04:00, 05:00, 06:30(주1), 07:00 모두 다름) | Read _register_jobs() 메서드에서 시간 교차 확인 |
 | D2 | max_instances=1로 동시 실행 방지 | Grep 'max_instances.*1' in scheduler_service.py |
 | D3 | coalesce=True로 밀린 작업 단일 실행 | Grep 'coalesce.*True' in scheduler_service.py |

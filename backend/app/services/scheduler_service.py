@@ -21,6 +21,7 @@ from .scheduler_jobs import (
     job_korean_translation,
     job_news_pipeline,
     job_analytics_aggregation,
+    job_allergen_news_collection,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,7 +46,7 @@ class SchedulerService:
         self._register_jobs()
 
     def _register_jobs(self) -> None:
-        """5개 Job 등록 (CronTrigger, timezone=Asia/Seoul 명시)"""
+        """6개 Job 등록 (CronTrigger, timezone=Asia/Seoul 명시)"""
         # Job 1: 일일 논문 검색 (02:00 KST)
         self._scheduler.add_job(
             job_daily_paper_search,
@@ -88,11 +89,21 @@ class SchedulerService:
             name="분석 집계 (알러젠+키워드)",
             replace_existing=True,
         )
+        # Job 6: 알러젠 직접 뉴스 수집 (매주 일요일 06:30 KST — analytics 직전)
+        # followup-plan §2: AllergenMaster name_kr/name_en 키워드 활용
+        self._scheduler.add_job(
+            job_allergen_news_collection,
+            CronTrigger(day_of_week="sun", hour=6, minute=30, timezone=self.KST),
+            id="allergen_news_collection",
+            name="알러젠 직접 뉴스 수집",
+            replace_existing=True,
+        )
+
     def start(self) -> None:
         """스케줄러 시작"""
         if not self._scheduler.running:
             self._scheduler.start()
-            logger.info("통합 스케줄러 시작됨 (5개 Job)")
+            logger.info("통합 스케줄러 시작됨 (6개 Job)")
 
     def shutdown(self) -> None:
         """스케줄러 종료"""
