@@ -97,6 +97,14 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Test account quick login (UI 데모/QA 용도)
+  const testLogin = async () => {
+    const response = await authApi.testLogin();
+    localStorage.setItem('access_token', response.access_token);
+    setUser(response.user);
+    return { success: true, user: response.user };
+  };
+
   // Legacy: Simple registration
   const registerSimple = async (data) => {
     try {
@@ -201,6 +209,7 @@ export const AuthProvider = ({ children }) => {
     sendVerificationCode,
     registerEmail,
     loginEmail,
+    testLogin,
     registerSimple,
     loginSimple,
     loginAdmin,

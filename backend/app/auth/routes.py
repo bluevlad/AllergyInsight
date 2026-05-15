@@ -545,6 +545,43 @@ async def email_login(
 
 
 # ============================================================================
+# Test Account Login (UI 데모/QA 용도, LEGACY 플래그 무관)
+# 허용된 계정 화이트리스트에서만 동작합니다.
+# ============================================================================
+
+TEST_ACCOUNT_WHITELIST = {
+    "kincs@unmong.com": "123456",
+}
+
+
+@router.post("/test/login", response_model=UserWithToken)
+async def test_account_login(db: Session = Depends(get_db)):
+    """Quick login for the whitelisted test account (Consumer demo)."""
+    test_email = next(iter(TEST_ACCOUNT_WHITELIST))
+    user = db.query(User).filter(User.email == test_email).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="테스트 계정이 데이터베이스에 존재하지 않습니다.",
+        )
+
+    security_logger.info("Test account login: user=%s email=%s", user.id, test_email)
+    user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(user)
+
+    access_token = create_access_token(
+        data={"sub": str(user.id), "auth_type": "test"}
+    )
+
+    return UserWithToken(
+        user=UserResponse.model_validate(user),
+        access_token=access_token,
+    )
+
+
+# ============================================================================
 # Current User Routes
 # ============================================================================
 

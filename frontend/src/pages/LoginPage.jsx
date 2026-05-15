@@ -10,7 +10,7 @@ const LEGACY_MODULES_ENABLED = import.meta.env.VITE_LEGACY_MODULES_ENABLED === '
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const { verifyGoogleToken, loginEmail, sendVerificationCode, registerEmail, getDefaultApp } = useAuth();
+  const { verifyGoogleToken, loginEmail, testLogin, sendVerificationCode, registerEmail, getDefaultApp } = useAuth();
   const googleBtnRef = useRef(null);
 
   const [mode, setMode] = useState('login'); // 'login', 'register', 'verify'
@@ -133,6 +133,21 @@ const LoginPage = () => {
     }
   };
 
+  // Test account one-click login
+  const handleTestLogin = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const result = await testLogin();
+      navigate(getRedirectPath(result.user?.role));
+    } catch (err) {
+      const detail = err.response?.data?.detail || '테스트 계정 로그인에 실패했습니다.';
+      setError(detail);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Login with email + password
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -180,6 +195,28 @@ const LoginPage = () => {
         {mode !== 'verify' && (
           <>
             <div ref={googleBtnRef} className="google-btn-wrapper" />
+
+            {/* 테스트 계정 원클릭 로그인 (Consumer 데모용) */}
+            <div className="test-login-box">
+              <div className="test-login-header">
+                <span className="test-badge">TEST</span>
+                <span>테스트 계정으로 둘러보기</span>
+              </div>
+              <p className="test-login-desc">
+                회원가입 없이 환자용 데모 계정(김철수)으로 바로 로그인합니다.
+              </p>
+              <button
+                type="button"
+                className="btn btn-test-login"
+                onClick={handleTestLogin}
+                disabled={loading}
+              >
+                {loading ? '로그인 중...' : '테스트 계정으로 로그인'}
+              </button>
+              {error && mode === 'login' && (
+                <div className="error-message" style={{ marginTop: '0.75rem' }}>{error}</div>
+              )}
+            </div>
 
             {LEGACY_MODULES_ENABLED && (
               <div className="divider">
@@ -510,6 +547,45 @@ const LoginPage = () => {
           font-size: 0.8rem;
           color: #666;
           text-align: center;
+        }
+
+        .test-login-box {
+          margin-top: 1rem;
+          padding: 1rem;
+          background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
+          border: 1px solid #ffc107;
+          border-radius: 8px;
+        }
+
+        .test-login-header {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-weight: 600;
+          color: #f57c00;
+          font-size: 0.95rem;
+        }
+
+        .test-login-desc {
+          margin: 0.5rem 0 0.75rem;
+          font-size: 0.8rem;
+          color: #6d4c1a;
+          line-height: 1.4;
+        }
+
+        .btn-test-login {
+          background: #ff9800;
+          color: white;
+          font-weight: 600;
+        }
+
+        .btn-test-login:hover:not(:disabled) {
+          background: #f57c00;
+        }
+
+        .btn-test-login:disabled {
+          background: #ffcc80;
+          cursor: not-allowed;
         }
 
         .test-account-box {
