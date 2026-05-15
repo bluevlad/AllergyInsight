@@ -151,7 +151,7 @@ class TestSchedulerService:
         try:
             status = service.get_status()
             assert status["running"] is True
-            assert status["job_count"] == 5
+            assert status["job_count"] == 6
             assert "Asia/Seoul" in status["timezone"]
         finally:
             service.shutdown()
@@ -165,13 +165,14 @@ class TestSchedulerService:
 
         try:
             jobs = service.get_jobs()
-            assert len(jobs) == 5
+            assert len(jobs) == 6
 
             job_ids = {j["id"] for j in jobs}
             assert "daily_paper_search" in job_ids
             assert "newsletter_sync" in job_ids
             assert "korean_translation" in job_ids
             assert "news_pipeline" in job_ids
+            assert "allergen_news_collection" in job_ids
 
             for job in jobs:
                 assert "next_run_time" in job

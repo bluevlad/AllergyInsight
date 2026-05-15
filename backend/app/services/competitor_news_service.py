@@ -37,10 +37,19 @@ from ..models.competitor_news import (
     NewsArticle,
     NewsSearchResult,
     DEFAULT_COMPETITORS,
+    CompanyCategory,
 )
 from ..database.competitor_models import CompetitorCompany, CompetitorNews
+from ..database.analytics_models import NewsAllergenLink
+from .allergen_news_keywords import build_allergen_search_keywords
 
 logger = logging.getLogger(__name__)
+
+
+# CompetitorNews.company_id 가 NOT NULL 이라 알러젠 직검색 결과를 담을 sentinel
+# CompetitorCompany 가 필요. is_active=False 로 등록해 search_all_companies() 에
+# 포함되지 않게 한다.
+ALLERGEN_SENTINEL_CODE = "__allergen_direct__"
 
 
 # 호출자가 쓰는 단축 이름 ↔ registry 키 매핑 (backward compat)
@@ -60,6 +69,16 @@ class CompanyNewsResult:
     company_name: str
     naver_articles: list[NewsArticle]
     google_articles: list[NewsArticle]
+    total_count: int
+    search_time_ms: float
+    errors: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class AllergenNewsResult:
+    """알러젠 단위 뉴스 검색 결과 (allergen-trend-followup §2)."""
+    allergen_code: str
+    articles: list[NewsArticle]
     total_count: int
     search_time_ms: float
     errors: dict[str, str] = field(default_factory=dict)
@@ -365,6 +384,216 @@ class CompetitorNewsService:
 
         db.commit()
         logger.info(f"기본 경쟁사 {len(DEFAULT_COMPETITORS)}개 등록 완료")
+
+    def _ensure_allergen_sentinel(self, db: Session) -> CompetitorCompany:
+        """알러젠 직검색 결과를 담을 sentinel CompetitorCompany 보장.
+
+        CompetitorNews.company_id NOT NULL 제약 충족용. is_active=False 로 두어
+        ``search_all_companies()`` 의 회사 루프에 포함되지 않게 한다.
+        """
+        sentinel = (
+            db.query(CompetitorCompany)
+            .filter(CompetitorCompany.code == ALLERGEN_SENTINEL_CODE)
+            .first()
+        )
+        if sentinel:
+            return sentinel
+
+        sentinel = CompetitorCompany(
+            code=ALLERGEN_SENTINEL_CODE,
+            name_kr="알러젠 직검색",
+            name_en="Allergen Direct Search",
+            category=CompanyCategory.INDUSTRY.value,
+            keywords=[],
+            homepage_url=None,
+            is_active=False,
+        )
+        db.add(sentinel)
+        db.commit()
+        db.refresh(sentinel)
+        logger.info("알러젠 sentinel CompetitorCompany 생성 (%s)", ALLERGEN_SENTINEL_CODE)
+        return sentinel
+
+    # ───────── 알러젠 직접 검색 (followup-plan §2) ─────────
+
+    def search_allergen_news(
+        self,
+        allergen_code: str,
+        keywords: list[str],
+        max_results: int = 10,
+        sources: Optional[list[str]] = None,
+    ) -> AllergenNewsResult:
+        """알러젠 키워드로 직접 뉴스 검색 (회사 컨텍스트 없이).
+
+        Args:
+            allergen_code: NewsAllergenLink 와 동일한 semantic code (peanut, milk, ...)
+            keywords: 검색 키워드 리스트 (보통 ``build_allergen_search_keywords()`` 산출물)
+            max_results: 소스당 키워드별 최대 결과 수
+            sources: 검색 소스 단축 이름 또는 registry 키
+        """
+        start_time = time.time()
+
+        if not keywords:
+            return AllergenNewsResult(
+                allergen_code=allergen_code,
+                articles=[],
+                total_count=0,
+                search_time_ms=0.0,
+            )
+
+        selected = self._resolve_sources(sources)
+        futures = []
+        for keyword in keywords:
+            for conn in selected:
+                futures.append(
+                    (
+                        conn.name,
+                        keyword,
+                        self._executor.submit(conn.search, keyword, max_results),
+                    )
+                )
+
+        articles: list[NewsArticle] = []
+        errors: dict[str, str] = {}
+        seen_urls: set[str] = set()
+
+        for conn_name, keyword, future in futures:
+            alias = self._connector_to_legacy_alias(conn_name)
+            try:
+                result = future.result(timeout=15)
+            except Exception as e:
+                logger.warning(
+                    "알러젠 뉴스 검색 실패 (%s/%s/%s): %s",
+                    allergen_code, conn_name, keyword, e,
+                )
+                errors[f"{conn_name}:{keyword}"] = f"{type(e).__name__}: {e}"
+                continue
+
+            if result.has_error:
+                errors[f"{conn_name}:{keyword}"] = result.meta.get("error", "")
+
+            for doc in result.docs:
+                if doc.url in seen_urls:
+                    continue
+                seen_urls.add(doc.url)
+
+                article = normalized_to_news_article(doc)
+                article.company = ALLERGEN_SENTINEL_CODE
+                article.search_keyword = keyword
+                article.source = alias
+                articles.append(article)
+
+        return AllergenNewsResult(
+            allergen_code=allergen_code,
+            articles=articles,
+            total_count=len(articles),
+            search_time_ms=(time.time() - start_time) * 1000,
+            errors=errors,
+        )
+
+    def collect_allergen_news(
+        self,
+        db: Session,
+        allergen_codes: Optional[list[str]] = None,
+        max_results_per_allergen: int = 10,
+    ) -> dict:
+        """알러젠 키워드로 뉴스 수집 → CompetitorNews + NewsAllergenLink 저장.
+
+        뉴스가 신규면 CompetitorNews 행과 NewsAllergenLink 를 동시에 생성하고,
+        이미 존재(URL 중복)하면 NewsAllergenLink 만 보강한다.
+        link 의 ``allergen_code`` 는 검색 시점에 결정되므로 LLM 추정 없이 deterministic.
+
+        Returns:
+            ``{"total_new", "total_duplicate", "total_links", "allergen_stats"}``
+        """
+        keyword_map = build_allergen_search_keywords(db, allergen_codes)
+        if not keyword_map:
+            logger.info("[collect_allergen_news] 검색 키워드가 비어 있음 — skip")
+            return {
+                "total_new": 0,
+                "total_duplicate": 0,
+                "total_links": 0,
+                "allergen_stats": {},
+            }
+
+        sentinel = self._ensure_allergen_sentinel(db)
+
+        total_new = 0
+        total_duplicate = 0
+        total_links = 0
+        allergen_stats: dict[str, dict] = {}
+
+        for allergen_code, keywords in keyword_map.items():
+            result = self.search_allergen_news(
+                allergen_code=allergen_code,
+                keywords=keywords,
+                max_results=max_results_per_allergen,
+            )
+
+            new_count = 0
+            dup_count = 0
+            new_links = 0
+
+            for article in result.articles:
+                existing = (
+                    db.query(CompetitorNews)
+                    .filter(CompetitorNews.url == article.url)
+                    .first()
+                )
+                if existing:
+                    news_id = existing.id
+                    dup_count += 1
+                else:
+                    news = CompetitorNews(
+                        company_id=sentinel.id,
+                        source=article.source,
+                        title=article.title,
+                        description=article.description,
+                        url=article.url,
+                        published_at=article.published_at,
+                        search_keyword=article.search_keyword,
+                    )
+                    db.add(news)
+                    db.flush()
+                    news_id = news.id
+                    new_count += 1
+
+                # 중복 link 방지 (unique idx 가 news_id+allergen_code)
+                link_exists = (
+                    db.query(NewsAllergenLink)
+                    .filter(
+                        NewsAllergenLink.news_id == news_id,
+                        NewsAllergenLink.allergen_code == allergen_code,
+                    )
+                    .first()
+                )
+                if not link_exists:
+                    link = NewsAllergenLink(
+                        news_id=news_id,
+                        allergen_code=allergen_code,
+                        content_category=None,
+                        relevance_score=1.0,
+                    )
+                    db.add(link)
+                    new_links += 1
+
+            total_new += new_count
+            total_duplicate += dup_count
+            total_links += new_links
+            allergen_stats[allergen_code] = {
+                "new_articles": new_count,
+                "duplicate_articles": dup_count,
+                "new_links": new_links,
+                "errors": len(result.errors),
+            }
+
+        db.commit()
+        return {
+            "total_new": total_new,
+            "total_duplicate": total_duplicate,
+            "total_links": total_links,
+            "allergen_stats": allergen_stats,
+        }
 
     def close(self):
         """리소스 정리 (connector + executor)."""

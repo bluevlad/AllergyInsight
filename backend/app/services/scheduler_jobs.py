@@ -665,6 +665,52 @@ def job_preprint_and_trials(trigger_type: str = "scheduled") -> None:
 
 
 # ============================================================================
+# Job: 알러젠 직접 뉴스 수집 (followup-plan §2) — 주1회
+# ============================================================================
+
+def job_allergen_news_collection(trigger_type: str = "scheduled") -> None:
+    """AllergenMaster 키워드로 직접 뉴스 검색 → CompetitorNews + NewsAllergenLink 저장.
+
+    경쟁사 뉴스에 알러젠 태깅이 약해 종합 트렌드의 뉴스 섹션이 비어있던 문제 해결.
+    검색 시점에 allergen_code 가 결정되므로 LLM 추정 없이 deterministic 태깅.
+    """
+    db = SessionLocal()
+    log = _log_start(db, "allergen_news_collection", trigger_type)
+
+    try:
+        from .competitor_news_service import CompetitorNewsService
+
+        max_results = settings.SCHEDULER_NEWS_MAX_RESULTS
+        service = CompetitorNewsService()
+        try:
+            result = service.collect_allergen_news(
+                db=db,
+                allergen_codes=None,  # KNOWN_ALLERGENS 전체
+                max_results_per_allergen=max_results,
+            )
+        finally:
+            service.close()
+
+        summary = {
+            "total_new": result.get("total_new", 0),
+            "total_duplicate": result.get("total_duplicate", 0),
+            "total_links": result.get("total_links", 0),
+            "allergens_searched": len(result.get("allergen_stats", {})),
+        }
+        _log_complete(db, log, summary)
+        logger.info(
+            f"[allergen_news_collection] 완료: 신규 {summary['total_new']}건, "
+            f"링크 {summary['total_links']}건 ({summary['allergens_searched']}종)"
+        )
+
+    except Exception as e:
+        _log_fail(db, log, str(e))
+        logger.error(f"[allergen_news_collection] 실패: {e}")
+    finally:
+        db.close()
+
+
+# ============================================================================
 # Job: 임상 함의(clinical_implication) 일일 백필 — B2a-cron
 # ============================================================================
 
