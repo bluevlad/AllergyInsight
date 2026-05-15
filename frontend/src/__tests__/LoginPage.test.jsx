@@ -15,6 +15,7 @@ jest.mock('../shared/services/api', () => ({
   authApi: {
     getMe: jest.fn(),
     loginEmail: jest.fn(),
+    testLogin: jest.fn(),
     sendVerificationCode: jest.fn(),
     registerEmail: jest.fn(),
     loginSimple: jest.fn(),

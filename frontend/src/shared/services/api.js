@@ -37,6 +37,9 @@ export const authApi = {
     password: data.password,
   }),
 
+  // 테스트 계정 원클릭 로그인 (UI 데모/QA 용도)
+  testLogin: () => apiClient.post('/auth/test/login'),
+
   // Legacy: 간편 등록 (deprecated)
   registerSimple: (data) => apiClient.post('/auth/simple/register', {
     name: data.name,
