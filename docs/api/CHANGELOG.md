@@ -1,5 +1,19 @@
 # API 변경 이력
 
+## [2.1.1] - 2026-05-15
+
+### Added
+- 알러젠 직접 뉴스 수집 파이프라인 (`allergen-trend-followup-plan` §2)
+  - `CompetitorNewsService.search_allergen_news()` / `collect_allergen_news()`
+  - `AllergenMaster.name_kr / name_en` 기반 검색 키워드 빌더 (`allergen_news_keywords.py`)
+  - 매주 일요일 06:30 KST `job_allergen_news_collection` 스케줄러 잡
+- `NewsAllergenLink` write-time deterministic 태깅 — 검색 시점 `allergen_code` 가 결정되어 LLM 추정 없이 즉시 링크 생성
+
+### Why
+- 기존 종합 트렌드 뉴스 섹션이 0건이었던 문제 (경쟁사 뉴스만 알러젠 태깅) 해소
+
+---
+
 ## [2.1.0] - 2026-03-16
 
 ### Added
