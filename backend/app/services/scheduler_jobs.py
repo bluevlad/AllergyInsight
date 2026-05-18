@@ -15,11 +15,21 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from ..config import settings
+from ..observability.llmops import LLMOpsClient, StageReport
 from ..utils.timezone import utc_now
 from ..database.connection import SessionLocal
 from ..database.scheduler_models import SchedulerExecutionLog
 
 logger = logging.getLogger(__name__)
+
+# LLMOps 보고 — paper translate 잡 전용. LLMOPS_API_KEY_TRANSLATE 부재 시 no-op.
+_LLMOPS_TRANSLATE = LLMOpsClient(
+    consumer_id="allergyinsight-paper-translate",
+    api_key=os.environ.get("LLMOPS_API_KEY_TRANSLATE", ""),
+)
+_LLM_MODEL_NAME = os.environ.get(
+    "LLM_MODEL", "mlx-community/EXAONE-3.5-7.8B-Instruct-4bit"
+)
 
 # DB 컬럼이 DateTime(naive)이라 fetch 시 tz 정보가 사라진다. utc_now()(aware)와
 # 빼기 연산하려면 보정 필요 — 컬럼 마이그레이션을 미루기 위한 클라이언트 보정.
@@ -329,6 +339,11 @@ def job_korean_translation(trigger_type: str = "scheduled") -> None:
     db = SessionLocal()
     log = _log_start(db, "korean_translation", trigger_type)
 
+    # LLMOps 보고용 식별자 (잡 1회 = batch_run 1건)
+    llmops_started_at = datetime.now(timezone.utc)
+    llmops_run_id = f"{llmops_started_at.isoformat()}-{os.getpid()}-translate"
+    t0 = time.monotonic()
+
     try:
         from .ollama_service import check_ollama_available, ollama_translate
         from ..database.models import Paper as PaperORM
@@ -336,6 +351,14 @@ def job_korean_translation(trigger_type: str = "scheduled") -> None:
         if not check_ollama_available():
             _log_fail(db, log, "Ollama 서버 접근 불가 또는 모델 미설치")
             logger.warning("[korean_translation] Ollama 사용 불가")
+            _LLMOPS_TRANSLATE.report(
+                run_id=llmops_run_id,
+                started_at=llmops_started_at,
+                ended_at=datetime.now(timezone.utc),
+                status="failure",
+                error={"type": "OllamaUnavailable", "message": "endpoint 접근 불가 또는 모델 미설치"},
+                extra={"trigger_type": trigger_type},
+            )
             return
 
         # 미번역 논문 조회
@@ -352,6 +375,14 @@ def job_korean_translation(trigger_type: str = "scheduled") -> None:
         if not papers:
             _log_complete(db, log, {"message": "번역 대상 없음"})
             logger.info("[korean_translation] 번역 대상 없음")
+            _LLMOPS_TRANSLATE.report(
+                run_id=llmops_run_id,
+                started_at=llmops_started_at,
+                ended_at=datetime.now(timezone.utc),
+                status="success",
+                metrics={"target_count": 0, "translated": 0, "failed": 0},
+                extra={"trigger_type": trigger_type, "note": "no targets"},
+            )
             return
 
         logger.info(f"[korean_translation] {len(papers)}건 번역 시작")
@@ -383,10 +414,34 @@ def job_korean_translation(trigger_type: str = "scheduled") -> None:
         }
         _log_complete(db, log, summary)
         logger.info(f"[korean_translation] 완료: {translated_count}/{len(papers)}건 번역")
+        duration_ms = int((time.monotonic() - t0) * 1000)
+        _LLMOPS_TRANSLATE.report(
+            run_id=llmops_run_id,
+            started_at=llmops_started_at,
+            ended_at=datetime.now(timezone.utc),
+            status="success" if failed_count == 0 else "partial",
+            stages=[StageReport(
+                name="translate", model=_LLM_MODEL_NAME, duration_ms=duration_ms,
+            )],
+            metrics={
+                "target_count": len(papers),
+                "translated": translated_count,
+                "failed": failed_count,
+            },
+            extra={"trigger_type": trigger_type},
+        )
 
     except Exception as e:
         _log_fail(db, log, str(e))
         logger.error(f"[korean_translation] 실패: {e}")
+        _LLMOPS_TRANSLATE.report(
+            run_id=llmops_run_id,
+            started_at=llmops_started_at,
+            ended_at=datetime.now(timezone.utc),
+            status="failure",
+            error={"type": type(e).__name__, "message": str(e)[:500]},
+            extra={"trigger_type": trigger_type},
+        )
     finally:
         db.close()
 

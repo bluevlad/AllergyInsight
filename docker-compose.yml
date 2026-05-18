@@ -48,6 +48,9 @@ services:
       # AI - Local LLM (번역, 알러젠 추출)
       - LLM_API_URL=${LLM_API_URL:-http://host.docker.internal:11435/v1}
       - LLM_MODEL=${LLM_MODEL:-mlx-community/EXAONE-3.5-7.8B-Instruct-4bit}
+      # LLMOps 보고 (Phase 2c — allergyinsight-rag-chat consumer)
+      - LLMOPS_URL=${LLMOPS_URL:-http://host.docker.internal:9110/api/batch-runs}
+      - LLMOPS_API_KEY_CHAT=${LLMOPS_API_KEY_CHAT:-}
       # News quality gate
       - NEWS_RELEVANCE_THRESHOLD=${NEWS_RELEVANCE_THRESHOLD:-0.3}
       - NEWS_IMPORTANCE_THRESHOLD=${NEWS_IMPORTANCE_THRESHOLD:-0.2}
@@ -100,6 +103,9 @@ services:
       # AI - Local LLM (번역, 알러젠 추출)
       - LLM_API_URL=${LLM_API_URL:-http://host.docker.internal:11435/v1}
       - LLM_MODEL=${LLM_MODEL:-mlx-community/EXAONE-3.5-7.8B-Instruct-4bit}
+      # LLMOps 보고 (Phase 2c — allergyinsight-paper-translate consumer)
+      - LLMOPS_URL=${LLMOPS_URL:-http://host.docker.internal:9110/api/batch-runs}
+      - LLMOPS_API_KEY_TRANSLATE=${LLMOPS_API_KEY_TRANSLATE:-}
       # News quality gate
       - NEWS_RELEVANCE_THRESHOLD=${NEWS_RELEVANCE_THRESHOLD:-0.3}
       - NEWS_IMPORTANCE_THRESHOLD=${NEWS_IMPORTANCE_THRESHOLD:-0.2}
