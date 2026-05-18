@@ -444,6 +444,9 @@ def job_korean_translation(trigger_type: str = "scheduled") -> None:
         )
     finally:
         db.close()
+        # 짧게 끝나는 잡(no-targets / Ollama-unavailable) 의 fire-and-forget 보장.
+        # 정기 cron 의 상주 프로세스에서도 안전 (no-op).
+        _LLMOPS_TRANSLATE.flush(timeout=2.0)
 
 
 # ============================================================================
