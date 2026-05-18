@@ -3,6 +3,10 @@
 일반 사용자가 알러지 관련 질문을 하면
 수집된 논문 기반으로 AI 답변을 제공합니다.
 """
+import os
+import time
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -11,11 +15,21 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from ..data.allergen_prescription_db import get_allergen_list
+from ..observability.llmops import LLMOpsClient, StageReport
 from ..services.safety_gate import assess as safety_assess
 
 limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/ai/consult", tags=["AI Consult"])
+
+# LLMOps 보고용 클라이언트 (모듈 싱글톤). LLMOPS_API_KEY_CHAT 부재 시 no-op.
+_LLMOPS_CHAT = LLMOpsClient(
+    consumer_id="allergyinsight-rag-chat",
+    api_key=os.environ.get("LLMOPS_API_KEY_CHAT", ""),
+)
+_LLM_MODEL_NAME = os.environ.get(
+    "LLM_MODEL", "mlx-community/EXAONE-3.5-7.8B-Instruct-4bit"
+)
 
 
 _DIAGNOSIS_DISCLAIMER = (
@@ -84,12 +98,32 @@ async def ask_question(request: Request, body: ConsultRequest):
 
     rag = get_rag_service()
     if rag.is_available and rag.document_count > 0:
+        t_start = datetime.now(timezone.utc)
+        t0 = time.monotonic()
         result = rag.ask(
             question=body.question,
             allergen=body.allergen,
             n_context=body.max_citations,
         )
+        duration_ms = int((time.monotonic() - t0) * 1000)
         if result["sources"]:
+            # LLMOps 보고 (fire-and-forget) — LLM 이 실제 호출된 RAG 경로만
+            _LLMOPS_CHAT.report(
+                run_id=f"{t_start.isoformat()}-{os.getpid()}-{id(body)}",
+                started_at=t_start,
+                ended_at=datetime.now(timezone.utc),
+                status="success",
+                stages=[StageReport(
+                    name="rag_answer", model=_LLM_MODEL_NAME, duration_ms=duration_ms,
+                )],
+                metrics={
+                    "question_length": len(body.question),
+                    "source_count": len(result["sources"]),
+                    "confidence": float(result["confidence"]),
+                    "allergen": body.allergen,
+                },
+                extra={"engine": "rag"},
+            )
             return {
                 "success": True,
                 "question": body.question,
