@@ -35,6 +35,10 @@ class Settings:
     # OpenAI (향후 요약 기능용)
     OPENAI_API_KEY: Optional[str] = None
 
+    # NewsletterPlatform 페르소나 적응형 API 인증 키
+    # 미설정 시 /api/public/newsletter/* 엔드포인트는 503 (무인증 노출 금지)
+    NEWSLETTER_API_KEY: Optional[str] = None
+
     # 다운로드 설정
     DOWNLOAD_DIR: str = "./downloads/papers"
 
@@ -68,6 +72,7 @@ class Settings:
             SEMANTIC_SCHOLAR_API_KEY=os.getenv("SEMANTIC_SCHOLAR_API_KEY"),
             CORE_API_KEY=os.getenv("CORE_API_KEY"),
             OPENAI_API_KEY=os.getenv("OPENAI_API_KEY"),
+            NEWSLETTER_API_KEY=os.getenv("NEWSLETTER_API_KEY"),
             DOWNLOAD_DIR=os.getenv("DOWNLOAD_DIR", "./downloads/papers"),
             DEFAULT_MAX_RESULTS=int(os.getenv("DEFAULT_MAX_RESULTS", "20")),
             SEARCH_TIMEOUT=int(os.getenv("SEARCH_TIMEOUT", "30")),
