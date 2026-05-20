@@ -84,3 +84,39 @@ class NewsletterTopicRequest(Base):
             f"<NewsletterTopicRequest(request_id={self.request_id!r}, "
             f"coverage={self.coverage!r})>"
         )
+
+
+class CrawlExpansionJob(Base):
+    """변형 요청의 비동기 크롤 확장 job — Phase 2.
+
+    `expandable` 판정된 transform 요청에 대해 외부 소스(PubMed 등)를 크롤·인덱싱하고,
+    완료 시 NewsletterPlatform 으로 webhook 콜백을 발신한다.
+    request_id 로 유발 topic-request 와 연결된다 (별도 FK 없음).
+    """
+
+    __tablename__ = "crawl_expansion_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(String(64), unique=True, nullable=False, index=True)
+    request_id = Column(String(64), nullable=True, index=True)
+    tenant_id = Column(String(50), nullable=False, default="allergy-insight")
+    topic = Column(String(500), nullable=False)
+    topic_hash = Column(String(64), nullable=True, index=True)
+    source = Column(String(30), nullable=False)  # 'pubmed' 등
+    status = Column(String(20), nullable=False, default="pending")  # pending|collecting|ready|failed
+    callback_url = Column(String(1000), nullable=True)
+    result_summary = Column(JSON, nullable=True)
+    error = Column(String(500), nullable=True)
+    eta_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now, index=True)
+    started_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("idx_crawl_job_status_created", "status", "created_at"),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<CrawlExpansionJob(job_id={self.job_id!r}, status={self.status!r})>"
+        )

@@ -187,9 +187,9 @@ def test_t4_transform_out_of_domain(
 
 
 # ---------------------------------------------------------------------------
-# T5 — transform: 도메인 내 미보유 → unsupported / not_indexed_yet
+# T5 — transform: 도메인 내 미보유 → expandable (Phase 2 — 크롤 확장)
 # ---------------------------------------------------------------------------
-def test_t5_transform_not_indexed(
+def test_t5_transform_expandable(
     client, seeded_personas, newsletter_key, monkeypatch
 ):
     monkeypatch.setattr(feasibility, "_default_search", lambda q, n=5: [])
@@ -201,8 +201,9 @@ def test_t5_transform_not_indexed(
         ),
     )
     body = r.json()
-    assert body["coverage"] == "unsupported"
-    assert body["fallback"]["reason"] == "not_indexed_yet"
+    assert body["coverage"] == "expandable"
+    assert body["expansion"]["job_id"]
+    assert body["expansion"]["source"] == "pubmed"
 
 
 # ---------------------------------------------------------------------------

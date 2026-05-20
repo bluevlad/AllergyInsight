@@ -1,10 +1,12 @@
-"""역량 진단 — Phase 1: covered / unsupported 2분기 (LLM 미사용).
+"""역량 진단 — covered / expandable / unsupported 3분기.
 
 - select 요청: 제시 데이터 선택 → 항상 covered.
-- transform 요청: RAG 검색 score≥0.6 시 covered.
-  도메인 밖 → out_of_domain, 도메인 내 미보유 → not_indexed_yet.
+- transform 요청:
+  · RAG 검색 score≥0.6 → covered.
+  · 도메인 밖 → unsupported / out_of_domain.
+  · 도메인 내부지만 미보유 → expandable (Phase 2: 비동기 크롤 확장 대상).
 
-expandable(크롤 확장) 판정과 LLM 도메인 분류는 Phase 2에서 도입한다.
+도메인 판정은 키워드 휴리스틱 (LLM 미사용).
 """
 from __future__ import annotations
 
@@ -17,6 +19,9 @@ logger = logging.getLogger(__name__)
 
 # RAG 검색 강한 매칭 임계값 — 이 이상이면 인덱스 보유로 판정
 STRONG_SCORE = 0.6
+
+# expandable 판정 시 기본 크롤 소스 — Phase 2 v1 은 PubMed 논문 검색
+DEFAULT_EXPANSION_SOURCE = "pubmed"
 
 # 알러지 / 체외진단 도메인 핵심어 — 키워드 휴리스틱 (LLM 미사용)
 _DOMAIN_TERMS: frozenset[str] = frozenset(
@@ -71,7 +76,7 @@ def diagnose(
     topic: Optional[str],
     request_type: str,
     search_fn: Optional[Callable[[str, int], list[dict]]] = None,
-) -> tuple[str, float, Optional[str]]:
+) -> tuple[str, float, Optional[str], Optional[str]]:
     """역량 진단.
 
     Args:
@@ -80,16 +85,17 @@ def diagnose(
         search_fn: RAG 검색 주입 (테스트용). 기본은 실 RAG.
 
     Returns:
-        (coverage, confidence, fallback_reason)
-        coverage ∈ {'covered', 'unsupported'} — Phase 1 (expandable 없음).
+        (coverage, confidence, fallback_reason, source)
+        coverage ∈ {'covered', 'expandable', 'unsupported'}.
+        source 는 expandable 일 때만 — 비동기 크롤 대상 소스.
     """
     if request_type == "select":
-        return ("covered", 1.0, None)
+        return ("covered", 1.0, None, None)
 
     # request_type == "transform"
     cleaned = (topic or "").strip()
     if not cleaned:
-        return ("unsupported", 0.0, "out_of_domain")
+        return ("unsupported", 0.0, "out_of_domain", None)
 
     search = search_fn or _default_search
     try:
@@ -101,10 +107,10 @@ def diagnose(
     strong = [h for h in hits if float(h.get("score") or 0.0) >= STRONG_SCORE]
     if strong:
         avg = sum(float(h["score"]) for h in strong) / len(strong)
-        return ("covered", min(avg * 1.2, 1.0), None)
+        return ("covered", min(avg * 1.2, 1.0), None, None)
 
     if not _in_allergy_domain(cleaned, db):
-        return ("unsupported", 0.0, "out_of_domain")
+        return ("unsupported", 0.0, "out_of_domain", None)
 
-    # 도메인 내부지만 인덱스 미보유 — Phase 1 은 크롤 확장 없음
-    return ("unsupported", 0.0, "not_indexed_yet")
+    # 도메인 내부지만 인덱스 미보유 → 비동기 크롤 확장 대상
+    return ("expandable", 0.0, None, DEFAULT_EXPANSION_SOURCE)
