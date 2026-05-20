@@ -45,6 +45,7 @@ from ..auth.config import auth_settings
 from ..database.connection import engine, init_db, get_db, SessionLocal
 from ..database.seed_users import seed_users
 from ..database.seed_allergens import seed_allergens
+from ..database.seed_persona_newsletter import seed_persona_newsletter
 from ..database.normalize_grades import normalize_legacy_grades
 from ..database.normalize_core_source import normalize_core_source
 from ..config import settings
@@ -79,6 +80,9 @@ from .analytics_routes import router as public_analytics_router
 
 # Public: Newsletter data API (no auth required, NewsletterPlatform 연동)
 from .public_newsletter_routes import router as public_newsletter_router
+
+# Public: 페르소나 적응형 뉴스레터 API (X-Newsletter-Key 인증)
+from .public_persona_newsletter_routes import router as public_persona_newsletter_router
 
 # Public: Allergy Report (no auth required, stateless)
 from .report_routes import router as report_router
@@ -159,6 +163,9 @@ app.include_router(public_analytics_router, prefix="/api/public/analytics", tags
 
 # Include public newsletter data API (no auth, NewsletterPlatform collector 연동)
 app.include_router(public_newsletter_router, prefix="/api/public/analytics", tags=["Public Newsletter"])
+
+# Include 페르소나 적응형 뉴스레터 API (X-Newsletter-Key 인증)
+app.include_router(public_persona_newsletter_router, prefix="/api/public/newsletter", tags=["Public Persona Newsletter"])
 
 # Include report router (public, no auth required, stateless)
 app.include_router(report_router, prefix="/api", tags=["Report"])
@@ -915,6 +922,7 @@ async def startup_event():
     init_db()
     seed_users()  # 테스트 사용자 시딩
     seed_allergens()  # 알러젠 마스터 데이터 시딩
+    seed_persona_newsletter()  # 뉴스레터 페르소나 카탈로그 시딩
 
     # Phase 1: 레거시 grade 5/6 → 4 정규화 (idempotent)
     _db = SessionLocal()
