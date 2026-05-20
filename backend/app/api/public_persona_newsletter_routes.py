@@ -6,6 +6,7 @@
 - GET  /api/public/newsletter/personas             — 페르소나 카탈로그
 - POST /api/public/newsletter/topic-request        — 역량 진단 + 콘텐츠 서빙
 - GET  /api/public/newsletter/topic-request/{job}  — 크롤 확장 job 상태 조회
+- POST /api/public/newsletter/engagement           — 인게이지먼트 수집
 
 인증: 헤더 X-Newsletter-Key (env NEWSLETTER_API_KEY).
 정본 API 계약: persona-adaptive-newsletter-plan.md §3.2.
@@ -23,7 +24,13 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..database.connection import get_db
 from ..database.persona_newsletter_models import CrawlExpansionJob, NewsletterPersona
-from ..services.persona_newsletter import composer, crawl_job, feasibility
+from ..services.persona_newsletter import (
+    composer,
+    crawl_job,
+    evolution,
+    feasibility,
+    generator,
+)
 from ..services.persona_newsletter.request_log import (
     get_logged,
     log_request,
@@ -244,7 +251,14 @@ def post_topic_request(
         sections = composer.compose(
             db, persona=persona, interests=body.subscriber_ref.interests
         )
-        response["data"] = {"sections": sections}
+        data: dict[str, Any] = {"sections": sections}
+        # Phase 3 — 페르소나 조건부 편집 요약 (당일 캐시, LLM 미가용 시 생략)
+        editorial = generator.get_or_generate_editorial(
+            db, persona=persona, sections=sections
+        )
+        if editorial:
+            data["editorial"] = editorial
+        response["data"] = data
         served = bool(sections)
 
     elif coverage == "expandable":
@@ -272,7 +286,7 @@ def post_topic_request(
         }
 
     elapsed_ms = int((time.monotonic() - started) * 1000)
-    meta: dict[str, Any] = {"elapsed_ms": elapsed_ms, "phase": "2"}
+    meta: dict[str, Any] = {"elapsed_ms": elapsed_ms, "phase": "4"}
     if persona_fallback:
         meta["persona_fallback"] = True
     response["meta"] = meta
@@ -321,3 +335,34 @@ def get_topic_request_job(
         "eta_at": job.eta_at.isoformat() if job.eta_at else None,
         "finished_at": job.finished_at.isoformat() if job.finished_at else None,
     }
+
+
+# ---------------------------------------------------------------------------
+# 인게이지먼트 수집 (Phase 4)
+# ---------------------------------------------------------------------------
+class EngagementEvent(BaseModel):
+    persona_code: Optional[str] = None
+    section_type: Optional[str] = None
+    content_ref: Optional[str] = None
+    event: Literal["open", "click"]
+    occurred_at: Optional[str] = None
+
+
+class EngagementBody(BaseModel):
+    tenant_id: str = "allergy-insight"
+    events: list[EngagementEvent] = Field(default_factory=list)
+
+
+@router.post("/engagement")
+def post_engagement(
+    body: EngagementBody,
+    db: Session = Depends(get_db),
+    _auth: bool = Depends(require_newsletter_key),
+) -> dict[str, Any]:
+    """수신자 오픈·클릭 인게이지먼트 수집 — 수요 분석 보조 신호 (Phase 4)."""
+    recorded = evolution.record_engagements(
+        db,
+        tenant_id=body.tenant_id,
+        events=[e.model_dump() for e in body.events],
+    )
+    return {"data": {"recorded": recorded}, "meta": {"phase": "4"}}
