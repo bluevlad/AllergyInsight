@@ -711,3 +711,7 @@ router.include_router(drug_admin_router)
 # Strategic Intel — 내부 경영 분석 (super_admin 전용)
 from .strategic_intel_routes import router as strategic_intel_router
 router.include_router(strategic_intel_router)
+
+# 페르소나 적응형 뉴스레터 — 운영자 고도화 제안 (super_admin 전용)
+from .evolution_proposal_routes import router as evolution_proposal_router
+router.include_router(evolution_proposal_router)

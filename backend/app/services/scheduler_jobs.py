@@ -31,6 +31,12 @@ _LLM_MODEL_NAME = os.environ.get(
     "LLM_MODEL", "mlx-community/EXAONE-3.5-7.8B-Instruct-4bit"
 )
 
+# LLMOps 보고 — evolution proposal 잡 전용. LLMOPS_API_KEY_EVOLUTION 부재 시 no-op.
+_LLMOPS_EVOLUTION = LLMOpsClient(
+    consumer_id="allergyinsight-evolution-proposal",
+    api_key=os.environ.get("LLMOPS_API_KEY_EVOLUTION", ""),
+)
+
 # DB 컬럼이 DateTime(naive)이라 fetch 시 tz 정보가 사라진다. utc_now()(aware)와
 # 빼기 연산하려면 보정 필요 — 컬럼 마이그레이션을 미루기 위한 클라이언트 보정.
 _EPOCH = datetime(2024, 1, 1, tzinfo=timezone.utc)
@@ -819,3 +825,54 @@ def job_clinical_implication_backfill(trigger_type: str = "scheduled") -> None:
         logger.error(f"[clinical_implication_backfill] 실패: {e}")
     finally:
         db.close()
+
+
+def job_evolution_proposal(trigger_type: str = "scheduled") -> None:
+    """뉴스레터 수요 분석 → 운영자 고도화 제안 생성 (주간).
+
+    newsletter_topic_requests + engagements 를 집계해 미충족 수요를 식별하고
+    EvolutionProposal 을 생성한다. 페르소나 적응형 뉴스레터 Phase 4.
+    """
+    db = SessionLocal()
+    log = _log_start(db, "evolution_proposal", trigger_type)
+
+    llmops_started = datetime.now(timezone.utc)
+    run_id = f"{llmops_started.isoformat()}-{os.getpid()}-evolution"
+    t0 = time.monotonic()
+
+    try:
+        from .persona_newsletter import evolution
+
+        created = evolution.generate_proposals(db, since_days=30)
+        summary = {"proposals_created": len(created)}
+        _log_complete(db, log, summary)
+        logger.info(f"[evolution_proposal] 완료: {len(created)}건 제안 생성")
+        _LLMOPS_EVOLUTION.report(
+            run_id=run_id,
+            started_at=llmops_started,
+            ended_at=datetime.now(timezone.utc),
+            status="success",
+            stages=[
+                StageReport(
+                    name="evolution_proposal",
+                    model=_LLM_MODEL_NAME,
+                    duration_ms=int((time.monotonic() - t0) * 1000),
+                )
+            ],
+            metrics=summary,
+            extra={"trigger_type": trigger_type},
+        )
+    except Exception as e:
+        _log_fail(db, log, str(e))
+        logger.error(f"[evolution_proposal] 실패: {e}")
+        _LLMOPS_EVOLUTION.report(
+            run_id=run_id,
+            started_at=llmops_started,
+            ended_at=datetime.now(timezone.utc),
+            status="failure",
+            error={"type": type(e).__name__, "message": str(e)[:500]},
+            extra={"trigger_type": trigger_type},
+        )
+    finally:
+        db.close()
+        _LLMOPS_EVOLUTION.flush(timeout=2.0)
