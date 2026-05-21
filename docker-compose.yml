@@ -19,6 +19,8 @@ services:
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT_SECRET_KEY is required}
       - JWT_ALGORITHM=HS256
       - JWT_EXPIRE_MINUTES=1440
+      # 페르소나 적응형 뉴스레터 API 인증 (X-Newsletter-Key)
+      - NEWSLETTER_API_KEY=${NEWSLETTER_API_KEY:-}
       # Existing
       - PUBMED_API_KEY=${PUBMED_API_KEY:-}
       - PUBMED_EMAIL=${PUBMED_EMAIL:-}
